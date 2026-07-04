@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Modules\LaporanAnalitik\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -9,6 +9,12 @@ class ReportController extends Controller
 {
     public function index(Request $request)
     {
+        // If columns[] param is present, delegate to ReportBuilderController
+        if ($request->has('columns')) {
+            $builderController = app(ReportBuilderController::class);
+            return $builderController->builder($request);
+        }
+
         return response()->json([
             'success' => true,
             'data' => [

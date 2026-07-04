@@ -91,8 +91,10 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module6',
     allowedRoles: ['credit_officer', 'executive', 'system_admin'],
     subItems: [
-      { path: '/module6/dashboard', labelKey: 'module6.executiveDashboard' },
-      { path: '/module6/reports',   labelKey: 'module6.reportBuilder' },
+      { path: '/module6/dashboard',         labelKey: 'module6.executiveDashboard' },
+      { path: '/module6/branch-performance', labelKey: 'module6.branchPerformance' },
+      { path: '/module6/predictive',         labelKey: 'module6.predictiveAnalytics' },
+      { path: '/module6/reports',            labelKey: 'module6.reportBuilder' },
     ],
   },
   {
@@ -120,7 +122,8 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module9',
     allowedRoles: ['system_admin'],
     subItems: [
-      { path: '/module9/products', labelKey: 'module9.productConfig' },
+      { path: '/module9/products',             labelKey: 'module9.productConfig' },
+      { path: '/module9/eligibility-checker',   labelKey: 'module9.eligibilityChecker' },
     ],
   },
   {
