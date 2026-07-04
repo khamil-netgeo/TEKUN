@@ -4,6 +4,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void {
+        if (Schema::hasTable('disbursements')) {
+            return;
+        }
         Schema::create('disbursements', function (Blueprint $table) {
             $table->id();
             $table->foreignId('application_id')->constrained('applications');

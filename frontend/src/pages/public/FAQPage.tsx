@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Search, ArrowLeft, Phone, Mail } from 'lucide-react';
+import { ChevronDown, ChevronUp, Search, Phone, Mail } from 'lucide-react';
+import PublicHeader from '@/components/PublicHeader';
 
 interface FAQItem {
   q: string;
@@ -94,6 +95,7 @@ const CATEGORIES = ['Semua', 'Umum', 'Skim Pembiayaan', 'Proses Permohonan', 'Ba
 
 export default function FAQPage() {
   const navigate = useNavigate();
+  const [lang, setLang] = useState<'bm' | 'en'>('bm');
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Semua');
   const [openIdx, setOpenIdx] = useState<number | null>(null);
@@ -106,18 +108,13 @@ export default function FAQPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-[#1B2B5E] text-white">
-        <div className="max-w-5xl mx-auto px-6 py-6">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-6 transition-colors"
-          >
-            <ArrowLeft size={16} /> Kembali ke Laman Utama
-          </button>
+      <PublicHeader lang={lang} setLang={setLang} />
+
+      {/* Page title section */}
+      <div className="bg-[#1B2B5E] text-white pt-40 pb-10">
+        <div className="max-w-5xl mx-auto px-6">
           <h1 className="text-3xl md:text-4xl font-bold">Soalan Lazim (FAQ)</h1>
           <p className="text-white/70 mt-3 text-lg">Jawapan kepada soalan-soalan yang kerap ditanya tentang pembiayaan TEKUN Nasional.</p>
-
           {/* Search */}
           <div className="relative mt-8 max-w-xl">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -130,7 +127,7 @@ export default function FAQPage() {
             />
           </div>
         </div>
-      </header>
+      </div>
 
       <div className="max-w-5xl mx-auto px-6 py-12">
         {/* Category tabs */}

@@ -7,9 +7,33 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
+    private bool $isPostgres;
+
     public function up(): void
     {
-        DB::statement('CREATE EXTENSION IF NOT EXISTS vector');
+        $this->isPostgres = DB::getDriverName() === 'pgsql';
+
+        // pgvector extension — only supported on PostgreSQL
+        if ($this->isPostgres) {
+            try {
+                DB::statement('CREATE EXTENSION IF NOT EXISTS vector');
+            } catch (\Exception $e) {
+                // Extension already exists or not available
+            }
+        }
+
+        if (Schema::hasTable('knowledge_base')) {
+            // Table exists — ensure embedding column is present (PostgreSQL only)
+            if ($this->isPostgres && !Schema::hasColumn('knowledge_base', 'embedding')) {
+                try {
+                    DB::statement('ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS embedding vector(1536)');
+                    $this->createVectorIndex();
+                } catch (\Exception $e) {
+                    // Column addition failed — skip
+                }
+            }
+            return;
+        }
 
         Schema::create('knowledge_base', function (Blueprint $table) {
             $table->id();
@@ -22,11 +46,28 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Add pgvector embedding column (768 dimensions for text-embedding-004)
-        DB::statement('ALTER TABLE knowledge_base ADD COLUMN embedding vector(3072)');
+        // Add pgvector embedding column (PostgreSQL only)
+        if ($this->isPostgres) {
+            try {
+                DB::statement('ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS embedding vector(1536)');
+                $this->createVectorIndex();
+            } catch (\Exception $e) {
+                // pgvector not available — table works without embedding
+            }
+        }
+    }
 
-        // Create HNSW index for fast similarity search
-        DB::statement('CREATE INDEX knowledge_base_embedding_idx ON knowledge_base USING hnsw (embedding vector_cosine_ops)');
+    private function createVectorIndex(): void
+    {
+        try {
+            DB::statement('CREATE INDEX IF NOT EXISTS knowledge_base_embedding_idx ON knowledge_base USING hnsw (embedding vector_cosine_ops)');
+        } catch (\Exception $e) {
+            try {
+                DB::statement('CREATE INDEX IF NOT EXISTS knowledge_base_embedding_idx ON knowledge_base USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)');
+            } catch (\Exception $e2) {
+                // Index creation failed — table still works without index
+            }
+        }
     }
 
     public function down(): void

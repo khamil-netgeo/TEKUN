@@ -7,25 +7,22 @@ use App\Http\Controllers\Api\ApplicationController;
  * Module 1 — Permohonan Pembiayaan Routes
  * Loaded automatically via AppServiceProvider dynamic route loading.
  * DO NOT modify routes/api.php directly.
+ *
+ * NOTE: Core CRUD routes (index, store, show, update, submit, timeline, uploadDocuments)
+ * are already defined in routes/api.php. This file only adds Module 1-specific
+ * endpoints that are NOT in the core routes file.
  */
 Route::middleware(['auth:sanctum'])->group(function () {
 
-    // Application CRUD
-    Route::get('/applications', [ApplicationController::class, 'index']);
-    Route::post('/applications', [ApplicationController::class, 'store']);
-    Route::get('/applications/{id}', [ApplicationController::class, 'show']);
-    Route::put('/applications/{id}', [ApplicationController::class, 'update']);
-    Route::delete('/applications/{id}', [ApplicationController::class, 'destroy']);
+    // ─── Eligibility check (preview, without submitting) ─────────────────────
+    Route::match(['GET', 'POST'], '/applications/{id}/check-eligibility', [ApplicationController::class, 'checkEligibility']);
 
-    // Application workflow
-    Route::post('/applications/{id}/submit', [ApplicationController::class, 'submit']);
-    Route::post('/applications/{id}/auto-reject', [ApplicationController::class, 'autoReject']);
-    Route::get('/applications/{id}/timeline', [ApplicationController::class, 'timeline']);
-
-    // Document management
-    Route::post('/applications/{id}/documents', [ApplicationController::class, 'uploadDocument']);
+    // ─── Document management (delete) ────────────────────────────────────────
     Route::delete('/applications/{id}/documents/{docId}', [ApplicationController::class, 'deleteDocument']);
 
-    // AI document check
+    // ─── Integration checks by IC number (6 external APIs, mock for POC) ─────
+    Route::get('/integrations/check/{icNumber}', [ApplicationController::class, 'checkIntegrations']);
+
+    // ─── AI document check (module-specific alias) ────────────────────────────
     Route::post('/ai/document-check', [ApplicationController::class, 'aiDocumentCheck']);
 });
