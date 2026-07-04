@@ -4,7 +4,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void {
-        Schema::create('applications', function (Blueprint $table) {
+        if (!Schema::hasTable('applications')) { Schema::create('applications', function (Blueprint $table) {
             $table->id();
             $table->string('ref_no', 30)->unique();
             $table->foreignId('branch_id')->constrained('branches');
@@ -48,7 +48,7 @@ return new class extends Migration {
             $table->softDeletes();
             $table->index(['status', 'branch_id']);
             $table->index('ic_no');
-        });
+        }); } // end if !hasTable
     }
     public function down(): void { Schema::dropIfExists('applications'); }
 };

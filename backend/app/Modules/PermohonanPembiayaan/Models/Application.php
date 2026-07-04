@@ -67,26 +67,54 @@ class Application extends Model
         'ai_risk_grade',
         'ai_recommendation',
         'auto_rejected',
+        'is_auto_rejected',
         'auto_reject_reason',
+        'auto_reject_narrative',
+        'eligibility_checks',
+        'business_name',
+        'business_type',
+        'business_age_months',
+        'monthly_income',
+        'monthly_expense',
+        'loan_purpose',
         'ccris_checked',
         'ctos_checked',
         'ssm_checked',
         'muflis_checked',
         'esyariah_checked',
         'ekyc_verified',
+        'ekyc_face_match_score',
+        'ekyc_liveness_passed',
+        'ekyc_verified_at',
+        'channel',
+        'otp_verified',
+        'otp_verified_at',
         'amount_approved',
         'profit_rate',
         'approved_tenure',
         'rejection_reason',
         'approved_by',
         'approved_at',
+        'submitted_at',
+        'decided_at',
     ];
 
     protected $casts = [
         'amount_requested' => 'decimal:2',
         'amount_approved'  => 'decimal:2',
         'profit_rate'      => 'decimal:2',
-        'auto_rejected'    => 'boolean',
+        'auto_rejected'         => 'boolean',
+        'is_auto_rejected'      => 'boolean',
+        'eligibility_checks'    => 'array',
+        'monthly_income'        => 'decimal:2',
+        'monthly_expense'       => 'decimal:2',
+        'ekyc_face_match_score' => 'decimal:2',
+        'ekyc_liveness_passed'  => 'boolean',
+        'otp_verified'          => 'boolean',
+        'submitted_at'          => 'datetime',
+        'decided_at'            => 'datetime',
+        'ekyc_verified_at'      => 'datetime',
+        'otp_verified_at'       => 'datetime',
         'ccris_checked'    => 'boolean',
         'ctos_checked'     => 'boolean',
         'ssm_checked'      => 'boolean',
@@ -213,5 +241,29 @@ class Application extends Model
             'tekun_belia'    => 20000,
             default          => 50000,
         };
+    }
+
+    /** Monthly surplus (income - expense) */
+    public function getMonthlySurplusAttribute(): float
+    {
+        return (float) $this->monthly_income - (float) $this->monthly_expense;
+    }
+
+    /** Age from IC number */
+    public function getAgeFromIcAttribute(): int|null
+    {
+        if (!$this->ic_no) return null;
+        $ic = str_replace('-', '', $this->ic_no);
+        if (strlen($ic) < 6) return null;
+        $year  = (int) substr($ic, 0, 2);
+        $month = (int) substr($ic, 2, 2);
+        $day   = (int) substr($ic, 4, 2);
+        $year  += $year >= 0 && $year <= (int) now()->format('y') ? 2000 : 1900;
+        try {
+            $dob = \Carbon\Carbon::createFromDate($year, $month, $day);
+            return $dob->age;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

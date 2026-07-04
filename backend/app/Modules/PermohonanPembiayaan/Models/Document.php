@@ -31,21 +31,32 @@ class Document extends Model
     protected $fillable = [
         'application_id',
         'type',
+        'label',
+        'file_path',
+        'file_name',
         'original_name',
         'storage_path',
         'mime_type',
+        'file_size',
         'file_size_bytes',
-        'status',
+        'ai_status',
         'ai_confidence',
+        'ai_extracted_data',
         'ai_issues',
+        'ocr_status',
+        'is_verified',
+        'status',
         'uploaded_by',
         'verified_by',
         'verified_at',
     ];
 
     protected $casts = [
-        'ai_issues'   => 'array',
-        'verified_at' => 'datetime',
+        'ai_extracted_data' => 'array',
+        'ai_issues'         => 'array',
+        'is_verified'       => 'boolean',
+        'ai_confidence'     => 'decimal:2',
+        'verified_at'       => 'datetime',
     ];
 
     protected $auditModule = 'module1';
@@ -71,12 +82,16 @@ class Document extends Model
 
     public function scopeVerified($query)
     {
-        return $query->where('status', 'verified');
+        return $query->where(function ($q) {
+            $q->where('is_verified', true)->orWhere('status', 'verified')->orWhere('ai_status', 'verified');
+        });
     }
 
     public function scopePending($query)
     {
-        return $query->where('status', 'pending');
+        return $query->where(function ($q) {
+            $q->where('is_verified', false)->orWhere('status', 'pending');
+        });
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -85,25 +100,42 @@ class Document extends Model
     public function getTypeLabelAttribute(): string
     {
         return match ($this->type) {
-            'ic_front'       => 'MyKad (Hadapan)',
-            'ic_back'        => 'MyKad (Belakang)',
-            'bank_statement' => 'Penyata Bank (3 Bulan)',
-            'ssm_cert'       => 'Sijil Pendaftaran Perniagaan (SSM)',
-            'business_photo' => 'Gambar Premis Perniagaan',
-            'others'         => 'Dokumen Lain',
-            default          => $this->type,
+            'ic_front'        => 'MyKad (Hadapan)',
+            'ic_back'         => 'MyKad (Belakang)',
+            'mykad_front'     => 'MyKad (Hadapan)',
+            'mykad_back'      => 'MyKad (Belakang)',
+            'bank_statement'  => 'Penyata Bank (3 Bulan)',
+            'ssm_cert'        => 'Sijil Pendaftaran Perniagaan (SSM)',
+            'business_photo'  => 'Gambar Premis Perniagaan',
+            'income_proof'    => 'Bukti Pendapatan',
+            'guarantor_ic'    => 'MyKad Penjamin',
+            'others'          => 'Dokumen Lain',
+            default           => $this->label ?? $this->type,
         };
     }
 
     /** File size in KB */
     public function getFileSizeKbAttribute(): string
     {
-        return round($this->file_size_bytes / 1024, 1) . ' KB';
+        $bytes = $this->file_size_bytes ?? $this->file_size ?? 0;
+        return round($bytes / 1024, 1) . ' KB';
+    }
+
+    /** Effective file name */
+    public function getEffectiveFileNameAttribute(): string
+    {
+        return $this->original_name ?? $this->file_name ?? 'unknown';
+    }
+
+    /** Effective storage path */
+    public function getEffectiveStoragePathAttribute(): string
+    {
+        return $this->storage_path ?? $this->file_path ?? '';
     }
 
     /** Check if AI confidence is acceptable (>= 80%) */
     public function getIsAiApprovedAttribute(): bool
     {
-        return $this->ai_confidence >= 80;
+        return (float) ($this->ai_confidence ?? 0) >= 80;
     }
 }
