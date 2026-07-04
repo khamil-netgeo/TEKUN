@@ -4,6 +4,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void {
+        if (Schema::hasTable('accounts')) {
+            return; // Table already exists (created by core-foundation or earlier migration)
+        }
         Schema::create('accounts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('application_id')->constrained('applications');
