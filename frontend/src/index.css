@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+/* ============================================
+   TEKUN SPPT Design System
+   Exact match to POC mockups
+   ============================================ */
+
+@theme {
+  --color-tekun-navy:        #1B2B5E;
+  --color-tekun-navy-light:  #243570;
+  --color-tekun-navy-dark:   #142050;
+  --color-tekun-green:       #2E7D32;
+  --color-tekun-green-light: #388E3C;
+  --color-tekun-orange:      #E65100;
+  --color-tekun-red:         #C62828;
+  --color-tekun-purple:      #6A1B9A;
+  --color-tekun-gold:        #F9A825;
+  --color-tekun-bg:          #F5F6FA;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Universal reset removed: unlayered `* { margin:0; padding:0 }` overrides Tailwind v4 layered utilities (mx-auto, px-6, etc). Tailwind Preflight already provides the reset. */
+
+body {
+  font-family: var(--font-sans);
+  background-color: #F5F6FA;
+  color: #1A1A2E;
+}
+
+#root { min-height: 100vh; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #1B2B5E; border-radius: 3px; }
+
+/* ---- AI Badge ---- */
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #6A1B9A;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* ---- Status Badges ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.badge-success { background: #E8F5E9; color: #2E7D32; }
+.badge-warning { background: #FFF3E0; color: #E65100; }
+.badge-danger  { background: #FFEBEE; color: #C62828; }
+.badge-info    { background: #E3F2FD; color: #1565C0; }
+.badge-purple  { background: #F3E5F5; color: #6A1B9A; }
+.badge-gray    { background: #F5F5F5; color: #616161; }
+.badge-gold    { background: #FFFDE7; color: #F57F17; }
+
+/* ---- Cards ---- */
+.sppt-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 20px;
+}
+
+/* ---- Stat Cards ---- */
+.stat-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1B2B5E;
+}
+.stat-card .stat-label {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+/* ---- Tables ---- */
+.sppt-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.sppt-table th {
+  background: #F8F9FC;
+  color: #1B2B5E;
+  font-weight: 600;
+  padding: 11px 14px;
+  text-align: left;
+  border-bottom: 2px solid #E8EAF0;
+  white-space: nowrap;
+}
+.sppt-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #F0F2F8;
+  color: #374151;
+}
+.sppt-table tr:hover td { background: #FAFBFF; }
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-primary   { background: #2E7D32; color: white; }
+.btn-primary:hover { background: #388E3C; }
+.btn-navy      { background: #1B2B5E; color: white; }
+.btn-navy:hover { background: #243570; }
+.btn-danger    { background: #C62828; color: white; }
+.btn-danger:hover { background: #D32F2F; }
+.btn-warning   { background: #E65100; color: white; }
+.btn-outline   { background: transparent; color: #1B2B5E; border: 1.5px solid #1B2B5E; }
+.btn-outline:hover { background: #F0F2F8; }
+.btn-ghost     { background: transparent; color: #6B7280; }
+.btn-ghost:hover { background: #F5F6FA; }
+.btn-sm        { padding: 5px 12px; font-size: 12.5px; }
+.btn-lg        { padding: 11px 22px; font-size: 15px; }
+
+/* ---- Form Inputs ---- */
+.sppt-input {
+  width: 100%;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 14px;
+  color: #374151;
+  background: white;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.sppt-input:focus {
+  border-color: #1B2B5E;
+  box-shadow: 0 0 0 3px rgba(27,43,94,0.08);
+}
+.sppt-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 5px;
+}
+
+/* ---- Sidebar Nav ---- */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  color: rgba(255,255,255,0.72);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13.5px;
+  transition: all 0.15s;
+  text-decoration: none;
+  margin-bottom: 2px;
+}
+.nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
+.nav-item.active { background: rgba(255,255,255,0.16); color: white; font-weight: 600; }
+.nav-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 14px 14px 4px;
+}
+
+/* ---- Alert Banners ---- */
+.alert { padding: 12px 16px; border-radius: 6px; font-size: 13.5px; display: flex; align-items: flex-start; gap: 10px; }
+.alert-danger  { background: #FFEBEE; border-left: 4px solid #C62828; color: #B71C1C; }
+.alert-warning { background: #FFF3E0; border-left: 4px solid #E65100; color: #BF360C; }
+.alert-success { background: #E8F5E9; border-left: 4px solid #2E7D32; color: #1B5E20; }
+.alert-info    { background: #E3F2FD; border-left: 4px solid #1565C0; color: #0D47A1; }
+
+/* ---- Progress Bar ---- */
+.progress-bar {
+  height: 8px;
+  background: #E8EAF0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: #2E7D32;
+  transition: width 0.4s ease;
+}
+
+/* ---- Step Indicator ---- */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.step-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.step-circle.done     { background: #2E7D32; color: white; }
+.step-circle.active   { background: #1B2B5E; color: white; }
+.step-circle.pending  { background: #E8EAF0; color: #9CA3AF; }
+.step-line { flex: 1; height: 2px; background: #E8EAF0; min-width: 20px; }
+.step-line.done { background: #2E7D32; }
+
+/* ---- Modal ---- */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.modal-box {
+  background: white;
+  border-radius: 10px;
+  padding: 28px;
+  max-width: 560px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+/* ---- Divider ---- */
+.divider { height: 1px; background: #F0F2F8; margin: 16px 0; }
+
+/* ---- Tooltip ---- */
+.tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .sppt-card { padding: 14px; }
+  .stat-card .stat-value { font-size: 22px; }
+}
