@@ -3,134 +3,112 @@
 namespace App\Traits;
 
 use App\Models\AuditTrail;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Request;
 
 /**
- * TEKUN SPPT — LogsAuditTrail Trait
+ * Core Foundation Trait: LogsAuditTrail
  *
- * Automatically logs all create, update, and delete operations
- * to the audit_trails table. Attach this trait to any Eloquent Model
- * that requires immutable audit logging.
+ * Auto-logs create/update/delete events to the audit_trails table.
+ * Use this trait in any Eloquent model that requires audit logging.
  *
  * Usage:
+ *   use App\Traits\LogsAuditTrail;
  *   class Application extends Model {
  *       use LogsAuditTrail;
- *       protected $auditModule = 'module1'; // optional, defaults to 'system'
  *   }
  *
- * Each model can define $auditExclude to skip sensitive fields:
- *   protected $auditExclude = ['password', 'remember_token'];
- *
- * Tender requirement: SRS-AUD-001 — Immutable Audit Trail
- * "Every data mutation must be traceable with before/after values,
- *  user identity, timestamp, IP address, and module context."
+ * Columns logged: user_id, action, auditable_type, auditable_id,
+ *                 old_values, new_values, ip_address, user_agent, description.
  */
 trait LogsAuditTrail
 {
     /**
-     * Boot the trait — register Eloquent event listeners.
+     * Boot the trait — register Eloquent model event listeners.
      */
     public static function bootLogsAuditTrail(): void
     {
-        // ── CREATE ────────────────────────────────────────────────────────────
-        static::created(function (Model $model) {
-            static::writeAuditLog($model, 'create', null, $model->getAuditableAttributes());
+        static::created(function ($model) {
+            $model->logAuditEvent('created', [], $model->getAttributes());
         });
 
-        // ── UPDATE ────────────────────────────────────────────────────────────
-        static::updating(function (Model $model) {
-            // Capture old values BEFORE the update is committed
-            $model->_auditOldValues = $model->getOriginal();
+        static::updated(function ($model) {
+            $model->logAuditEvent(
+                'updated',
+                $model->getOriginal(),
+                $model->getChanges()
+            );
         });
 
-        static::updated(function (Model $model) {
-            $old = $model->_auditOldValues ?? [];
-            $new = $model->getChanges();
-
-            // Filter out excluded fields and timestamps
-            $old = static::filterAuditFields($model, $old);
-            $new = static::filterAuditFields($model, $new);
-
-            if (!empty($new)) {
-                static::writeAuditLog($model, 'update', $old, $new);
-            }
-        });
-
-        // ── DELETE ────────────────────────────────────────────────────────────
-        static::deleted(function (Model $model) {
-            static::writeAuditLog($model, 'delete', $model->getAuditableAttributes(), null);
+        static::deleted(function ($model) {
+            $model->logAuditEvent('deleted', $model->getAttributes(), []);
         });
     }
 
     /**
-     * Write a single audit log entry.
-     */
-    protected static function writeAuditLog(
-        Model   $model,
-        string  $action,
-        ?array  $oldValues,
-        ?array  $newValues
-    ): void {
-        // Skip logging during seeding or CLI commands without auth
-        if (app()->runningInConsole() && !auth()->check()) {
-            return;
-        }
-
-        try {
-            AuditTrail::create([
-                'user_id'    => auth()->id(),
-                'action'     => $action,
-                'module'     => $model->auditModule ?? 'system',
-                'model_type' => get_class($model),
-                'model_id'   => $model->getKey(),
-                'old_values' => $oldValues,
-                'new_values' => $newValues,
-                'ip_address' => request()?->ip(),
-                'user_agent' => request()?->userAgent(),
-            ]);
-        } catch (\Throwable $e) {
-            // Never let audit logging failure break the main operation
-            \Illuminate\Support\Facades\Log::warning('AuditTrail write failed: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Get all auditable attributes (excluding sensitive/excluded fields).
-     */
-    protected function getAuditableAttributes(): array
-    {
-        $attributes = $this->getAttributes();
-        return static::filterAuditFields($this, $attributes);
-    }
-
-    /**
-     * Remove excluded fields and standard timestamps from audit data.
-     */
-    protected static function filterAuditFields(Model $model, array $data): array
-    {
-        $exclude = array_merge(
-            ['updated_at', 'created_at', 'remember_token', '_auditOldValues'],
-            $model->auditExclude ?? []
-        );
-
-        return array_diff_key($data, array_flip($exclude));
-    }
-
-    /**
-     * Temporary storage for old values during update cycle.
-     * This is a runtime-only property (not persisted).
-     */
-    public array $_auditOldValues = [];
-
-    /**
-     * Manually log a custom action (e.g., 'approve', 'reject', 'export').
-     * Call from controllers for business-level events.
+     * Write an audit trail record.
      *
-     * Example:
-     *   $application->logAction('approve', ['status' => 'submitted'], ['status' => 'approved']);
+     * @param string $action     'created' | 'updated' | 'deleted' | custom string
+     * @param array  $oldValues  State before the change
+     * @param array  $newValues  State after the change
+     * @param string|null $description  Optional human-readable description
      */
-    public function logAction(string $action, ?array $oldValues = null, ?array $newValues = null): void
+    public function logAuditEvent(
+        string $action,
+        array $oldValues = [],
+        array $newValues = [],
+        ?string $description = null
+    ): void {
+        try {
+            // Remove sensitive fields from logs
+            $sensitiveFields = ['password', 'remember_token', 'token', 'secret'];
+            $oldValues = array_diff_key($oldValues, array_flip($sensitiveFields));
+            $newValues = array_diff_key($newValues, array_flip($sensitiveFields));
+
+            AuditTrail::create([
+                'user_id'        => Auth::id(),
+                'action'         => $action,
+                'auditable_type' => get_class($this),
+                'auditable_id'   => $this->getKey(),
+                'old_values'     => empty($oldValues) ? null : $oldValues,
+                'new_values'     => empty($newValues) ? null : $newValues,
+                'ip_address'     => Request::ip(),
+                'user_agent'     => Request::userAgent(),
+                'description'    => $description ?? $this->buildDescription($action),
+            ]);
+        } catch (\Exception $e) {
+            // Never let audit logging break the main operation
+            \Illuminate\Support\Facades\Log::error('AuditTrail log failed', [
+                'model'  => get_class($this),
+                'action' => $action,
+                'error'  => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Build a human-readable description for the audit event.
+     */
+    private function buildDescription(string $action): string
     {
-        static::writeAuditLog($this, $action, $oldValues, $newValues);
+        $modelName = class_basename($this);
+        $id        = $this->getKey();
+        $userName  = Auth::user()?->name ?? 'System';
+
+        return match ($action) {
+            'created' => "{$userName} mencipta rekod {$modelName} #{$id}.",
+            'updated' => "{$userName} mengemaskini rekod {$modelName} #{$id}.",
+            'deleted' => "{$userName} memadam rekod {$modelName} #{$id}.",
+            default   => "{$userName} melakukan tindakan '{$action}' pada {$modelName} #{$id}.",
+        };
+    }
+
+    /**
+     * Manually log a custom action (for use in controllers/services).
+     * Example: $application->logCustomAction('submitted', 'Permohonan dihantar untuk semakan.');
+     */
+    public function logCustomAction(string $action, string $description, array $context = []): void
+    {
+        $this->logAuditEvent($action, [], $context, $description);
     }
 }

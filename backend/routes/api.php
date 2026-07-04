@@ -279,3 +279,12 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
 });
+
+// ── Core Foundation: Additional Auth Routes ───────────────────────────────────
+Route::post('/auth/otp/send',      [AuthController::class, 'sendOtp']);
+Route::post('/auth/otp/verify',    [AuthController::class, 'verifyOtp']);
+Route::post('/auth/password/reset',[AuthController::class, 'resetPassword']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
+});
