@@ -4,19 +4,19 @@ use Illuminate\Support\Facades\Route;
 use App\Modules\PengurusanCawangan\Controllers\BranchController;
 
 /**
- * TEKUN SPPT — Module 8: Pengurusan Cawangan Routes
+ * TEKUN SPPT — Module 8: Pengurusan Cawangan
+ * Routes for branch management endpoints.
+ * Auto-loaded by AppServiceProvider.
  *
- * Auto-loaded by AppServiceProvider dynamic route loader.
- * IMPORTANT: Static routes (e.g. /branches/performance) MUST be registered
- * BEFORE parameterised routes (e.g. /branches/{id}) to avoid conflicts.
+ * IMPORTANT: Static routes (performance) MUST come before parameterised routes ({id}).
  */
 Route::middleware(['auth:sanctum'])->group(function () {
-    // ── Static routes first ──────────────────────────────────────────────────
-    Route::get('/branches',             [BranchController::class, 'index']);
+    // Static routes first
     Route::get('/branches/performance', [BranchController::class, 'performance']);
-
-    // ── Parameterised routes ─────────────────────────────────────────────────
-    Route::get('/branches/{id}',        [BranchController::class, 'show']);
-    Route::get('/branches/{id}/staff',  [BranchController::class, 'staff']);
-    Route::put('/branches/{id}',        [BranchController::class, 'update']);
+    // List and create
+    Route::get('/branches', [BranchController::class, 'index']);
+    // Parameterised routes
+    Route::get('/branches/{id}/staff', [BranchController::class, 'staff']);
+    Route::get('/branches/{id}', [BranchController::class, 'show']);
+    Route::put('/branches/{id}', [BranchController::class, 'update']);
 });

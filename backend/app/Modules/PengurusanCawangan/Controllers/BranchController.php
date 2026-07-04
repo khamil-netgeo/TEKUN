@@ -7,119 +7,93 @@ use App\Modules\PengurusanCawangan\Services\BranchService;
 use App\Modules\PengurusanCawangan\Requests\UpdateBranchRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
 
 /**
  * TEKUN SPPT — Module 8: Pengurusan Cawangan
- * BranchController — handles all branch management API endpoints.
+ * Handles all branch management API endpoints.
  *
  * RBAC:
- *  - All authenticated users can read (GET) branch data.
- *  - PUT /branches/{id} requires 'branch.update' permission
- *    (Pengurus Cawangan scoped to own branch, Pentadbir Sistem for all).
+ *  - branch_manager: own branch only
+ *  - branch_officer: read-only, own branch only
+ *  - executive / system_admin: all branches
  */
 class BranchController extends Controller
 {
-    public function __construct(private readonly BranchService $service) {}
+    public function __construct(private BranchService $service) {}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET /api/branches
-    // ─────────────────────────────────────────────────────────────────────────
     /**
+     * GET /api/branches
      * List all branches with performance metrics.
-     * Supports: ?search=, ?state=, ?status=, ?sort_by=, ?sort_dir=, ?per_page=
      */
     public function index(Request $request): JsonResponse
     {
-        $user = Auth::user();
-        $result = $this->service->getBranches($user, $request->all());
+        $user = $request->user();
+        $filters = $request->only(['state', 'search', 'is_active', 'per_page', 'page']);
+
+        $result = $this->service->getBranches($user, $filters);
 
         return response()->json($result);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET /api/branches/performance
-    // NOTE: This route MUST be registered BEFORE /branches/{id} to avoid
-    //       "performance" being treated as an {id} parameter.
-    // ─────────────────────────────────────────────────────────────────────────
     /**
-     * Get ranked branch performance data for the current month.
+     * GET /api/branches/performance
+     * Ranked performance data (monthly targets vs actual).
      */
     public function performance(Request $request): JsonResponse
     {
-        $user = Auth::user();
-        $period = $request->query('period'); // optional: YYYY-MM
-        $result = $this->service->getPerformanceRanking($user, $period);
+        $period = $request->query('period', date('Y-m'));
+        $result = $this->service->getPerformanceRanking($period);
 
         return response()->json($result);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET /api/branches/{id}
-    // ─────────────────────────────────────────────────────────────────────────
     /**
-     * Get full branch detail including performance history.
+     * GET /api/branches/{id}
+     * Branch detail with performance history.
      */
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
-        $user = Auth::user();
+        $user = $request->user();
+        $result = $this->service->getBranchDetail($id, $user);
 
-        try {
-            $branch = $this->service->getBranchDetail($user, $id);
-            return response()->json(['data' => $branch]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
-            return response()->json(['message' => 'Cawangan tidak ditemui.'], 404);
-        } catch (\Illuminate\Auth\Access\AuthorizationException) {
-            return response()->json(['message' => 'Akses tidak dibenarkan.'], 403);
+        if (!$result) {
+            return response()->json(['message' => 'Cawangan tidak dijumpai atau akses ditolak.'], 404);
         }
+
+        return response()->json($result);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET /api/branches/{id}/staff
-    // ─────────────────────────────────────────────────────────────────────────
     /**
-     * Get staff list for a specific branch.
+     * GET /api/branches/{id}/staff
+     * Staff list for a branch.
      */
-    public function staff(int $id): JsonResponse
+    public function staff(Request $request, int $id): JsonResponse
     {
-        $user = Auth::user();
+        $user = $request->user();
+        $result = $this->service->getBranchStaff($id, $user);
 
-        try {
-            $result = $this->service->getBranchStaff($user, $id);
-            return response()->json($result);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
-            return response()->json(['message' => 'Cawangan tidak ditemui.'], 404);
-        } catch (\Illuminate\Auth\Access\AuthorizationException) {
-            return response()->json(['message' => 'Akses tidak dibenarkan.'], 403);
+        if (!$result) {
+            return response()->json(['message' => 'Cawangan tidak dijumpai atau akses ditolak.'], 404);
         }
+
+        return response()->json($result);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PUT /api/branches/{id}
-    // ─────────────────────────────────────────────────────────────────────────
     /**
-     * Update branch information.
-     * RBAC: Pengurus Cawangan (own branch only) or Pentadbir Sistem (all).
+     * PUT /api/branches/{id}
+     * Update branch information (RBAC-protected).
      */
     public function update(UpdateBranchRequest $request, int $id): JsonResponse
     {
-        $user = Auth::user();
+        $branch = $this->service->updateBranch($id, $request->validated());
 
-        // RBAC check: only managers (own branch) and admins can update
-        if (!in_array($user->role, ['pengurus_cawangan', 'system_admin', 'eksekutif'])) {
-            return response()->json(['message' => 'Akses tidak dibenarkan.'], 403);
+        if (!$branch) {
+            return response()->json(['message' => 'Cawangan tidak dijumpai.'], 404);
         }
 
-        try {
-            $branch = $this->service->updateBranch($user, $id, $request->validated());
-            return response()->json([
-                'message' => 'Maklumat cawangan berjaya dikemaskini.',
-                'data'    => $branch,
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
-            return response()->json(['message' => 'Cawangan tidak ditemui.'], 404);
-        } catch (\Illuminate\Auth\Access\AuthorizationException) {
-            return response()->json(['message' => 'Akses tidak dibenarkan untuk cawangan ini.'], 403);
-        }
+        return response()->json([
+            'message' => 'Maklumat cawangan berjaya dikemaskini.',
+            'branch'  => $branch,
+        ]);
     }
 }

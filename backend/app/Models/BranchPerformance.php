@@ -3,35 +3,41 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * TEKUN SPPT — Branch Monthly Performance Record
+ * TEKUN SPPT — Module 8: Pengurusan Cawangan
+ * BranchPerformance model for monthly performance history.
  */
 class BranchPerformance extends Model
 {
     protected $table = 'branch_performance';
 
     protected $fillable = [
-        'branch_id', 'period', 'target_amount', 'actual_amount',
-        'collection_rate', 'npl_ratio', 'new_applications',
-        'approved_applications', 'rejected_applications', 'performance_rank',
+        'branch_id',
+        'period',
+        'collection_rate',
+        'npl_ratio',
+        'disbursement_amount',
+        'applications_received',
+        'applications_approved',
+        'applications_rejected',
+        'target_collection_rate',
+        'target_disbursement',
+        'performance_rank',
     ];
 
     protected $casts = [
-        'target_amount'  => 'float',
-        'actual_amount'  => 'float',
-        'collection_rate'=> 'float',
-        'npl_ratio'      => 'float',
+        'collection_rate'        => 'float',
+        'npl_ratio'              => 'float',
+        'disbursement_amount'    => 'float',
+        'target_collection_rate' => 'float',
+        'target_disbursement'    => 'float',
+        'performance_rank'       => 'integer',
     ];
 
-    public function branch()
+    public function branch(): BelongsTo
     {
-        return $this->belongsTo(Branch::class, 'branch_id');
-    }
-
-    public function getAchievementPercentAttribute(): float
-    {
-        if ($this->target_amount <= 0) return 0;
-        return round(($this->actual_amount / $this->target_amount) * 100, 1);
+        return $this->belongsTo(Branch::class);
     }
 }

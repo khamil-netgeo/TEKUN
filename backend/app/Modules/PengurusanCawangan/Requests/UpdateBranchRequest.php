@@ -4,40 +4,51 @@ namespace App\Modules\PengurusanCawangan\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
+/**
+ * TEKUN SPPT — Module 8: Pengurusan Cawangan
+ * Validates and authorises branch update requests.
+ */
 class UpdateBranchRequest extends FormRequest
 {
     public function authorize(): bool
     {
         $user = $this->user();
-        if (!$user) {
-            return false;
+        if (!$user) return false;
+
+        $role = $user->role ?? '';
+        // system_admin and executive can update any branch
+        if (in_array($role, ['system_admin', 'executive'])) {
+            return true;
         }
-        // Allow: system_admin, eksekutif, pengurus_cawangan
-        return in_array($user->role, ['system_admin', 'eksekutif', 'pengurus_cawangan']);
+        // branch_manager can only update their own branch
+        if ($role === 'branch_manager') {
+            $branchCode = $user->branch_code ?? null;
+            $branch = \App\Models\Branch::find($this->route('id'));
+            return $branch && $branch->code === $branchCode;
+        }
+        return false;
     }
 
     public function rules(): array
     {
         return [
-            'name'           => 'sometimes|string|max:255',
-            'state'          => 'sometimes|string|max:100',
-            'district'       => 'sometimes|string|max:100',
-            'address'        => 'sometimes|nullable|string|max:500',
-            'phone'          => 'sometimes|nullable|string|max:20',
-            'email'          => 'sometimes|nullable|email|max:255',
-            'manager_name'   => 'sometimes|nullable|string|max:255',
-            'manager_email'  => 'sometimes|nullable|email|max:255',
-            'is_active'      => 'sometimes|boolean',
-            'monthly_target' => 'sometimes|numeric|min:0',
+            'name'                   => 'sometimes|string|max:255',
+            'address'                => 'sometimes|string|max:500',
+            'phone'                  => 'sometimes|string|max:20',
+            'email'                  => 'sometimes|email|max:255',
+            'manager_name'           => 'sometimes|string|max:255',
+            'target_collection_rate' => 'sometimes|numeric|min:0|max:100',
+            'monthly_target'         => 'sometimes|numeric|min:0',
+            'is_active'              => 'sometimes|boolean',
         ];
     }
 
     public function messages(): array
     {
         return [
-            'email.email'         => 'Alamat emel tidak sah.',
-            'manager_email.email' => 'Alamat emel pengurus tidak sah.',
-            'monthly_target.min'  => 'Sasaran bulanan tidak boleh negatif.',
+            'email.email'                        => 'Format e-mel tidak sah.',
+            'target_collection_rate.min'         => 'Kadar sasaran kutipan tidak boleh negatif.',
+            'target_collection_rate.max'         => 'Kadar sasaran kutipan tidak boleh melebihi 100%.',
         ];
     }
 }

@@ -7,19 +7,28 @@ use App\Models\BranchPerformance;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * TEKUN SPPT — Module 8: Pengurusan Cawangan
+ * Business logic for branch management with RBAC scoping.
+ */
 class BranchService
 {
     /**
-     * Get paginated branch list with optional filters.
-     * Branch managers only see their own branch; executives see all.
+     * Get branches list with RBAC scoping.
+     * - branch_manager / branch_officer: own branch only
+     * - executive / system_admin: all branches
      */
     public function getBranches(User $user, array $filters = []): array
     {
-        $query = Branch::query();
+        $query = Branch::query()->orderBy('performance_rank', 'asc');
 
-        // RBAC scope: branch_manager sees only own branch
-        if ($user->role === 'pengurus_cawangan') {
-            $query->where('code', $user->branch_code);
+        // RBAC scoping
+        $role = $user->role ?? '';
+        if (in_array($role, ['branch_manager', 'branch_officer'])) {
+            $branchCode = $user->branch_code ?? null;
+            if ($branchCode) {
+                $query->where('code', $branchCode);
+            }
         }
 
         // Filters
@@ -27,85 +36,87 @@ class BranchService
             $query->where('state', $filters['state']);
         }
         if (!empty($filters['search'])) {
-            $query->where(function ($q) use ($filters) {
-                $q->where('name', 'ilike', '%' . $filters['search'] . '%')
-                  ->orWhere('code', 'ilike', '%' . $filters['search'] . '%')
-                  ->orWhere('district', 'ilike', '%' . $filters['search'] . '%');
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                  ->orWhere('code', 'ilike', "%{$search}%")
+                  ->orWhere('district', 'ilike', "%{$search}%");
             });
         }
         if (isset($filters['is_active'])) {
             $query->where('is_active', (bool) $filters['is_active']);
         }
 
-        $perPage = (int) ($filters['per_page'] ?? 20);
-        $paginated = $query->orderBy('performance_rank')->paginate($perPage);
+        $perPage = min((int)($filters['per_page'] ?? 20), 100);
+        $paginator = $query->paginate($perPage);
+
+        $summary = [
+            'total_branches'      => Branch::count(),
+            'total_staff'         => (int) Branch::sum('staff_count'),
+            'avg_collection_rate' => round((float) Branch::avg('collection_rate'), 2),
+            'avg_npl_ratio'       => round((float) Branch::avg('npl_ratio'), 2),
+        ];
 
         return [
-            'data'  => $paginated->items(),
-            'meta'  => [
-                'total'        => $paginated->total(),
-                'per_page'     => $paginated->perPage(),
-                'current_page' => $paginated->currentPage(),
-                'last_page'    => $paginated->lastPage(),
+            'data'    => $paginator->items(),
+            'meta'    => [
+                'total'        => $paginator->total(),
+                'per_page'     => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
             ],
-            'summary' => $this->getSummary($user),
+            'summary' => $summary,
         ];
     }
 
     /**
-     * Get branch detail with staff count and recent performance.
+     * Get branch detail with performance history.
      */
-    public function getBranchDetail(User $user, int $id): Branch
+    public function getBranchDetail(int $id, User $user): ?array
     {
-        $branch = Branch::findOrFail($id);
+        $branch = Branch::find($id);
+        if (!$branch) return null;
 
-        // RBAC: branch manager can only view own branch
-        if ($user->role === 'pengurus_cawangan' && $branch->code !== $user->branch_code) {
-            abort(403, 'Akses ditolak: anda hanya boleh melihat cawangan anda sendiri.');
+        // RBAC: branch_manager/officer can only see their own branch
+        $role = $user->role ?? '';
+        if (in_array($role, ['branch_manager', 'branch_officer'])) {
+            $branchCode = $user->branch_code ?? null;
+            if ($branch->code !== $branchCode) return null;
         }
 
-        // Append last 6 months performance
-        $branch->load(['performanceHistory' => function ($q) {
-            $q->orderBy('period', 'desc')->limit(6);
-        }]);
+        $performance = BranchPerformance::where('branch_id', $id)
+            ->orderBy('period', 'desc')
+            ->take(6)
+            ->get();
 
-        return $branch;
+        return [
+            'branch'      => $branch,
+            'performance' => $performance,
+        ];
     }
 
     /**
      * Get staff list for a branch.
      */
-    public function getBranchStaff(User $user, int $id): array
+    public function getBranchStaff(int $id, User $user): ?array
     {
-        $branch = Branch::findOrFail($id);
+        $branch = Branch::find($id);
+        if (!$branch) return null;
 
-        // RBAC: branch manager can only view own branch staff
-        if ($user->role === 'pengurus_cawangan' && $branch->code !== $user->branch_code) {
-            abort(403, 'Akses ditolak: anda hanya boleh melihat kakitangan cawangan anda sendiri.');
+        // RBAC: branch_manager/officer can only see their own branch
+        $role = $user->role ?? '';
+        if (in_array($role, ['branch_manager', 'branch_officer'])) {
+            $branchCode = $user->branch_code ?? null;
+            if ($branch->code !== $branchCode) return null;
         }
 
         $staff = User::where('branch_code', $branch->code)
             ->select('id', 'name', 'email', 'role', 'role_label', 'branch_code', 'created_at')
-            ->get()
-            ->map(function ($u) {
-                return [
-                    'id'           => $u->id,
-                    'name'         => $u->name,
-                    'email'        => $u->email,
-                    'role'         => $u->role,
-                    'role_label'   => $u->role_label,
-                    'branch_code'  => $u->branch_code,
-                    'joined_at'    => $u->created_at?->format('Y-m-d'),
-                    // Workload metrics
-                    'active_applications' => DB::table('applications')
-                        ->where('officer_id', $u->id)
-                        ->whereIn('status', ['submitted', 'under_review'])
-                        ->count(),
-                ];
-            });
+            ->orderBy('role')
+            ->get();
 
         return [
-            'branch' => ['id' => $branch->id, 'code' => $branch->code, 'name' => $branch->name],
+            'branch' => $branch,
             'staff'  => $staff,
             'total'  => $staff->count(),
         ];
@@ -114,94 +125,49 @@ class BranchService
     /**
      * Get ranked performance data for all branches.
      */
-    public function getPerformanceRanking(User $user, string $period = null): array
+    public function getPerformanceRanking(string $period = null): array
     {
-        $period = $period ?? now()->format('Y-m');
+        $period = $period ?? date('Y-m');
 
-        $query = Branch::active()->orderBy('performance_rank');
+        $branches = Branch::orderBy('performance_rank', 'asc')->get();
 
-        // Branch managers only see their own branch
-        if ($user->role === 'pengurus_cawangan') {
-            $query->where('code', $user->branch_code);
-        }
-
-        $branches = $query->get()->map(function ($b) use ($period) {
-            // Get this period's performance record
-            $perf = BranchPerformance::where('branch_id', $b->id)
+        $ranked = $branches->map(function ($branch) use ($period) {
+            $perf = BranchPerformance::where('branch_id', $branch->id)
                 ->where('period', $period)
                 ->first();
 
             return [
-                'id'                  => $b->id,
-                'code'                => $b->code,
-                'name'                => $b->name,
-                'state'               => $b->state,
-                'performance_rank'    => $b->performance_rank,
-                'collection_rate'     => $b->collection_rate,
-                'npl_ratio'           => $b->npl_ratio,
-                'monthly_target'      => $b->monthly_target,
-                'monthly_actual'      => $b->monthly_actual,
-                'achievement_percent' => $b->achievement_percent,
-                'performance_status'  => $b->performance_status,
-                'npl_status'          => $b->npl_status,
-                'staff_count'         => $b->staff_count,
-                'period_data'         => $perf ? [
-                    'target_amount'         => $perf->target_amount,
-                    'actual_amount'         => $perf->actual_amount,
-                    'achievement_percent'   => $perf->achievement_percent,
-                    'new_applications'      => $perf->new_applications,
-                    'approved_applications' => $perf->approved_applications,
-                ] : null,
+                'id'              => $branch->id,
+                'code'            => $branch->code,
+                'name'            => $branch->name,
+                'state'           => $branch->state,
+                'rank'            => $branch->performance_rank ?? 99,
+                'collection_rate' => $perf ? (float)$perf->collection_rate : (float)$branch->collection_rate,
+                'npl_ratio'       => $perf ? (float)$perf->npl_ratio : (float)$branch->npl_ratio,
+                'target'          => $perf ? (float)$perf->target_collection_rate : 95.0,
+                'disbursement'    => $perf ? (float)$perf->disbursement_amount : 0,
+                'staff_count'     => (int)$branch->staff_count,
             ];
         });
 
         return [
-            'period'           => $period,
-            'branches'         => $branches,
-            'avg_collection'   => round($branches->avg('collection_rate'), 2),
-            'avg_npl'          => round($branches->avg('npl_ratio'), 2),
-            'top_branch'       => $branches->first(),
-            'total_branches'   => $branches->count(),
+            'period'          => $period,
+            'branches'        => $ranked,
+            'avg_collection'  => round((float) Branch::avg('collection_rate'), 2),
+            'avg_npl'         => round((float) Branch::avg('npl_ratio'), 2),
+            'total_branches'  => $branches->count(),
         ];
     }
 
     /**
-     * Update branch info.
+     * Update branch information.
      */
-    public function updateBranch(User $user, int $id, array $data): Branch
+    public function updateBranch(int $id, array $data): ?Branch
     {
-        $branch = Branch::findOrFail($id);
-
-        // Only system_admin and executive can update any branch
-        // Branch manager can only update own branch (limited fields)
-        if ($user->role === 'pengurus_cawangan') {
-            if ($branch->code !== $user->branch_code) {
-                abort(403, 'Akses ditolak: anda hanya boleh mengemaskini cawangan anda sendiri.');
-            }
-            // Branch manager can only update contact info
-            $data = array_intersect_key($data, array_flip(['phone', 'email', 'address', 'manager_name', 'manager_email']));
-        }
+        $branch = Branch::find($id);
+        if (!$branch) return null;
 
         $branch->update($data);
         return $branch->fresh();
-    }
-
-    /**
-     * Summary statistics for the branch list header.
-     */
-    private function getSummary(User $user): array
-    {
-        $query = Branch::active();
-        if ($user->role === 'pengurus_cawangan') {
-            $query->where('code', $user->branch_code);
-        }
-        $branches = $query->get();
-
-        return [
-            'total_branches'     => $branches->count(),
-            'total_staff'        => $branches->sum('staff_count'),
-            'avg_collection_rate'=> round($branches->avg('collection_rate'), 2),
-            'avg_npl_ratio'      => round($branches->avg('npl_ratio'), 2),
-        ];
     }
 }

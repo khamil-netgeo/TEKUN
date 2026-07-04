@@ -4,25 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * TEKUN SPPT — Branch Model
+ * TEKUN SPPT — Module 8: Pengurusan Cawangan
  * Represents a TEKUN branch (cawangan).
- *
- * @property int    $id
- * @property string $code        e.g. CW-001
- * @property string $name        e.g. Cawangan KL Sentral
- * @property string $state
- * @property string $district
- * @property string $address
- * @property string $phone
- * @property string $email
- * @property string $manager_name
- * @property bool   $is_active
  */
 class Branch extends Model
 {
     use HasFactory;
+    use \App\Traits\LogsAuditTrail;
 
     protected $fillable = [
         'code',
@@ -33,23 +24,37 @@ class Branch extends Model
         'phone',
         'email',
         'manager_name',
+        'npl_ratio',
+        'collection_rate',
+        'staff_count',
+        'performance_rank',
+        'target_collection_rate',
+        'monthly_target',
+        'monthly_actual',
         'is_active',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'is_active'              => 'boolean',
+        'npl_ratio'              => 'float',
+        'collection_rate'        => 'float',
+        'target_collection_rate' => 'float',
+        'monthly_target'         => 'float',
+        'monthly_actual'         => 'float',
+        'staff_count'            => 'integer',
+        'performance_rank'       => 'integer',
     ];
 
     // ─── Relationships ────────────────────────────────────────────────────────
 
-    public function staff()
+    public function staff(): HasMany
     {
         return $this->hasMany(User::class, 'branch_code', 'code');
     }
 
-    public function applications()
+    public function performanceHistory(): HasMany
     {
-        return $this->hasMany(Application::class);
+        return $this->hasMany(BranchPerformance::class);
     }
 
     // ─── Scopes ───────────────────────────────────────────────────────────────
@@ -62,13 +67,5 @@ class Branch extends Model
     public function scopeByState($query, string $state)
     {
         return $query->where('state', $state);
-    }
-
-    // ─── Helpers ──────────────────────────────────────────────────────────────
-
-    /** Total pending applications for this branch */
-    public function getPendingCountAttribute(): int
-    {
-        return $this->applications()->where('status', 'submitted')->count();
     }
 }
