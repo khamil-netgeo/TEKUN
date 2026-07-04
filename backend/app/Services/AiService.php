@@ -30,8 +30,8 @@ class AiService
 
     public function __construct()
     {
-        $this->defaultModel = config('gemini.default_model', 'gemini-3.5-flash');
-        $this->visionModel  = config('gemini.vision_model', 'gemini-3.5-flash');
+        $this->defaultModel = env('GEMINI_API_KEY') ? 'gemini-2.5-flash' : 'gemini-2.5-flash';
+        $this->visionModel  = 'gemini-2.5-flash';
     }
 
     // =========================================================================
@@ -372,8 +372,8 @@ KPI Data: " . json_encode($kpiData) . "
     public function generateEmbedding(string $text): array
     {
         try {
-            $apiKey = config('gemini.api_key');
-            $model  = config('gemini.embedding_model', 'models/gemini-embedding-001');
+            $apiKey = env('GEMINI_API_KEY');
+            $model  = 'models/text-embedding-004';
             $modelId = str_replace('models/', '', $model);
 
             $response = \Illuminate\Support\Facades\Http::timeout(30)->post(
@@ -442,17 +442,17 @@ KPI Data: " . json_encode($kpiData) . "
     public function testConnection(): array
     {
         try {
-            $apiKey = config('gemini.api_key');
-            $model  = $this->defaultModel; // gemini-3.5-flash
+            $apiKey = env('GEMINI_API_KEY');
+            $model  = $this->defaultModel; // SPPT AI engine
             $response = \Illuminate\Support\Facades\Http::timeout(15)->post(
                 "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
-                ['contents' => [['parts' => [['text' => 'Reply with only this exact JSON, no markdown: {"status":"ok","model":"gemini-3.5-flash","system":"SPPT"}']]]]]
+                ['contents' => [['parts' => [['text' => 'Reply with only this exact JSON, no markdown: {"status":"ok","model":"SPPT-AI","system":"SPPT"}']]]]]
             );
             if ($response->successful()) {
                 $text = $response->json('candidates.0.content.parts.0.text', '');
                 $text = preg_replace('/```json\s*|\s*```/', '', trim($text));
                 $data = json_decode($text, true);
-                return $data ?? ['status' => 'ok', 'model' => 'gemini-3.5-flash', 'system' => 'SPPT'];
+                return $data ?? ['status' => 'ok', 'model' => 'SPPT-AI', 'system' => 'SPPT'];
             }
             return ['status' => 'error', 'message' => $response->body()];
         } catch (\Exception $e) {
