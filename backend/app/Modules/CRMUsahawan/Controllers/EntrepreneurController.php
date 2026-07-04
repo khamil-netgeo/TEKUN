@@ -1,54 +1,221 @@
 <?php
-namespace App\Http\Controllers\Api;
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+namespace App\Modules\CRMUsahawan\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Modules\CRMUsahawan\Models\Entrepreneur;
+use App\Modules\CRMUsahawan\Models\FieldVisit;
+use App\Modules\CRMUsahawan\Models\EntrepreneurKpiSnapshot;
+use App\Modules\CRMUsahawan\Services\EntrepreneurService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+/**
+ * Module 7 — CRM & Pemantauan Usahawan
+ * EntrepreneurController — Full CRUD + AI health scoring + field visit management
+ */
 class EntrepreneurController extends Controller
 {
+    public function __construct(private EntrepreneurService $service) {}
+
+    // ── GET /api/entrepreneurs ────────────────────────────────────────────────
+
     public function index(Request $request)
     {
+        $query = Entrepreneur::query();
+
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                  ->orWhere('ic_no', 'ilike', "%{$search}%")
+                  ->orWhere('ref_no', 'ilike', "%{$search}%")
+                  ->orWhere('business_name', 'ilike', "%{$search}%");
+            });
+        }
+
+        if ($status = $request->get('status')) {
+            $query->where('status', $status);
+        }
+        if ($distress = $request->get('distress_level')) {
+            $query->where('distress_level', $distress);
+        }
+        if ($skim = $request->get('skim')) {
+            $query->where('skim', $skim);
+        }
+
+        $perPage       = min((int) $request->get('per_page', 15), 100);
+        $entrepreneurs = $query->orderBy('name')->paginate($perPage);
+
         return response()->json([
-            'data' => [
-                ['id' => 'USH-001', 'name' => 'Ahmad Bin Mohd Ali', 'skim' => 'TEKUN Usahawan', 'status' => 'Lancar', 'health_score' => 82],
-                ['id' => 'USH-002', 'name' => 'Siti Noraini Binti Hassan', 'skim' => 'TEKUN Wanita', 'status' => 'Perhatian Khusus', 'health_score' => 61],
-                ['id' => 'USH-003', 'name' => 'Tan Wei Ming', 'skim' => 'TEKUN Usahawan', 'status' => 'Tidak Lancar', 'health_score' => 38],
-            ],
-            'total' => 3
+            'data'         => $entrepreneurs->items(),
+            'total'        => $entrepreneurs->total(),
+            'current_page' => $entrepreneurs->currentPage(),
+            'last_page'    => $entrepreneurs->lastPage(),
+            'per_page'     => $entrepreneurs->perPage(),
         ]);
     }
 
-    public function show($id)
-    {
-        return response()->json([
-            'id' => $id,
-            'name' => 'Ahmad Bin Mohd Ali',
-            'skim' => 'TEKUN Usahawan',
-            'amount' => 50000,
-            'balance' => 30000,
-            'status' => 'Lancar',
-            'health_score' => 82,
-            'ai_default_risk' => ['probability' => 0.12, 'risk_level' => 'Low', 'factors' => ['payment_history', 'business_revenue']],
-            'kpi' => ['monthly_revenue' => 12500, 'employees' => 4, 'monthly_sales' => 28000]
-        ]);
-    }
+    // ── GET /api/entrepreneurs/{id} ───────────────────────────────────────────
 
-    public function visits(Request $request)
+    public function show(string $id)
     {
-        return response()->json([
-            'data' => [
-                ['id' => 'LW-001', 'entrepreneur' => 'Ahmad Bin Mohd Ali', 'date' => '2026-07-10', 'status' => 'Dijadualkan'],
-                ['id' => 'LW-002', 'entrepreneur' => 'Siti Noraini', 'date' => '2026-07-08', 'status' => 'Selesai'],
+        $entrepreneur = Entrepreneur::where('ref_no', $id)
+            ->orWhere('id', is_numeric($id) ? (int) $id : 0)
+            ->firstOrFail();
+
+        $kpiTrend = EntrepreneurKpiSnapshot::where('entrepreneur_id', $entrepreneur->id)
+            ->orderBy('snapshot_date', 'desc')
+            ->limit(12)
+            ->get()
+            ->reverse()
+            ->values();
+
+        $recentVisits = FieldVisit::where('entrepreneur_id', $entrepreneur->id)
+            ->orderBy('scheduled_date', 'desc')
+            ->limit(5)
+            ->get();
+
+        $health = $this->service->computeHealthScore($entrepreneur);
+
+        return response()->json(array_merge(
+            $entrepreneur->toArray(),
+            [
+                'kpi_trend'     => $kpiTrend,
+                'recent_visits' => $recentVisits,
+                'ai_health'     => $health,
             ]
+        ));
+    }
+
+    // ── PUT /api/entrepreneurs/{id} ───────────────────────────────────────────
+
+    public function update(Request $request, string $id)
+    {
+        $entrepreneur = Entrepreneur::where('ref_no', $id)
+            ->orWhere('id', is_numeric($id) ? (int) $id : 0)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'business_name'    => 'sometimes|string|max:255',
+            'business_sector'  => 'sometimes|string|max:100',
+            'business_address' => 'sometimes|string',
+            'phone'            => 'sometimes|string|max:20',
+            'email'            => 'sometimes|email|max:255',
+            'monthly_revenue'  => 'sometimes|numeric|min:0',
+            'employee_count'   => 'sometimes|integer|min:0',
+            'notes'            => 'sometimes|string|nullable',
+        ]);
+
+        $entrepreneur->update($validated);
+
+        return response()->json([
+            'message'      => 'Profil usahawan berjaya dikemaskini.',
+            'entrepreneur' => $entrepreneur->fresh(),
         ]);
     }
 
-    public function generateVisitReport(Request $request, $id)
+    // ── GET /api/entrepreneurs/{id}/visits ────────────────────────────────────
+
+    public function visits(Request $request, string $id)
     {
+        $entrepreneur = Entrepreneur::where('ref_no', $id)
+            ->orWhere('id', is_numeric($id) ? (int) $id : 0)
+            ->firstOrFail();
+
+        $query = FieldVisit::where('entrepreneur_id', $entrepreneur->id);
+
+        if ($status = $request->get('status')) {
+            $query->where('status', $status);
+        }
+
+        $perPage = min((int) $request->get('per_page', 15), 100);
+        $visits  = $query->orderBy('scheduled_date', 'desc')->paginate($perPage);
+
         return response()->json([
-            'report' => 'Laporan lawatan lapangan dijana oleh AI. Usahawan menunjukkan perkembangan positif dalam operasi perniagaan.',
-            'generated_at' => now()->toISOString(),
-            'ai_model' => 'SPPT-AI'
+            'data'         => $visits->items(),
+            'total'        => $visits->total(),
+            'current_page' => $visits->currentPage(),
+            'last_page'    => $visits->lastPage(),
         ]);
+    }
+
+    // ── POST /api/entrepreneurs/{id}/visits ───────────────────────────────────
+
+    public function storeVisit(Request $request, string $id)
+    {
+        $entrepreneur = Entrepreneur::where('ref_no', $id)
+            ->orWhere('id', is_numeric($id) ? (int) $id : 0)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'scheduled_date' => 'required|date',
+            'scheduled_time' => 'required|string',
+            'purpose'        => 'required|string|max:255',
+            'location'       => 'required|string|max:255',
+            'notes'          => 'nullable|string',
+        ]);
+
+        $user  = Auth::user();
+        $refNo = 'LW-' . strtoupper(substr(uniqid(), -6));
+
+        $visit = FieldVisit::create(array_merge($validated, [
+            'entrepreneur_id' => $entrepreneur->id,
+            'officer_id'      => $user?->id,
+            'ref_no'          => $refNo,
+            'status'          => 'Dijadualkan',
+        ]));
+
+        return response()->json([
+            'message' => 'Lawatan lapangan berjaya dijadualkan.',
+            'visit'   => $visit,
+        ], 201);
+    }
+
+    // ── POST /api/entrepreneurs/visits/{id}/report ────────────────────────────
+
+    public function visitReport(Request $request, string $id)
+    {
+        $visit = FieldVisit::findOrFail($id);
+
+        $validated = $request->validate([
+            'checklist_items' => 'nullable|array',
+            'observations'    => 'nullable|string',
+            'outcome'         => 'nullable|string',
+        ]);
+
+        $report = $this->service->generateVisitReport($visit, $validated);
+
+        $visit->update([
+            'checklist_items' => $validated['checklist_items'] ?? [],
+            'observations'    => $validated['observations'] ?? null,
+            'outcome'         => $validated['outcome'] ?? null,
+            'ai_report'       => $report,
+            'status'          => 'Selesai',
+            'completed_at'    => now(),
+        ]);
+
+        return response()->json([
+            'message'      => 'Laporan AI berjaya dijana.',
+            'report'       => $report,
+            'visit'        => $visit->fresh(),
+            'generated_at' => now()->toISOString(),
+            'ai_model'     => 'SPPT-AI',
+        ]);
+    }
+
+    // ── GET /api/ai/entrepreneur-health/{id} ─────────────────────────────────
+
+    public function aiHealth(string $id)
+    {
+        $entrepreneur = Entrepreneur::where('ref_no', $id)
+            ->orWhere('id', is_numeric($id) ? (int) $id : 0)
+            ->firstOrFail();
+
+        $health = $this->service->computeHealthScore($entrepreneur);
+
+        return response()->json(array_merge(
+            ['entrepreneur_id' => $entrepreneur->ref_no, 'name' => $entrepreneur->name],
+            $health
+        ));
     }
 }

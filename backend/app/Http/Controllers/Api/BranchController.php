@@ -1,29 +1,47 @@
 <?php
-namespace App\Http\Controllers\Api;
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Modules\PengurusanCawangan\Controllers\BranchController as ModuleBranchController;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+
+/**
+ * TEKUN SPPT — Branch Controller (Central API Proxy)
+ * Delegates all requests to the Module 8 BranchController.
+ */
 class BranchController extends Controller
 {
-    public function index()
+    private ModuleBranchController $module;
+
+    public function __construct(ModuleBranchController $module)
     {
-        return response()->json([
-            'data' => [
-                ['id' => 'CW-001', 'name' => 'Cawangan KL Sentral', 'state' => 'WP Kuala Lumpur', 'staff' => 12, 'collection_rate' => 94, 'npl_ratio' => 1.2],
-                ['id' => 'CW-002', 'name' => 'Cawangan Shah Alam', 'state' => 'Selangor', 'staff' => 9, 'collection_rate' => 88, 'npl_ratio' => 2.1],
-                ['id' => 'CW-003', 'name' => 'Cawangan Johor Bahru', 'state' => 'Johor', 'staff' => 11, 'collection_rate' => 92, 'npl_ratio' => 1.8],
-            ],
-            'total' => 48
-        ]);
+        $this->module = $module;
     }
 
-    public function performance()
+    public function index(Request $request): JsonResponse
     {
-        return response()->json([
-            'avg_collection' => 89.4,
-            'avg_npl' => 1.8,
-            'top_branch' => 'CW-001',
-            'total_branches' => 48
-        ]);
+        return $this->module->index($request);
+    }
+
+    public function performance(Request $request): JsonResponse
+    {
+        return $this->module->performance($request);
+    }
+
+    public function show(Request $request, int $id): JsonResponse
+    {
+        return $this->module->show($request, $id);
+    }
+
+    public function staff(Request $request, int $id): JsonResponse
+    {
+        return $this->module->staff($request, $id);
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        return $this->module->update($request, $id);
     }
 }

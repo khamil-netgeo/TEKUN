@@ -1,5 +1,5 @@
 <?php
-namespace App\Http\Controllers\Api;
+namespace App\Modules\PenilaianKredit\Controllers;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
