@@ -150,11 +150,15 @@ class ApplicationController extends Controller
             'purpose'          => $request->input('loan_purpose'),
         ]);
 
-        AuditTrail::log('create', 'module1', $application, null, $application->toArray());
+        try {
+            AuditTrail::log('create', 'module1', $application, null, $application->toArray());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('AuditTrail::log failed in store: ' . $e->getMessage());
+        }
 
         return response()->json([
-            'message'     => 'Permohonan berjaya disimpan sebagai draf.',
-            'application' => $application->append(['status_label', 'scheme_label']),
+            'message' => 'Permohonan berjaya disimpan sebagai draf.',
+            'data'    => $application->append(['status_label', 'scheme_label']),
         ], 201);
     }
 
@@ -164,7 +168,7 @@ class ApplicationController extends Controller
     public function show(Request $request, string $id): JsonResponse
     {
         $application = Application::with([
-            'applicant:id,name,email,phone',
+            'officer:id,name,email',
             'branch',
             'documents',
             'creditAssessment',
@@ -315,7 +319,7 @@ class ApplicationController extends Controller
         $type = $request->input('type');
 
         // Store to MinIO S3
-        $path = $file->store("applications/{$application->id}/documents", 's3');
+        $path = $file->store("applications/{$application->id}/documents", config('filesystems.default', 'local'));
 
         // AI document verification
         $aiResult = ['confidence' => 85, 'issues' => []];
