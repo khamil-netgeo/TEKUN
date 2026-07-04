@@ -30,8 +30,8 @@ class AiService
 
     public function __construct()
     {
-        $this->defaultModel = config('services.ai.default_model', 'gemini-2.5-flash');
-        $this->visionModel  = config('services.ai.vision_model', 'gemini-2.5-flash');
+        $this->defaultModel = env('GEMINI_API_KEY') ? 'gemini-2.5-flash' : 'gemini-2.5-flash';
+        $this->visionModel  = 'gemini-2.5-flash';
     }
 
     // =========================================================================
@@ -373,7 +373,7 @@ KPI Data: " . json_encode($kpiData) . "
     {
         try {
             $apiKey = env('GEMINI_API_KEY');
-            $model  = config('services.ai.embedding_model', 'models/text-embedding-004');
+            $model  = 'models/text-embedding-004';
             $modelId = str_replace('models/', '', $model);
 
             $response = \Illuminate\Support\Facades\Http::timeout(30)->post(
@@ -459,128 +459,4 @@ KPI Data: " . json_encode($kpiData) . "
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
-
-    /**
-     * Classify and extract data from a document using SPPT Vision Engine (AI OCR).
-     * Used by Module 1 for document completeness scoring and field extraction.
-     *
-     * @param  \Illuminate\Http\UploadedFile  $file
-     * @param  string  $documentType
-     * @return array{completeness_score: int, classification: string, extracted_fields: array, confidence: float, issues: array}
-     */
-    public function classifyDocument(\Illuminate\Http\UploadedFile $file, string $documentType = 'other'): array
-    {
-        try {
-            $apiKey   = config('services.gemini.api_key') ?? env('GEMINI_API_KEY');
-            $model    = 'gemini-2.5-flash';
-            $base64   = base64_encode(file_get_contents($file->getRealPath()));
-            $mimeType = $file->getMimeType() ?? 'image/jpeg';
-
-            $prompt = "You are an AI document classifier for TEKUN Nasional financing applications. "
-                . "Analyze this document (type: {$documentType}) and return ONLY valid JSON with these fields: "
-                . "completeness_score (0-100 integer), classification (string: the detected document type), "
-                . "extracted_fields (object with any detected fields like name, ic_no, address, amount, date), "
-                . "confidence (0.0-1.0 float), issues (array of strings describing any problems). "
-                . "No markdown, no explanation, just JSON.";
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders(['Content-Type' => 'application/json'])
-                ->timeout(30)
-                ->post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
-                    [
-                        'contents' => [[
-                            'parts' => [
-                                ['text' => $prompt],
-                                ['inline_data' => ['mime_type' => $mimeType, 'data' => $base64]],
-                            ],
-                        ]],
-                    ]
-                );
-
-            if ($response->successful()) {
-                $text = $response->json('candidates.0.content.parts.0.text', '');
-                $text = preg_replace('/```json\s*|\s*```/', '', trim($text));
-                $data = json_decode($text, true);
-                if ($data && isset($data['completeness_score'])) {
-                    return $data;
-                }
-            }
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('AiService::classifyDocument failed: ' . $e->getMessage());
-        }
-
-        // Fallback mock response for POC
-        return [
-            'completeness_score' => 75,
-            'classification'     => $documentType,
-            'extracted_fields'   => [],
-            'confidence'         => 0.75,
-            'issues'             => ['AI analysis unavailable — using mock response'],
-        ];
-    }
-
-    /**
-     * Generate an AI narrative for auto-rejection or approval letters.
-     * Used by Module 1 auto-reject engine.
-     *
-     * @param  array  $data  Must include: type, applicant, scheme, reject_reason, ref_no
-     * @return array{narrative: string}
-     */
-    public function generateNarrative(array $data): array
-    {
-        try {
-            $apiKey = config('services.gemini.api_key') ?? env('GEMINI_API_KEY');
-            $model  = 'gemini-2.5-flash';
-
-            $prompt = "You are a formal letter writer for TEKUN Nasional, a Malaysian government financing agency. "
-                . "Write a formal rejection letter in Bahasa Melayu for the following case: "
-                . "Applicant: {$data['applicant']}, Scheme: {$data['scheme']}, "
-                . "Reference: {$data['ref_no']}, Reason: {$data['reject_reason']}. "
-                . "Return ONLY valid JSON: {\"narrative\": \"<letter text>\"}. No markdown.";
-
-            $response = \Illuminate\Support\Facades\Http::withHeaders(['Content-Type' => 'application/json'])
-                ->timeout(20)
-                ->post(
-                    "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
-                    ['contents' => [['parts' => [['text' => $prompt]]]]]
-                );
-
-            if ($response->successful()) {
-                $text = $response->json('candidates.0.content.parts.0.text', '');
-                $text = preg_replace('/```json\s*|\s*```/', '', trim($text));
-                $decoded = json_decode($text, true);
-                if ($decoded && isset($decoded['narrative'])) {
-                    return $decoded;
-                }
-            }
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('AiService::generateNarrative failed: ' . $e->getMessage());
-        }
-
-        return [
-            'narrative' => "Dengan hormatnya, pihak TEKUN Nasional ingin memaklumkan bahawa permohonan pembiayaan anda (Rujukan: {$data['ref_no']}) bagi Skim {$data['scheme']} telah ditolak atas sebab berikut:\n\n{$data['reject_reason']}\n\nSekiranya anda mempunyai sebarang pertanyaan, sila hubungi cawangan TEKUN yang terdekat atau e-mel ke info@tekun.gov.my.",
-        ];
-    }
-
-
-    /**
-     * callAiEngine — Internal SPPT AI engine caller.
-     * Added by Module 4 Agent to fix missing method in core-foundation AiService.
-     */
-    public function callAiEngine(string|array $prompt): object
-    {
-        $apiKey = env('GEMINI_API_KEY') ?? env('GEMINI_API_KEY');
-        $model  = $this->defaultModel ?? 'gemini-2.5-flash';
-        $text   = is_array($prompt) ? json_encode($prompt) : $prompt;
-        $response = \Illuminate\Support\Facades\Http::timeout(20)->post(
-            "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
-            ['contents' => [['parts' => [['text' => $text]]]]]
-        );
-        $rawText = $response->json('candidates.0.content.parts.0.text', '{}');
-        return new class($rawText) {
-            public function __construct(private string $t) {}
-            public function text(): string { return $this->t; }
-        };
-    }
-
 }
