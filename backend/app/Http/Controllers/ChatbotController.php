@@ -184,15 +184,15 @@ SYSTEM;
         $userMessage = trim($request->input('message'));
         $history     = $request->input('history', []);
 
-        $geminiApiKey = env('GEMINI_API_KEY');
-        if (!$geminiApiKey) {
+        $aiApiKey = env('GEMINI_API_KEY');
+        if (!$aiApiKey) {
             return response()->json(['error' => 'AI service not configured.'], 503);
         }
 
-        // Build conversation contents for Gemini
+        // Build conversation contents for SPPT AI Engine
         $contents = [];
 
-        // Inject system prompt as first user turn (Gemini doesn't have system role in v1beta)
+        // Inject system prompt as first user turn (API v1beta doesn't support system role)
         $contents[] = [
             'role'  => 'user',
             'parts' => [['text' => $this->getSystemPrompt() . "\n\n---\n\nSoalan pertama pengguna: " . $userMessage]],
@@ -220,7 +220,7 @@ SYSTEM;
 
         try {
             $model = 'gemini-2.5-flash';
-            $url   = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiApiKey}";
+            $url   = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$aiApiKey}";
 
             $response = Http::timeout(30)->post($url, [
                 'contents'         => $contents,
@@ -238,7 +238,7 @@ SYSTEM;
             ]);
 
             if (!$response->successful()) {
-                Log::error('Gemini API error', ['status' => $response->status(), 'body' => $response->body()]);
+                Log::error('SPPT AI service error', ['status' => $response->status(), 'body' => $response->body()]);
                 return response()->json(['error' => 'AI service temporarily unavailable. Please try again.'], 503);
             }
 
@@ -247,7 +247,7 @@ SYSTEM;
 
             return response()->json([
                 'reply'    => $reply,
-                'model'    => $model,
+                'engine'   => 'SPPT-AI',
                 'success'  => true,
             ]);
 

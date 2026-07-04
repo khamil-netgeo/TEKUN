@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $action        credit_score | document_check | chatbot_query | etc.
  * @property string $prompt
  * @property string $response
- * @property string $model_used    e.g. gemini-2.5-flash
+ * @property string $model_used    e.g. SPPT-AI
  * @property int    $tokens_used
  * @property int    $latency_ms
  * @property bool   $success

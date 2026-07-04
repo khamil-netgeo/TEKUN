@@ -48,7 +48,7 @@ class EntrepreneurController extends Controller
         return response()->json([
             'report' => 'Laporan lawatan lapangan dijana oleh AI. Usahawan menunjukkan perkembangan positif dalam operasi perniagaan.',
             'generated_at' => now()->toISOString(),
-            'ai_model' => 'gemini-3.5-flash'
+            'ai_model' => 'SPPT-AI'
         ]);
     }
 }

@@ -104,7 +104,7 @@ interface AiInsightCardProps {
   title:       string;
   content:     string | ReactNode;
   confidence?: number;   // 0–100
-  model?:      string;   // e.g. "Gemini 2.5 Flash"
+  model?:      string;   // e.g. "Enjin Analitik SPPT"
   timestamp?:  string;
 }
 

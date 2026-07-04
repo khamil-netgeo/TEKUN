@@ -2,14 +2,15 @@
 
 namespace App\Services;
 
-use Gemini\Laravel\Facades\Gemini;
+
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 
 /**
  * SPPT Central AI Service
  *
  * All AI features in the SPPT system route through this service.
- * Uses Google Gemini API (gemini-2.0-flash for text, gemini-2.0-flash for vision).
+ * Uses SPPT AI Engine for intelligent document processing and analytics.
  *
  * Features:
  *  - Credit scoring narrative
@@ -38,7 +39,7 @@ class AiService
     // =========================================================================
 
     /**
-     * Extract MyKad data from image using Gemini Vision
+     * Extract MyKad data from image using SPPT Vision AI
      */
     public function extractMyKad(string $base64Image): array
     {
@@ -57,7 +58,7 @@ class AiService
 }
 If a field cannot be read, use null. Return ONLY the JSON object.";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent([
+            $response = $this->callAiEngine([
                 ['text' => $prompt],
                 ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $base64Image]],
             ]);
@@ -72,7 +73,7 @@ If a field cannot be read, use null. Return ONLY the JSON object.";
     }
 
     /**
-     * Extract bank statement data from image/PDF using Gemini Vision
+     * Extract bank statement data from image/PDF using SPPT Document AI
      */
     public function extractBankStatement(string $base64Image): array
     {
@@ -94,7 +95,7 @@ If a field cannot be read, use null. Return ONLY the JSON object.";
 }
 Return ONLY the JSON object.";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent([
+            $response = $this->callAiEngine([
                 ['text' => $prompt],
                 ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $base64Image]],
             ]);
@@ -138,7 +139,7 @@ Return this exact JSON structure:
   \"conditions\": [\"string\"]
 }";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent($prompt);
+            $response = $this->callAiEngine($prompt);
             $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
@@ -168,7 +169,7 @@ Data: " . json_encode($applicationData) . "
   \"explanation_en\": \"string\"
 }";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent($prompt);
+            $response = $this->callAiEngine($prompt);
             $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
@@ -212,7 +213,7 @@ Ta'widh Rules:
   \"waiver_reason\": \"string|null\"
 }";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent($prompt);
+            $response = $this->callAiEngine($prompt);
             $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
@@ -253,7 +254,7 @@ Account Data: " . json_encode($accountData) . "
   \"escalation_if_ignored\": \"string\"
 }";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent($prompt);
+            $response = $this->callAiEngine($prompt);
             $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
@@ -285,7 +286,7 @@ Account: " . json_encode($accountData) . "
   \"explanation_en\": \"string\"
 }";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent($prompt);
+            $response = $this->callAiEngine($prompt);
             $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
@@ -318,7 +319,7 @@ KPI Data: " . json_encode($kpiData) . "
   \"confidence\": number (0.0-1.0)
 }";
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent($prompt);
+            $response = $this->callAiEngine($prompt);
             $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
@@ -351,7 +352,7 @@ KPI Data: " . json_encode($kpiData) . "
 
             $fullPrompt = $systemPrompt . $contextText . "\n\nSoalan pengguna: " . $userMessage;
 
-            $response = Gemini::generativeModel("gemini-3.5-flash")->generateContent($fullPrompt);
+            $response = $this->callAiEngine($fullPrompt);
 
             return [
                 'reply' => $response->text(),
@@ -388,10 +389,10 @@ KPI Data: " . json_encode($kpiData) . "
                 return $response->json('embedding.values', []);
             }
 
-            \Illuminate\Support\Facades\Log::error('Gemini embedding failed', ['status' => $response->status(), 'body' => $response->body()]);
+            \Illuminate\Support\Facades\Log::error('SPPT AI embedding failed', ['status' => $response->status(), 'body' => $response->body()]);
             return [];
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Gemini embedding exception', ['error' => $e->getMessage()]);
+            \Illuminate\Support\Facades\Log::error('SPPT AI embedding exception', ['error' => $e->getMessage()]);
             return [];
         }
     }
@@ -436,7 +437,7 @@ KPI Data: " . json_encode($kpiData) . "
     // =========================================================================
 
     /**
-     * Test Gemini API connectivity
+     * Test SPPT AI Engine connectivity
      */
     public function testConnection(): array
     {

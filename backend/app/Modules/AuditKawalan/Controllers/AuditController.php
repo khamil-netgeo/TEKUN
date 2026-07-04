@@ -31,7 +31,7 @@ class AuditController extends Controller
                 ['type' => 'bulk_access', 'description' => '47 rekod dilihat dalam 5 minit', 'severity' => 'MEDIUM'],
                 ['type' => 'unauthorized_access', 'description' => 'Percubaan akses modul pentadbiran', 'severity' => 'HIGH'],
             ],
-            'ai_model' => 'gemini-3.5-flash'
+            'ai_model' => 'SPPT-AI'
         ]);
     }
 }
