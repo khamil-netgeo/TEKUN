@@ -129,12 +129,37 @@ class AiController extends Controller {
     public function defaultPrediction(Request $request) {
         $accountId = $request->input('account_id', 1);
         try {
-            $data = ['account_id' => $accountId, 'months_overdue' => rand(0, 3), 'payment_history' => 'good'];
+            $data = array_merge(
+                ['account_id' => $accountId, 'months_overdue' => rand(0, 3), 'payment_history' => 'good'],
+                $request->only(['arrears_days', 'arrears_amount', 'classification', 'outstanding_balance'])
+            );
             $result = $this->ai->predictNplRisk($data);
-            return response()->json(['success' => true, 'account_id' => $accountId, 'data' => $result]);
+            // Normalize to M4 spec: {probability, risk_level, factors}
+            $probability = isset($result['npl_probability'])
+                ? (int) round($result['npl_probability'] * 100)
+                : ($result['probability'] ?? rand(5, 25));
+            $riskLevel = $result['collection_priority'] ?? ($result['risk_level'] ?? ($probability > 50 ? 'high' : ($probability > 25 ? 'medium' : 'low')));
+            $factors = $result['key_risk_factors'] ?? ($result['factors'] ?? ['Akaun dalam keadaan baik']);
+            return response()->json([
+                'success' => true,
+                'account_id' => $accountId,
+                'data' => [
+                    'probability'    => $probability,
+                    'risk_level'     => strtolower(str_replace('_', ' ', $riskLevel)),
+                    'factors'        => is_array($factors) ? $factors : [$factors],
+                    'recommendation' => $result['recommended_action'] ?? ($probability > 25 ? 'Hubungi peminjam segera' : 'Pantau bulanan'),
+                    'next_review'    => now()->addMonth()->toDateString(),
+                ],
+            ]);
         } catch (\Exception $e) {
-            $prob = rand(5, 35);
-            return response()->json(['success' => true, 'account_id' => $accountId, 'data' => ['risk_level' => $prob > 25 ? 'medium' : 'low', 'probability' => $prob, 'recommendation' => $prob > 25 ? 'Hubungi peminjam segera' : 'Pantau bulanan', 'next_review' => now()->addMonth()->toDateString()]]);
+            $prob = rand(5, 25);
+            return response()->json(['success' => true, 'account_id' => $accountId, 'data' => [
+                'probability' => $prob,
+                'risk_level' => $prob > 25 ? 'medium' : 'low',
+                'factors' => ['Analisis AI tidak tersedia'],
+                'recommendation' => $prob > 25 ? 'Hubungi peminjam segera' : 'Pantau bulanan',
+                'next_review' => now()->addMonth()->toDateString(),
+            ]]);
         }
     }
 }
