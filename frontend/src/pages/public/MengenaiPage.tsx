@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Target, Eye, Heart, MapPin, Users, TrendingUp, Award } from 'lucide-react';
+import { Target, Eye, Heart, MapPin, Users, TrendingUp, Award } from 'lucide-react';
+import PublicHeader from '@/components/PublicHeader';
 
 const MILESTONES = [
   { year: '1998', title: 'Penubuhan TEKUN Nasional', desc: 'TEKUN Nasional ditubuhkan di bawah Kementerian Pembangunan Usahawan untuk menyediakan pembiayaan mikro kepada usahawan kecil.' },
@@ -19,18 +21,15 @@ const STATES = [
 
 export default function MengenaiPage() {
   const navigate = useNavigate();
+  const [lang, setLang] = useState<'bm' | 'en'>('bm');
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <div className="bg-[#1B2B5E] text-white py-20 px-6">
+      <PublicHeader lang={lang} setLang={setLang} />
+
+      {/* Hero — offset for fixed header */}
+      <div className="bg-[#1B2B5E] text-white pt-40 pb-16 px-6">
         <div className="max-w-5xl mx-auto">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-8 transition-colors"
-          >
-            <ArrowLeft size={16} /> Kembali ke Laman Utama
-          </button>
           <div className="flex items-center gap-6 mb-8">
             <img src="/images/tekun-icon.png" alt="TEKUN" className="h-20 w-auto object-contain" />
             <div>

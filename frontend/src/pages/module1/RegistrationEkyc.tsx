@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { User, Phone, Mail, Eye, EyeOff, CheckCircle, AlertCircle, Camera, Upload } from 'lucide-react';
+import PublicHeader from '@/components/PublicHeader';
 
 type Step = 'personal' | 'ekyc' | 'liveness' | 'complete';
 
 export default function RegistrationEkyc() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [lang, setLang] = useState<'bm' | 'en'>('bm');
   const [step, setStep] = useState<Step>('personal');
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -51,16 +53,9 @@ export default function RegistrationEkyc() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-[#1B2B5E] text-white py-4 px-6 flex items-center gap-4">
-        <img src="/tekun-logo.png" alt="TEKUN" className="h-10" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-        <div>
-          <div className="font-bold text-lg" style={{ fontFamily: 'Inter, sans-serif' }}>TEKUN NASIONAL</div>
-          <div className="text-xs text-blue-200">Sistem Pengurusan Pembiayaan</div>
-        </div>
-      </div>
+      <PublicHeader lang={lang} setLang={setLang} />
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 pt-32 pb-8">
         {/* Progress Steps */}
         <div className="flex items-center justify-between mb-8">
           {steps.map((s, idx) => (
