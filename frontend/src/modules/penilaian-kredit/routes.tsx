@@ -1,12 +1,28 @@
-// Module: penilaian-kredit
-import { lazy } from 'react';
-import type { RouteObject } from 'react-router-dom';
+import React from 'react';
+import { RouteObject } from 'react-router-dom';
+import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 
-const AmortizationCalc = lazy(() => import('./pages/AmortizationCalc'));
-const ApprovalWorkflow = lazy(() => import('./pages/ApprovalWorkflow'));
-const CreditDashboard = lazy(() => import('./pages/CreditDashboard'));
-const CreditScoring = lazy(() => import('./pages/CreditScoring'));
-const OfferLetter = lazy(() => import('./pages/OfferLetter'));
+// Lazy load components
+const CreditDashboard = React.lazy(() => import('./pages/CreditDashboard'));
+const PreAssessment = React.lazy(() => import('./pages/PreAssessment'));
+const CreditScoring = React.lazy(() => import('./pages/CreditScoring'));
+const ApprovalWorkflow = React.lazy(() => import('./pages/ApprovalWorkflow'));
+const AmortizationCalc = React.lazy(() => import('./pages/AmortizationCalc'));
+const OfferLetter = React.lazy(() => import('./pages/OfferLetter'));
 
-const routes: RouteObject[] = [];
-export default routes;
+export const creditRoutes: RouteObject[] = [
+  {
+    path: 'penilaian-kredit',
+    element: <ProtectedRoute allowedRoles={['Pegawai Kredit', 'Pengurus Cawangan', 'Pentadbir Sistem']} />,
+    children: [
+      { index: true, element: <CreditDashboard /> },
+      { path: 'pre-assessment/:id', element: <PreAssessment /> },
+      { path: 'scoring/:id', element: <CreditScoring /> },
+      { path: 'approval/:id', element: <ApprovalWorkflow /> },
+      { path: 'amortization/:id', element: <AmortizationCalc /> },
+      { path: 'offer-letter/:id', element: <OfferLetter /> }
+    ]
+  }
+];
+
+export default creditRoutes;

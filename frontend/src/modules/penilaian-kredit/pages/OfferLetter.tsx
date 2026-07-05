@@ -1,210 +1,163 @@
-import { useState } from 'react';
-import { CheckCircle, Download, Send, Edit3, Sparkles, Clock, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, FileText, Download, Printer, CheckCircle, Mail } from 'lucide-react';
+import { creditService } from '../services/creditService';
+import toast from 'react-hot-toast';
 
 export default function OfferLetter() {
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  const handleSend = async () => {
-    setSending(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setSending(false);
-    setSent(true);
+  useEffect(() => {
+    if (id) {
+      generateLetter();
+    }
+  }, [id]);
+
+  const generateLetter = async () => {
+    try {
+      setLoading(true);
+      const data = await creditService.generateOfferLetter(id as string);
+      setPdfUrl(data.pdf_url);
+    } catch (error) {
+      console.error('Error generating offer letter:', error);
+      toast.error('Gagal menjana surat tawaran');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendEmail = () => {
+    toast.success('Surat tawaran telah dihantar ke e-mel pemohon');
   };
 
   return (
-    <div className="space-y-6">
-      {/* Success Banner */}
-      <div className="bg-[#2E7D32] text-white rounded-xl px-6 py-4 flex items-center gap-3">
-        <CheckCircle size={22} />
+    <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="flex items-center gap-4 mb-6">
+        <button 
+          onClick={() => navigate('/penilaian-kredit')}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </button>
         <div>
-          <p className="font-bold text-base" style={{ fontFamily: 'Inter, sans-serif' }}>DILULUSKAN — Surat Tawaran Dijana Secara Automatik oleh AI</p>
-          <p className="text-sm opacity-90" style={{ fontFamily: 'Inter, sans-serif' }}>Dijana: 03/07/2026 15:45 | Oleh: Sistem AI SPPT</p>
+          <h1 className="text-2xl font-bold text-navy-900">Surat Tawaran Pembiayaan</h1>
+          <p className="text-gray-500">Permohonan #{id}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Letter Preview */}
-        <div className="col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* PDF Toolbar */}
-          <div className="bg-gray-800 px-4 py-2 flex items-center gap-3 text-white text-xs">
-            <span>≡</span>
-            <span>1 / 1</span>
-            <span>—</span>
-            <span>100%</span>
-            <span>+</span>
-            <div className="flex-1" />
-            <Download size={14} className="cursor-pointer hover:opacity-75" />
-            <span>🖨</span>
-            <span>⋮</span>
-          </div>
-
-          {/* Letter Content */}
-          <div className="p-8 bg-white">
-            {/* Letterhead */}
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 bg-[#1B2B5E] rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-xs text-center leading-tight">TEKUN<br/>NASIONAL</span>
-                </div>
-                <div>
-                  <p className="font-bold text-[#1B2B5E] text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>TEKUN NASIONAL</p>
-                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Perbadanan Tabung Ekonomi Kumpulan Usaha Niaga</p>
-                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Tingkat 15, Menara TEKUN, No. 333, Jalan Ampang</p>
-                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>50450 Kuala Lumpur | Tel: 03-2050 3000</p>
-                </div>
-              </div>
-              <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-center">
-                <div className="flex items-center gap-1 text-purple-700">
-                  <Sparkles size={12} />
-                  <span className="text-xs font-bold" style={{ fontFamily: 'Inter, sans-serif' }}>Dijana oleh AI SPPT</span>
-                </div>
-                <p className="text-xs text-purple-600" style={{ fontFamily: 'Inter, sans-serif' }}>Tiada pengetikan manual</p>
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1 space-y-4">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
+            <h2 className="font-bold text-navy-900 mb-1">Berjaya Dijana</h2>
+            <p className="text-sm text-gray-500 mb-6">Dokumen sedia untuk dicetak atau dihantar</p>
 
-            <div className="border-t border-gray-200 mb-6" />
+            <div className="space-y-3">
+              <button 
+                className="w-full py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium flex items-center justify-center gap-2"
+                onClick={() => window.print()}
+              >
+                <Printer className="w-4 h-4" />
+                Cetak Dokumen
+              </button>
+              
+              <button 
+                className="w-full py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium flex items-center justify-center gap-2"
+                onClick={() => {
+                  if (pdfUrl) {
+                    const link = document.createElement('a');
+                    link.href = pdfUrl;
+                    link.download = `Surat_Tawaran_${id}.pdf`;
+                    link.click();
+                  }
+                }}
+              >
+                <Download className="w-4 h-4" />
+                Muat Turun PDF
+              </button>
 
-            {/* Date and Reference */}
-            <div className="text-right mb-6">
-              <p className="text-sm text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>Tarikh : 03 Julai 2026</p>
-              <p className="text-sm text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>Rujukan : SPPT-TAWARAN-2026-00089</p>
-            </div>
-
-            {/* Recipient */}
-            <div className="mb-6">
-              <p className="font-bold text-gray-800" style={{ fontFamily: 'Inter, sans-serif' }}>Siti Nurhaliza</p>
-              <p className="text-sm text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>No. 123, Jalan Melati 5/12</p>
-              <p className="text-sm text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>Taman Melati, 53000 Kuala Lumpur</p>
-              <p className="text-sm text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>W.P. Kuala Lumpur</p>
-            </div>
-
-            <p className="text-sm text-gray-700 mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>Puan,</p>
-
-            <p className="font-bold text-gray-800 text-center mb-4 underline" style={{ fontFamily: 'Inter, sans-serif' }}>
-              SURAT TAWARAN PEMBIAYAAN TEKUN USAHAWAN
-            </p>
-
-            <p className="text-sm text-gray-700 mb-4 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Dengan segala hormatnya, sukacita dimaklumkan bahawa permohonan pembiayaan TEKUN Usahawan Puan telah diluluskan. Butiran tawaran pembiayaan adalah seperti berikut:
-            </p>
-
-            {/* Terms Table */}
-            <table className="w-full border border-gray-300 text-sm mb-4">
-              <tbody>
-                {[
-                  ['Jumlah Pembiayaan', 'RM 25,000.00'],
-                  ['Kadar Keuntungan', '4% setahun (Kadar Tetap)'],
-                  ['Tempoh Pembiayaan', '36 bulan'],
-                  ['Ansuran Bulanan', 'RM 763.89'],
-                  ['Tarikh Mula Bayaran', '01 September 2026'],
-                  ['Tarikh Akhir Bayaran', '01 Ogos 2029'],
-                ].map(([label, value]) => (
-                  <tr key={label} className="border-b border-gray-200">
-                    <td className="px-3 py-2 font-semibold text-gray-700 w-1/2 border-r border-gray-200" style={{ fontFamily: 'Inter, sans-serif' }}>{label}</td>
-                    <td className="px-3 py-2 text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <p className="text-xs text-gray-600 mb-6 leading-relaxed" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Tawaran ini adalah tertakluk kepada terma dan syarat pembiayaan TEKUN Usahawan yang telah ditetapkan. Puan dikehendaki menandatangani Surat Akuan Terima Tawaran dan Perjanjian Pembiayaan serta mematuhi semua terma dan syarat yang berkaitan.
-            </p>
-
-            <p className="text-sm text-gray-700 mb-6" style={{ fontFamily: 'Inter, sans-serif' }}>Sekian, terima kasih.</p>
-
-            {/* Signature */}
-            <div>
-              <div className="w-32 h-10 border-b border-gray-400 mb-1" />
-              <p className="font-bold text-gray-800 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>MOHD ZULKIFLI BIN ISMAIL</p>
-              <p className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Pengurus Kanan, Bahagian Pembiayaan</p>
-              <p className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>TEKUN Nasional</p>
+              <button 
+                onClick={handleSendEmail}
+                className="w-full py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
+              >
+                <Mail className="w-4 h-4" />
+                Hantar E-mel
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Right Panel */}
-        <div className="space-y-4">
-          {/* Letter Info */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 className="font-bold text-gray-800 text-sm mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>Maklumat Surat Tawaran</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Status</span>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold" style={{ fontFamily: 'Inter, sans-serif' }}>DRAF DALAMAN</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Masa Penjanaan AI</span>
-                <div className="flex items-center gap-1 text-green-600">
-                  <Clock size={12} />
-                  <span className="text-xs font-bold" style={{ fontFamily: 'Inter, sans-serif' }}>&lt; 3 saat</span>
-                </div>
-              </div>
+        <div className="lg:col-span-3">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden h-[800px] flex flex-col">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Pratonton Dokumen</span>
             </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs font-bold text-purple-700 mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>Maklumat Diisi Secara Automatik oleh AI</p>
-              <div className="space-y-2">
-                {[
-                  { label: 'Nama Pemohon', value: 'Siti Nurhaliza' },
-                  { label: 'Jumlah Pembiayaan', value: 'RM 25,000.00' },
-                  { label: 'Kadar Keuntungan', value: '4% setahun' },
-                  { label: 'Tempoh Pembiayaan', value: '36 bulan' },
-                  { label: 'Ansuran Bulanan', value: 'RM 763.89' },
-                  { label: 'Tarikh Mula Bayaran', value: '01 September 2026' },
-                ].map(item => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>{item.label}</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-semibold text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>{item.value}</span>
-                      <div className="w-5 h-5 bg-purple-100 rounded flex items-center justify-center">
-                        <Sparkles size={10} className="text-purple-600" />
+            
+            <div className="flex-1 bg-gray-100 p-8 overflow-auto flex justify-center">
+              {loading ? (
+                <div className="flex flex-col justify-center items-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-4"></div>
+                  <p className="text-gray-500">Menjana dokumen PDF...</p>
+                </div>
+              ) : (
+                <div className="bg-white w-full max-w-[21cm] min-h-[29.7cm] shadow-md p-12 relative">
+                  {/* Mock PDF Content for POC */}
+                  <div className="absolute top-12 right-12 text-right">
+                    <p className="text-sm font-medium">Rujukan: TEKUN/{id}/2026</p>
+                    <p className="text-sm">Tarikh: {new Date().toLocaleDateString('ms-MY')}</p>
+                  </div>
+                  
+                  <div className="mt-16 mb-8">
+                    <h1 className="text-xl font-bold text-center underline mb-8">SURAT TAWARAN PEMBIAYAAN TEKUN</h1>
+                    
+                    <div className="space-y-4 text-sm leading-relaxed">
+                      <p>Tuan/Puan,</p>
+                      <p className="font-bold">TAWARAN PEMBIAYAAN TEKUN NASIONAL</p>
+                      <p>Dengan hormatnya perkara di atas adalah dirujuk.</p>
+                      <p>2. Sukacita dimaklumkan bahawa TEKUN Nasional telah meluluskan permohonan pembiayaan tuan/puan tertakluk kepada terma dan syarat berikut:</p>
+                      
+                      <table className="w-full mt-4 mb-4 border-collapse">
+                        <tbody>
+                          <tr>
+                            <td className="w-1/3 py-2 font-medium">Skim Pembiayaan</td>
+                            <td className="py-2">: TEKUN Niaga</td>
+                          </tr>
+                          <tr>
+                            <td className="w-1/3 py-2 font-medium">Amaun Diluluskan</td>
+                            <td className="py-2 font-bold">: RM 50,000.00</td>
+                          </tr>
+                          <tr>
+                            <td className="w-1/3 py-2 font-medium">Tempoh Pembiayaan</td>
+                            <td className="py-2">: 60 Bulan</td>
+                          </tr>
+                          <tr>
+                            <td className="w-1/3 py-2 font-medium">Kadar Keuntungan</td>
+                            <td className="py-2">: 4.0% setahun (Kadar Rata)</td>
+                          </tr>
+                          <tr>
+                            <td className="w-1/3 py-2 font-medium">Ansuran Bulanan</td>
+                            <td className="py-2 font-bold">: RM 1,000.00</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      
+                      <p>3. Sila tandatangan dokumen perjanjian ini dan kembalikan kepada pihak TEKUN Nasional dalam tempoh 14 hari dari tarikh surat ini dikeluarkan.</p>
+                      <p>Sekian, terima kasih.</p>
+                      <p className="mt-8 font-bold">"KEUSAHAWANAN DAN PERNIAGAAN SATU KERJAYA"</p>
+                      <div className="mt-12">
+                        <p>Pengurus Cawangan</p>
+                        <p>TEKUN Nasional</p>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Next Steps */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 className="font-bold text-gray-800 text-sm mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>Tindakan Seterusnya</h3>
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-              <div className="flex items-start gap-2">
-                <Shield size={14} className="text-orange-500 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-orange-700" style={{ fontFamily: 'Inter, sans-serif' }}>
-                  Surat tawaran ini akan dihantar ke Modul 3 (Pengeluaran Dana) untuk penghantaran kepada pemohon dan proses e-tandatangan.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <button className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-50" style={{ fontFamily: 'Inter, sans-serif' }}>
-                <Edit3 size={14} /> Semak &amp; Edit Surat
-              </button>
-              <button onClick={handleSend} disabled={sending || sent}
-                className={`w-full py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors ${sent ? 'bg-green-500 text-white' : 'bg-[#1B2B5E] text-white hover:bg-[#152348]'} disabled:opacity-75`}
-                style={{ fontFamily: 'Inter, sans-serif' }}>
-                {sending ? (
-                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Menghantar...</>
-                ) : sent ? (
-                  <><CheckCircle size={16} /> Dihantar ke Modul 3</>
-                ) : (
-                  <><Send size={16} /> Hantar ke Modul 3 — Pengeluaran Dana</>
-                )}
-              </button>
-              <button className="w-full py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-50" style={{ fontFamily: 'Inter, sans-serif' }}>
-                <Download size={14} /> Muat Turun PDF
-              </button>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-gray-400">
-                <Shield size={12} />
-                <span className="text-xs" style={{ fontFamily: 'Inter, sans-serif' }}>Dijana: 03/07/2026 15:45 | Oleh: Sistem AI SPPT</span>
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
