@@ -19,13 +19,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 globally
+// Handle 401 globally — but NOT for demo tokens (demo mode has no real backend)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
+      const token = useAuthStore.getState().token;
+      // Do NOT auto-logout for demo tokens — demo mode has no real backend
+      const isDemoToken = token?.startsWith('demo-token');
+      if (!isDemoToken) {
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
