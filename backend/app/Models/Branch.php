@@ -71,4 +71,12 @@ class Branch extends Model
     {
         return $this->applications()->where('status', 'submitted')->count();
     }
+
+    /**
+     * Performance history for this branch.
+     */
+    public function performanceHistory(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\BranchPerformance::class, 'branch_id');
+    }
 }

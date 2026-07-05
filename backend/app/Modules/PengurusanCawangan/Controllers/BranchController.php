@@ -1,29 +1,99 @@
 <?php
-namespace App\Http\Controllers\Api;
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 
+namespace App\Modules\PengurusanCawangan\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Modules\PengurusanCawangan\Services\BranchService;
+use App\Modules\PengurusanCawangan\Requests\UpdateBranchRequest;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+
+/**
+ * TEKUN SPPT — Module 8: Pengurusan Cawangan
+ * Handles all branch management API endpoints.
+ *
+ * RBAC:
+ *  - branch_manager: own branch only
+ *  - branch_officer: read-only, own branch only
+ *  - executive / system_admin: all branches
+ */
 class BranchController extends Controller
 {
-    public function index()
+    public function __construct(private BranchService $service) {}
+
+    /**
+     * GET /api/branches
+     * List all branches with performance metrics.
+     */
+    public function index(Request $request): JsonResponse
     {
-        return response()->json([
-            'data' => [
-                ['id' => 'CW-001', 'name' => 'Cawangan KL Sentral', 'state' => 'WP Kuala Lumpur', 'staff' => 12, 'collection_rate' => 94, 'npl_ratio' => 1.2],
-                ['id' => 'CW-002', 'name' => 'Cawangan Shah Alam', 'state' => 'Selangor', 'staff' => 9, 'collection_rate' => 88, 'npl_ratio' => 2.1],
-                ['id' => 'CW-003', 'name' => 'Cawangan Johor Bahru', 'state' => 'Johor', 'staff' => 11, 'collection_rate' => 92, 'npl_ratio' => 1.8],
-            ],
-            'total' => 48
-        ]);
+        $user = $request->user();
+        $filters = $request->only(['state', 'search', 'is_active', 'per_page', 'page']);
+
+        $result = $this->service->getBranches($user, $filters);
+
+        return response()->json($result);
     }
 
-    public function performance()
+    /**
+     * GET /api/branches/performance
+     * Ranked performance data (monthly targets vs actual).
+     */
+    public function performance(Request $request): JsonResponse
     {
+        $period = $request->query('period', date('Y-m'));
+        $result = $this->service->getPerformanceRanking($period);
+
+        return response()->json($result);
+    }
+
+    /**
+     * GET /api/branches/{id}
+     * Branch detail with performance history.
+     */
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $result = $this->service->getBranchDetail($id, $user);
+
+        if (!$result) {
+            return response()->json(['message' => 'Cawangan tidak dijumpai atau akses ditolak.'], 404);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * GET /api/branches/{id}/staff
+     * Staff list for a branch.
+     */
+    public function staff(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $result = $this->service->getBranchStaff($id, $user);
+
+        if (!$result) {
+            return response()->json(['message' => 'Cawangan tidak dijumpai atau akses ditolak.'], 404);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * PUT /api/branches/{id}
+     * Update branch information (RBAC-protected).
+     */
+    public function update(UpdateBranchRequest $request, int $id): JsonResponse
+    {
+        $branch = $this->service->updateBranch($id, $request->validated());
+
+        if (!$branch) {
+            return response()->json(['message' => 'Cawangan tidak dijumpai.'], 404);
+        }
+
         return response()->json([
-            'avg_collection' => 89.4,
-            'avg_npl' => 1.8,
-            'top_branch' => 'CW-001',
-            'total_branches' => 48
+            'message' => 'Maklumat cawangan berjaya dikemaskini.',
+            'branch'  => $branch,
         ]);
     }
 }

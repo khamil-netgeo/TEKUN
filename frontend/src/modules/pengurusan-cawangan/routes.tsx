@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import type { RouteObject } from 'react-router-dom';
+import { RouteObject } from 'react-router-dom';
 
 const BranchManagement = lazy(() => import('./pages/BranchManagement'));
 const BranchDetail = lazy(() => import('./pages/BranchDetail'));
