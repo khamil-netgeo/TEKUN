@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { AiBadge } from '@/components/ui/AiBadge';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import AiBadge from '@/components/ui/AiBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface AuditLog {

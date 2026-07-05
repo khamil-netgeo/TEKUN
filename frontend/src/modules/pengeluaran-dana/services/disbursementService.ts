@@ -1,6 +1,7 @@
 /**
  * Module 3 — Pengeluaran Dana
  * API service layer for all disbursement endpoints.
+ * Updated: added OfferLetterData, sendApprovalOtp, verifyOtpAndApprove
  */
 import api from '../../../services/api';
 
@@ -13,7 +14,7 @@ export interface Disbursement {
   bank_account_no: string;
   bank_account_name: string;
   bank_verified: boolean;
-  status: 'pending' | 'processing' | 'approved' | 'rejected' | 'disbursed';
+  status: 'pending' | 'processing' | 'approved' | 'rejected' | 'disbursed' | 'completed' | 'failed';
   esign_status: 'pending' | 'signed' | 'rejected' | 'expired' | null;
   approval_level: string;
   approved_by_l1: number | null;
@@ -21,6 +22,12 @@ export interface Disbursement {
   is_escalated: boolean;
   is_batch: boolean;
   batch_ref: string | null;
+  ai_anomaly_flag: boolean;
+  ai_anomaly_reason: string | null;
+  ai_anomaly_score: number | null;
+  twofa_required: boolean;
+  twofa_confirmed: boolean;
+  sla_breach: boolean;
   created_at: string;
   updated_at: string;
   // Joined fields
@@ -79,6 +86,30 @@ export interface DisbursementMeta {
   total_records: number;
 }
 
+export interface AmortizationRow {
+  month: number;
+  payment: number;
+  principal: number;
+  profit: number;
+  balance: number;
+}
+
+export interface OfferLetterData {
+  ref_no: string;
+  applicant_name: string;
+  ic_no: string;
+  address?: string;
+  scheme?: string;
+  amount: number;
+  tenure: number;
+  rate: number;
+  monthly: number;
+  total_profit: number;
+  total_payable: number;
+  schedule: AmortizationRow[];
+  issued_at: string;
+}
+
 const disbursementService = {
   /**
    * GET /api/disbursements — paginated list with optional status filter
@@ -86,6 +117,30 @@ const disbursementService = {
   async getList(params: { status?: string; page?: number; per_page?: number } = {}) {
     const response = await api.get('/disbursements', { params });
     return response.data as { success: boolean; data: Disbursement[]; meta: DisbursementMeta };
+  },
+
+  /**
+   * GET /api/disbursements/{id} — single disbursement
+   */
+  async getOne(id: number) {
+    const response = await api.get(`/disbursements/${id}`);
+    return response.data as { success: boolean; data: Disbursement };
+  },
+
+  /**
+   * POST /api/disbursements — create new disbursement
+   */
+  async create(payload: Partial<Disbursement>) {
+    const response = await api.post('/disbursements', payload);
+    return response.data;
+  },
+
+  /**
+   * PUT /api/disbursements/{id} — update disbursement
+   */
+  async update(id: number, payload: Partial<Disbursement>) {
+    const response = await api.put(`/disbursements/${id}`, payload);
+    return response.data;
   },
 
   /**
@@ -99,8 +154,8 @@ const disbursementService = {
   /**
    * POST /api/disbursements/{id}/escalate
    */
-  async escalate(id: number) {
-    const response = await api.post(`/disbursements/${id}/escalate`);
+  async escalate(id: number, reason?: string) {
+    const response = await api.post(`/disbursements/${id}/escalate`, { reason });
     return response.data;
   },
 
@@ -142,6 +197,30 @@ const disbursementService = {
   async getAuthorityMatrix(amount?: number) {
     const response = await api.get('/disbursements/authority-matrix', { params: amount ? { amount } : {} });
     return response.data as { success: boolean; data: AuthorityLevel[]; applicable: AuthorityLevel | null };
+  },
+
+  /**
+   * GET /api/disbursements/{id}/offer-letter — offer letter data for Surat Tawaran
+   */
+  async getOfferLetterData(id: number) {
+    const response = await api.get(`/disbursements/${id}/offer-letter`);
+    return response.data as { success: boolean; data: OfferLetterData };
+  },
+
+  /**
+   * POST /api/disbursements/{id}/send-otp — send OTP before approval
+   */
+  async sendApprovalOtp(id: number) {
+    const response = await api.post(`/disbursements/${id}/send-otp`);
+    return response.data as { success: boolean; message: string };
+  },
+
+  /**
+   * POST /api/disbursements/{id}/verify-otp-approve — verify OTP and approve
+   */
+  async verifyOtpAndApprove(id: number, otp: string) {
+    const response = await api.post(`/disbursements/${id}/verify-otp-approve`, { otp });
+    return response.data as { success: boolean; message: string };
   },
 };
 
