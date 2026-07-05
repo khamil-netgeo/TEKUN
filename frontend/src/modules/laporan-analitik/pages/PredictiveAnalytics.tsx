@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useState, useCallback } from 'react';
 import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip,

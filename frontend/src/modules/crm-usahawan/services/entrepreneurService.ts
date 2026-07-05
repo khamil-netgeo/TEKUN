@@ -79,3 +79,14 @@ export const generateVisitReport = (visitId: number, payload: GenerateReportPayl
 
 export const getAiHealth = (id: string | number): Promise<AiHealthResult> =>
   api.get(`/ai/entrepreneur-health/${id}`).then(r => r.data);
+
+// ── Convenience object wrapper (used by EntrepreneurProfile & FieldVisit) ────
+export const entrepreneurService = {
+  get: (id: string | number) => getEntrepreneur(id),
+  list: (filters: EntrepreneurFilters = {}) => getEntrepreneurs(filters),
+  update: (id: string | number, data: Partial<Entrepreneur360>) => updateEntrepreneur(id, data),
+  getVisits: (id: string | number, _params?: Record<string, unknown>) => getVisits(id),
+  scheduleVisit: (id: string | number, payload: ScheduleVisitPayload) => scheduleVisit(id, payload),
+  generateReport: (visitId: number, payload: GenerateReportPayload = {}) => generateVisitReport(visitId, payload),
+  getAiHealth: (id: string | number) => getAiHealth(id),
+};

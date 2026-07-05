@@ -14,6 +14,11 @@ class EntrepreneurSeeder extends Seeder
 {
     public function run(): void
     {
+        if (DB::table('entrepreneurs')->count() >= 5) {
+            $this->command->info('EntrepreneurSeeder: already seeded, skipping.');
+            return;
+        }
+
         $branchId  = DB::table('branches')->value('id') ?? 1;
         $officerId = DB::table('users')->where('email', 'pegawai@tekun.gov.my')->value('id') ?? 1;
 

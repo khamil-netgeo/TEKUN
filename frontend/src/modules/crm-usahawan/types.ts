@@ -2,7 +2,6 @@
  * Module 7 — CRM & Pemantauan Usahawan
  * TypeScript type definitions
  */
-
 export interface Entrepreneur {
   id: number;
   ref_no: string;
@@ -24,24 +23,27 @@ export interface Entrepreneur {
   assigned_officer?: { id: number; name: string };
   status: 'aktif' | 'tidak_aktif' | 'blacklist';
   updated_at?: string;
+  // Extended fields used by EntrepreneurProfile
+  kpi_trend?: KpiSnapshot[];
+  monthly_revenue?: number;
+  employee_count?: number;
+  business_name?: string;
+  business_sector?: string;
+  business_address?: string;
 }
 
 export interface Entrepreneur360 extends Entrepreneur {
-  business_name?: string;
   business_reg_no?: string;
   business_type?: string;
   business_start_date?: string;
   business_age_years?: number;
-  business_address?: string;
   sub_sector?: string;
   race?: string;
   gender?: string;
   dob?: string;
   address?: string;
-  monthly_revenue?: number;
   monthly_expenses?: number;
   monthly_sales?: number;
-  employee_count: number;
   kpi_updated_at?: string;
   default_probability?: number;
   ai_factors: string[];
@@ -77,6 +79,13 @@ export interface FieldVisit {
   reported_employees?: number;
   checklist_items: string[];
   created_at?: string;
+  location?: string;
+}
+
+export interface AiHealthFactor {
+  factor: string;
+  description: string;
+  impact: 'positive' | 'negative' | 'neutral';
 }
 
 export interface AiHealthResult {
@@ -85,8 +94,11 @@ export interface AiHealthResult {
   score: number;
   distress_level: string;
   default_probability: number;
-  factors: string[];
+  factors: AiHealthFactor[];
   health_badge: string;
+  badge?: string;
+  recommendation?: string;
+  computed_at?: string;
   updated_at?: string;
 }
 

@@ -48,7 +48,6 @@ class BranchSeeder extends Seeder
                     'collection_rate'    => $data['collection_rate'],
                     'staff_count'        => $data['staff_count'],
                     'performance_rank'   => $data['performance_rank'],
-                    'target_collection_rate' => 95.00,
                     'monthly_target'     => 500000,
                     'monthly_actual'     => 500000 * ($data['collection_rate'] / 100),
                     'is_active'          => true,
@@ -62,15 +61,14 @@ class BranchSeeder extends Seeder
                 BranchPerformance::updateOrCreate(
                     ['branch_id' => $branch->id, 'period' => $period],
                     [
-                        'collection_rate'        => max(85, min(99, $data['collection_rate'] + $variation)),
-                        'npl_ratio'              => max(1, min(12, $data['npl_ratio'] + ($variation / 2))),
-                        'disbursement_amount'    => rand(200000, 800000),
-                        'applications_received'  => rand(20, 80),
-                        'applications_approved'  => rand(15, 60),
-                        'applications_rejected'  => rand(2, 10),
-                        'target_collection_rate' => 95.00,
-                        'target_disbursement'    => 500000,
-                        'performance_rank'       => $data['performance_rank'],
+                        'collection_rate'         => max(85, min(99, $data['collection_rate'] + $variation)),
+                        'npl_ratio'               => max(1, min(12, $data['npl_ratio'] + ($variation / 2))),
+                        'target_amount'           => 500000,
+                        'actual_amount'           => rand(200000, 800000),
+                        'new_applications'        => rand(20, 80),
+                        'approved_applications'   => rand(15, 60),
+                        'rejected_applications'   => rand(2, 10),
+                        'performance_rank'        => $data['performance_rank'],
                     ]
                 );
             }

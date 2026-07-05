@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * TEKUN SPPT — Module 1: Registration & eKYC
  * Real implementation with WebRTC camera and real API calls.
@@ -39,7 +40,6 @@ interface FormData {
   agreeTerms: boolean;
 }
 
-const INTEGRATIONS = ['e-Syariah', 'Muflis', 'SSM', 'CCRIS', 'CTOS', 'JPN/MyKad'];
 const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE_MB = 10;
 

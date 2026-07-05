@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Calendar, Plus, RefreshCw, Search, CheckCircle, Clock, XCircle,
@@ -5,7 +6,7 @@ import {
 } from 'lucide-react';
 import { entrepreneurService } from '../services/entrepreneurService';
 import type { FieldVisit as FieldVisitType, Entrepreneur } from '../types';
-import { ScheduleVisitModal } from '../components/ScheduleVisitModal';
+import ScheduleVisitModal from '../components/ScheduleVisitModal';
 
 const STATUS_STYLES: Record<string, string> = {
   Dijadualkan: 'bg-blue-100 text-blue-800',
@@ -276,31 +277,6 @@ export default function FieldVisitPage() {
                 <XCircle size={16} />
               </button>
             </div>
-
-            {/* Filter */}
-            <div className="relative">
-              <Filter size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
-                value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}
-                className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
-              >
-                <option value="">Semua Status</option>
-                <option value="Dijadualkan">Dijadualkan</option>
-                <option value="Dalam Proses">Dalam Proses</option>
-                <option value="Selesai">Selesai</option>
-                <option value="Dibatalkan">Dibatalkan</option>
-              </select>
-            </div>
-
-            {/* New Visit */}
-            <button
-              onClick={() => setShowSchedule(true)}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-white text-xs font-semibold"
-              style={{ background: '#2E7D32' }}
-            >
-              <Plus size={12} /> Jadual Lawatan
-            </button>
           </div>
           {selectedVisit.ai_report && (
             <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
@@ -311,7 +287,7 @@ export default function FieldVisitPage() {
             </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

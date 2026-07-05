@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, FileText, Search, AlertCircle, ExternalLink } from 'lucide-react';

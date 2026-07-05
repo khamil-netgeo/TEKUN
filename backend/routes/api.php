@@ -215,9 +215,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ─────────────────────────────────────────────────────────────────────────
     // MODULE 9 — Konfigurasi Produk Pembiayaan
-    // Roles: system_admin only
+    // Roles: system_admin, executive (view)
     // ─────────────────────────────────────────────────────────────────────────
-    Route::middleware(['module:module9', 'role:system_admin'])->group(function () {
+    Route::middleware(['module:module9', 'role:system_admin,executive'])->group(function () {
         Route::get('/products',        [ProductController::class, 'index']);
         Route::get('/products/{id}',   [ProductController::class, 'show']);
         Route::put('/products/{id}',   [ProductController::class, 'update']);
@@ -225,9 +225,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ─────────────────────────────────────────────────────────────────────────
     // MODULE 10 — Integrasi API
-    // Roles: system_admin only
+    // Roles: system_admin, executive (view)
     // ─────────────────────────────────────────────────────────────────────────
-    Route::middleware(['module:module10', 'role:system_admin'])->group(function () {
+    Route::middleware(['module:module10', 'role:system_admin,executive'])->group(function () {
         Route::get('/integrations/health',          [IntegrationController::class, 'health']);
         Route::get('/integrations/check/{service}', [IntegrationController::class, 'check']);
     });

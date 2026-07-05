@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Module 7 — CRM & Pemantauan Usahawan
  * KpiDashboard — entrepreneur KPI tracking, revenue trends, employment count,

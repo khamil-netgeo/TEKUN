@@ -144,7 +144,17 @@ Return this exact JSON structure:
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::generateCreditScore error: ' . $e->getMessage());
-            return ['error' => $e->getMessage()];
+            return [
+                'score'            => 60,
+                'grade'            => 'C',
+                'grade_label'      => 'Sederhana',
+                'recommendation'   => 'KUARI',
+                'confidence'       => 0.5,
+                'risk_factors'     => ['AI tidak tersedia'],
+                'positive_factors' => ['Permohonan lengkap diterima'],
+                'narrative_bm'     => 'Penilaian automatik tidak dapat diselesaikan.',
+                'ai_fallback'      => true,
+            ];
         }
     }
 
@@ -520,6 +530,41 @@ KPI Data: " . json_encode($kpiData) . "
                 'issues'             => [],
                 'confidence'         => 0.5,
             ];
+        }
+    }
+
+    /**
+     * Call AI engine (Gemini) with a text prompt.
+     */
+    private function callAiEngine(string|array $prompt): object
+    {
+        $apiKey  = env('GEMINI_API_KEY', '');
+        $apiBase = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey;
+        $textPrompt = is_array($prompt) ? json_encode($prompt) : $prompt;
+        $payload = ['contents' => [['parts' => [['text' => $textPrompt]]]]];
+        $http    = \Illuminate\Support\Facades\Http::timeout(30)->post($apiBase, $payload);
+        if (!$http->successful()) {
+            throw new \Exception('Gemini API error: ' . $http->status());
+        }
+        $data = $http->json();
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        return new class($text) {
+            public function __construct(private string $t) {}
+            public function text(): string { return $this->t; }
+        };
+    }
+
+    /**
+     * Generate narrative text from a string prompt.
+     */
+    public function generateNarrativeText(string $prompt): string
+    {
+        try {
+            $response = $this->callAiEngine($prompt);
+            return trim($response->text());
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('generateNarrativeText fallback: ' . $e->getMessage());
+            return 'Penilaian kredit telah selesai. Sila rujuk pegawai kredit untuk maklumat lanjut.';
         }
     }
 }

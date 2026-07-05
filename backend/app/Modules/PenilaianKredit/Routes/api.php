@@ -17,4 +17,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/applications/{id}/reject', [CreditAssessmentController::class, 'reject']);
     Route::post('/applications/{id}/kuari', [CreditAssessmentController::class, 'kuari']);
     Route::get('/applications/{id}/offer-letter', [CreditAssessmentController::class, 'offerLetter']);
+    Route::post('/credit/narrative', [CreditAssessmentController::class, 'narrative']);
+    Route::get('/credit/dashboard', [CreditAssessmentController::class, 'dashboard']);
+    Route::get('/credit/workflow', [CreditAssessmentController::class, 'approvalWorkflow']);
 });
