@@ -1,12 +1,14 @@
 <?php
+
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\NplController;
-/** Module 5 — Pengurusan NPL Routes */
+use App\Modules\PengurusanNPL\Controllers\NplController;
+
 Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/npl', [NplController::class, 'index']);
-    Route::get('/npl/dashboard', [NplController::class, 'dashboard']);
-    Route::get('/npl/{id}', [NplController::class, 'show']);
-    Route::post('/npl/{id}/dunning', [NplController::class, 'dunning']);
-    Route::post('/npl/{id}/restructure', [NplController::class, 'restructure']);
-    Route::get('/npl/{id}/history', [NplController::class, 'history']);
+    Route::get('/npl/dashboard',             [NplController::class, 'dashboard']);
+    Route::get('/npl/dunning',               [NplController::class, 'dunningList']);
+    Route::get('/npl/accounts',              [NplController::class, 'nplAccounts']);
+    Route::get('/npl/ai-automation',         [NplController::class, 'aiAutomationStatus']);
+    Route::get('/collections/tasks',                 [NplController::class, 'collectionTasks']);
+    Route::post('/collections/tasks/{id}/outcome',   [NplController::class, 'logOutcome']);
+    Route::post('/collections/dunning/{id}',         [NplController::class, 'sendDunning']);
 });
