@@ -220,3 +220,42 @@ export function useLogOutcome() {
 
   return { log, loading, error };
 }
+
+// ── DunningRecord ─────────────────────────────────────────────────────────────
+export interface DunningRecord {
+  id: number;
+  account_no: string;
+  borrower_name: string;
+  days_overdue: number;
+  outstanding: number | string;
+  classification: string;
+  ai_risk_level: string;
+  dunning_stage: string;
+}
+
+// ── useDunningList ────────────────────────────────────────────────────────────
+export function useDunningList(stage?: string) {
+  const [data, setData] = useState<DunningRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = stage ? { dunning_stage: stage } : {};
+      const res = await api.get('/npl/dunning', { params });
+      const body = res.data;
+      setData(Array.isArray(body) ? body : (body?.data ?? []));
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      setError(e?.response?.data?.message ?? 'Gagal memuatkan senarai dunning.');
+    } finally {
+      setLoading(false);
+    }
+  }, [stage]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  return { data, loading, error, refetch: fetchData };
+}
