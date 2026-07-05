@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { AiBadge, PageHeader, LoadingSpinner, toast } from '@/components/ui';
-import { useCollectionTasks, useLogOutcome } from '../../modules/pengurusan-npl/hooks/useNpl';
-import type { CollectionTask } from '../../modules/pengurusan-npl/hooks/useNpl';
+import { useCollectionTasks, useLogOutcome } from '@/modules/pengurusan-npl/hooks/useNpl';
+import type { CollectionTask } from '@/modules/pengurusan-npl/hooks/useNpl';
 
 const PRIORITY_COLOUR: Record<string, string> = {
   Kritikal:  '#C62828',
@@ -151,9 +151,9 @@ export default function CollectionTaskQueue() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Jumlah Tugasan', value: total, colour: '#1B2B5E' },
-          { label: 'Kritikal', value: tasks.filter((t) => t.priority_label === 'Kritikal').length, colour: '#C62828' },
-          { label: 'Perlu Susulan Hari Ini', value: tasks.filter((t) => t.follow_up_at && new Date(t.follow_up_at) <= new Date()).length, colour: '#E65100' },
-          { label: 'Selesai Hari Ini', value: tasks.filter((t) => t.status === 'completed').length, colour: '#2E7D32' },
+          { label: 'Kritikal', value: tasks.filter((t: CollectionTask) => t.priority_label === 'Kritikal').length, colour: '#C62828' },
+          { label: 'Perlu Susulan Hari Ini', value: tasks.filter((t: CollectionTask) => t.follow_up_at && new Date(t.follow_up_at) <= new Date()).length, colour: '#E65100' },
+          { label: 'Selesai Hari Ini', value: tasks.filter((t: CollectionTask) => t.status === 'completed').length, colour: '#2E7D32' },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
@@ -171,7 +171,7 @@ export default function CollectionTaskQueue() {
 
       {/* Task Cards */}
       <div className="space-y-3">
-        {tasks.map((task) => {
+        {tasks.map((task: CollectionTask) => {
           const isExpanded = expandedId === task.id;
           const priorityColour = PRIORITY_COLOUR[task.priority_label] ?? '#888';
 
