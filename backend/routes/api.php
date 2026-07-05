@@ -217,10 +217,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // MODULE 9 — Konfigurasi Produk Pembiayaan
     // Roles: system_admin only
     // ─────────────────────────────────────────────────────────────────────────
+    Route::middleware(['module:module9'])->group(function () {
+        Route::get('/products',                        [ProductController::class, 'index']);
+        Route::get('/products/{id}',                   [ProductController::class, 'show']);
+        Route::get('/products/{id}/eligibility-check', [ProductController::class, 'eligibilityCheck']);
+        Route::get('/products/{id}/audit-logs',        [ProductController::class, 'auditLogs']);
+    });
     Route::middleware(['module:module9', 'role:system_admin'])->group(function () {
-        Route::get('/products',        [ProductController::class, 'index']);
-        Route::get('/products/{id}',   [ProductController::class, 'show']);
-        Route::put('/products/{id}',   [ProductController::class, 'update']);
+        Route::put('/products/{id}',           [ProductController::class, 'update']);
+        Route::post('/products/{id}/activate', [ProductController::class, 'activate']);
     });
 
     // ─────────────────────────────────────────────────────────────────────────
