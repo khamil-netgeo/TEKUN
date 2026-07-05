@@ -3,15 +3,17 @@ import React, { lazy } from 'react';
 import type { RouteObject } from 'react-router-dom';
 
 const DisbursementList = lazy(() => import('./pages/DisbursementList'));
-const AgingEscalation = lazy(() => import('./pages/AgingEscalation'));
-const AuthorityMatrix = lazy(() => import('./pages/AuthorityMatrix'));
-const EsignTracking = lazy(() => import('./pages/EsignTracking'));
+const AgingEscalation  = lazy(() => import('./pages/AgingEscalation'));
+const AuthorityMatrix  = lazy(() => import('./pages/AuthorityMatrix'));
+const EsignTracking    = lazy(() => import('./pages/EsignTracking'));
+const SuratTawaran     = lazy(() => import('./pages/SuratTawaran'));
 
 const routes: RouteObject[] = [
-  { path: '/pengeluaran-dana', element: <DisbursementList /> },
-  { path: '/pengeluaran-dana/aging', element: <AgingEscalation /> },
-  { path: '/pengeluaran-dana/authority-matrix', element: <AuthorityMatrix /> },
-  { path: '/pengeluaran-dana/esign', element: <EsignTracking /> },
+  { path: '/pengeluaran-dana',                         element: <DisbursementList /> },
+  { path: '/pengeluaran-dana/aging',                   element: <AgingEscalation /> },
+  { path: '/pengeluaran-dana/authority-matrix',        element: <AuthorityMatrix /> },
+  { path: '/pengeluaran-dana/esign',                   element: <EsignTracking /> },
+  { path: '/pengeluaran-dana/surat-tawaran/:id',       element: <SuratTawaran /> },
 ];
 
 export default routes;

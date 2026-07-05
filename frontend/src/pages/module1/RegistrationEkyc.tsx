@@ -39,7 +39,7 @@ interface FormData {
   agreeTerms: boolean;
 }
 
-const INTEGRATIONS = ['e-Syariah', 'Muflis', 'SSM', 'CCRIS', 'CTOS', 'JPN/MyKad'];
+// INTEGRATIONS defined below
 const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE_MB = 10;
 
