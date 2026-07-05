@@ -189,34 +189,39 @@ SYSTEM;
             return response()->json(['error' => 'AI service not configured.'], 503);
         }
 
-        // Build conversation contents for SPPT AI Engine
+                // Build conversation contents for SPPT AI Engine
+        // Gemini API requires: alternating user/model turns, last turn must be 'user'
         $contents = [];
 
-        // Inject system prompt as first user turn (API v1beta doesn't support system role)
+        // Turn 1 — inject system prompt + first user message as a single user turn
+        $systemContext = $this->getSystemPrompt();
         $contents[] = [
             'role'  => 'user',
-            'parts' => [['text' => $this->getSystemPrompt() . "\n\n---\n\nSoalan pertama pengguna: " . $userMessage]],
-        ];
-        $contents[] = [
-            'role'  => 'model',
-            'parts' => [['text' => 'Baik! Saya Pembantu Digital TEKUN Nasional. Saya sedia membantu anda dengan maklumat pembiayaan TEKUN. Apa yang boleh saya bantu?']],
+            'parts' => [['text' => $systemContext . "\n\n---\n\nSoalan pengguna: " . $userMessage]],
         ];
 
-        // Add conversation history (skip first pair if history is empty)
-        foreach ($history as $turn) {
-            $contents[] = [
-                'role'  => $turn['role'],
-                'parts' => [['text' => $turn['content']]],
-            ];
-        }
-
-        // Add current user message (if history is not empty, otherwise already injected above)
+        // If there is conversation history, insert it after the bootstrap pair
         if (!empty($history)) {
+            // Add bootstrap model acknowledgement so history can follow
+            $contents[] = [
+                'role'  => 'model',
+                'parts' => [['text' => 'Baik! Saya Pembantu Digital TEKUN Nasional. Saya sedia membantu anda dengan maklumat pembiayaan TEKUN.']],
+            ];
+            // Replay history turns
+            foreach ($history as $turn) {
+                $contents[] = [
+                    'role'  => $turn['role'],
+                    'parts' => [['text' => $turn['content']]],
+                ];
+            }
+            // Add the actual current user message as the final turn
             $contents[] = [
                 'role'  => 'user',
                 'parts' => [['text' => $userMessage]],
             ];
         }
+        // If history is empty, the system prompt + user message is already the single user turn above
+        // Gemini will respond directly — no need for a model bootstrap turn
 
         try {
             $model = 'gemini-2.5-flash';
