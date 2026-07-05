@@ -261,4 +261,12 @@ class CreditAssessmentController extends Controller
             default => 'Tidak Ditentukan',
         };
     }
+
+    /**
+     * Alias for approve() — used by POC route /api/applications/{id}/approve
+     */
+    public function approveApplication(Request $request, $id)
+    {
+        return $this->approve($request, $id);
+    }
 }
