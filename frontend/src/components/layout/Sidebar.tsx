@@ -95,6 +95,8 @@ const MODULES: ModuleItem[] = [
       { path: '/module6/branch-performance', labelKey: 'module6.branchPerformance' },
       { path: '/module6/predictive',         labelKey: 'module6.predictiveAnalytics' },
       { path: '/module6/reports',            labelKey: 'module6.reportBuilder' },
+      { path: '/module6/ai-dashboard',         labelKey: 'module6.aiDashboardBuilder' },
+      { path: '/module6/officer-skills',       labelKey: 'module6.officerSkillProfile' },
     ],
   },
   {

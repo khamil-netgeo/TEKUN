@@ -63,7 +63,7 @@ If a field cannot be read, use null. Return ONLY the JSON object.";
                 ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $base64Image]],
             ]);
 
-            $text = $response->text();
+            $text = $response;
             $text = preg_replace('/```json\s*|\s*```/', '', $text);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed', 'raw' => $text];
         } catch (\Exception $e) {
@@ -100,7 +100,7 @@ Return ONLY the JSON object.";
                 ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $base64Image]],
             ]);
 
-            $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text = preg_replace('/```json\s*|\s*```/', '', $response);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::extractBankStatement error: ' . $e->getMessage());
@@ -140,7 +140,7 @@ Return this exact JSON structure:
 }";
 
             $response = $this->callAiEngine($prompt);
-            $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text = preg_replace('/```json\s*|\s*```/', '', $response);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::generateCreditScore error: ' . $e->getMessage());
@@ -170,7 +170,7 @@ Data: " . json_encode($applicationData) . "
 }";
 
             $response = $this->callAiEngine($prompt);
-            $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text = preg_replace('/```json\s*|\s*```/', '', $response);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::detectFraud error: ' . $e->getMessage());
@@ -214,7 +214,7 @@ Ta'widh Rules:
 }";
 
             $response = $this->callAiEngine($prompt);
-            $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text = preg_replace('/```json\s*|\s*```/', '', $response);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::calculateTawidh error: ' . $e->getMessage());
@@ -255,7 +255,7 @@ Account Data: " . json_encode($accountData) . "
 }";
 
             $response = $this->callAiEngine($prompt);
-            $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text = preg_replace('/```json\s*|\s*```/', '', $response);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::generateDunningLetter error: ' . $e->getMessage());
@@ -287,7 +287,7 @@ Account: " . json_encode($accountData) . "
 }";
 
             $response = $this->callAiEngine($prompt);
-            $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text = preg_replace('/```json\s*|\s*```/', '', $response);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::predictNplRisk error: ' . $e->getMessage());
@@ -320,7 +320,7 @@ KPI Data: " . json_encode($kpiData) . "
 }";
 
             $response = $this->callAiEngine($prompt);
-            $text = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text = preg_replace('/```json\s*|\s*```/', '', $response);
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::generateExecutiveNarrative error: ' . $e->getMessage());
@@ -355,7 +355,7 @@ KPI Data: " . json_encode($kpiData) . "
             $response = $this->callAiEngine($fullPrompt);
 
             return [
-                'reply' => $response->text(),
+                'reply' => $response,
                 'language' => $language,
                 'rag_used' => !empty($ragContext),
                 'context_chunks' => count($ragContext),
@@ -479,7 +479,7 @@ KPI Data: " . json_encode($kpiData) . "
             $prompt = "You are a formal letter writer for TEKUN Nasional Malaysia. Write a formal {$type} letter in Bahasa Malaysia. Return ONLY valid JSON with no markdown:\n{\n  \"narrative\": \"string (formal letter body in Bahasa Malaysia, 2-3 paragraphs)\",\n  \"subject\": \"string (letter subject line in BM)\",\n  \"confidence\": 0.95\n}\n\nApplicant: {$applicant}\nScheme: {$scheme}\nReason: {$reason}\nRef No: {$refNo}";
 
             $response = Gemini::generativeModel('gemini-2.5-flash')->generateContent($prompt);
-            $text     = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text     = preg_replace('/```json\s*|\s*```/', '', $response);
             $result   = json_decode(trim($text), true);
             return $result ?? ['narrative' => null, 'error' => 'Parse failed'];
         } catch (\Exception $e) {
@@ -489,18 +489,15 @@ KPI Data: " . json_encode($kpiData) . "
     }
 
     /**
-     * Classify and extract fields from a document image using Gemini Vision.
+     * Classify and extract fields from a document image using SPPT Vision AI.
      */
     public function classifyDocument(string $base64Image, string $mimeType = 'image/jpeg'): array
     {
         try {
-            $prompt = 'You are a document classifier for TEKUN Nasional Malaysia. Analyze this document image and return ONLY valid JSON with no markdown:\n{\n  "document_type": "string (mykad|bank_statement|ssm_cert|income_proof|business_permit|other)",\n  "classification": "string",\n  "completeness_score": 85,\n  "extracted_fields": {\n    "name": "string or null",\n    "ic_number": "string or null",\n    "address": "string or null",\n    "date": "string or null",\n    "amount": "string or null"\n  },\n  "issues": [],\n  "confidence": 0.9\n}';
+            $prompt = 'You are a document classifier for TEKUN Nasional Malaysia. Analyze this document image and return ONLY valid JSON with no markdown: { "document_type": "string (mykad|bank_statement|ssm_cert|income_proof|business_permit|other)", "classification": "string", "completeness_score": 85, "extracted_fields": { "name": "string or null", "ic_number": "string or null", "address": "string or null", "date": "string or null", "amount": "string or null" }, "issues": [], "confidence": 0.9 }';
 
-            $response = Gemini::generativeModel('gemini-2.5-flash')->generateContent([
-                ['text' => $prompt],
-                ['inline_data' => ['mime_type' => $mimeType, 'data' => $base64Image]],
-            ]);
-            $text   = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $text   = $this->callAiEngine($prompt);
+            $text   = preg_replace('/```json\s*|\s*```/', '', $text);
             $result = json_decode(trim($text), true);
             return $result ?? [
                 'document_type'      => 'unknown',
@@ -520,6 +517,72 @@ KPI Data: " . json_encode($kpiData) . "
                 'issues'             => [],
                 'confidence'         => 0.5,
             ];
+        }
+    }
+
+    // =========================================================================
+    // CORE — SPPT AI Engine HTTP Caller
+    // =========================================================================
+
+    /**
+     * Core HTTP call to the SPPT AI Engine (OpenAI-compatible proxy).
+     * All public methods in this service route through here.
+     *
+     * @param  array|string  $messages  Either a messages array or a plain string prompt
+     * @param  string|null   $model     Override the default model
+     * @param  bool          $json      Whether to request JSON output
+     * @return string                   Raw text content from the AI response
+     */
+    public function callAiEngine(array|string $messages, ?string $model = null, bool $json = false): string
+    {
+        $apiKey  = env('OPENAI_API_KEY', env('GEMINI_API_KEY', ''));
+        $apiBase = rtrim(env('OPENAI_API_BASE', 'https://generativelanguage.googleapis.com/v1beta/openai'), '/');
+        $model   = $model ?? $this->defaultModel;
+
+        // Normalise messages
+        if (is_string($messages)) {
+            $messages = [['role' => 'user', 'content' => $messages]];
+        } elseif (isset($messages['role'])) {
+            // Single message object passed directly
+            $messages = [$messages];
+        } elseif (!empty($messages) && isset($messages[0]['text'])) {
+            // Legacy Gemini-style parts array — convert to OpenAI messages
+            $content = '';
+            foreach ($messages as $part) {
+                if (isset($part['text'])) {
+                    $content .= $part['text'] . ' ';
+                }
+            }
+            $messages = [['role' => 'user', 'content' => trim($content)]];
+        }
+
+        $payload = [
+            'model'    => $model,
+            'messages' => $messages,
+        ];
+
+        if ($json) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
+
+        try {
+            $response = Http::withToken($apiKey)
+                ->timeout(30)
+                ->post("{$apiBase}/chat/completions", $payload);
+
+            if ($response->failed()) {
+                Log::warning('AiService::callAiEngine HTTP error', [
+                    'status' => $response->status(),
+                    'body'   => substr($response->body(), 0, 500),
+                ]);
+                // Return a safe fallback instead of throwing
+                return json_encode(['error' => 'SPPT AI Engine unavailable', 'status' => $response->status()]);
+            }
+
+            return $response->json('choices.0.message.content') ?? '';
+        } catch (\Exception $e) {
+            Log::error('AiService::callAiEngine exception: ' . $e->getMessage());
+            return json_encode(['error' => $e->getMessage()]);
         }
     }
 }
