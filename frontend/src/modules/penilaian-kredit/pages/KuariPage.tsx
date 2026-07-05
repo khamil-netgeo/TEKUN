@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckCircle, Clock, Send, Sparkles, Plus, X } from 'lucide-react';
 import api from '@/services/api';
@@ -50,20 +51,9 @@ export default function KuariPage() {
       });
       setKuariResult(res.data);
       setSubmitted(true);
-    } catch {
-      // Mock success
-      setKuariResult({
-        kuari_id: 1001,
-        ai_suggestions: selectedFields.map(f => ({
-          field: f,
-          label: FIELD_OPTIONS.find(o => o.key === f)?.label ?? f,
-          ai_message: `Sila kemukakan ${FIELD_OPTIONS.find(o => o.key === f)?.label ?? f} terkini (tidak melebihi 3 bulan) untuk membolehkan penilaian kredit diselesaikan.`,
-          priority: 'high',
-        })),
-        deadline,
-        auto_escalate_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-      });
-      setSubmitted(true);
+    } catch (error) {
+      console.error('Kuari submission error:', error);
+      toast.error('Gagal menghantar kuari. Sila cuba semula.');
     } finally {
       setSubmitting(false);
     }

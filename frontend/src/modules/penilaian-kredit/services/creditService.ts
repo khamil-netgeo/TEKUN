@@ -10,10 +10,34 @@ export interface CreditAssessment {
     name: string;
     score: number;
     weight: number;
+    description?: string;
+    impact?: number;
+  }>;
+  risk_factors?: Array<{
+    factor: string;
+    value?: string;
+    impact?: number;
+    description?: string;
+  }>;
+  positive_factors?: Array<{
+    factor: string;
+    value?: string;
+    impact?: number;
+    description?: string;
   }>;
   narrative: string;
   is_borderline: boolean;
   generated_at: string;
+}
+
+export interface DashboardStats {
+  total_applications: number;
+  pending_assessment: number;
+  approved_today: number;
+  rejected_today: number;
+  avg_score: number;
+  borderline_cases: number;
+  grade_distribution: Record<string, number>;
 }
 
 export interface AmortizationSchedule {
@@ -24,17 +48,23 @@ export interface AmortizationSchedule {
   type: 'flat' | 'reducing';
   monthly_payment: number;
   total_payment: number;
-  total_interest: number;
+  total_profit: number;
   schedule: Array<{
     month: number;
+    payment: number;
     principal: number;
-    interest: number;
-    total: number;
+    profit: number;
     balance: number;
   }>;
 }
 
 export const creditService = {
+  // Dashboard KPI stats from DB
+  getDashboardStats: async (): Promise<DashboardStats> => {
+    const response = await api.get('/credit/dashboard');
+    return response.data;
+  },
+
   // Get pending applications for credit officer dashboard
   getPendingApplications: async (page = 1, perPage = 10) => {
     const response = await api.get(`/applications?status=pending_assessment&page=${page}&per_page=${perPage}`);
@@ -68,8 +98,8 @@ export const creditService = {
   },
 
   // Return for clarification (Kuari)
-  kuariApplication: async (applicationId: number | string, fields: string[], notes: string) => {
-    const response = await api.post(`/applications/${applicationId}/kuari`, { fields, notes });
+  kuariApplication: async (applicationId: number | string, flagged_fields: string[], notes: string, deadline?: string) => {
+    const response = await api.post(`/applications/${applicationId}/kuari`, { flagged_fields, notes, deadline });
     return response.data;
   },
 
@@ -77,5 +107,11 @@ export const creditService = {
   generateOfferLetter: async (applicationId: number | string) => {
     const response = await api.get(`/applications/${applicationId}/offer-letter`);
     return response.data;
-  }
+  },
+
+  // Generate AI narrative
+  generateNarrative: async (applicationId: number | string) => {
+    const response = await api.post('/credit/narrative', { application_id: applicationId });
+    return response.data;
+  },
 };
