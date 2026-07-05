@@ -1,6 +1,6 @@
 <?php
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\IntegrationController;
+use App\Modules\IntegrasiAPI\Controllers\IntegrationController;
 /** Module 10 — Integrasi API Routes */
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/integrations/health', [IntegrationController::class, 'health']);
