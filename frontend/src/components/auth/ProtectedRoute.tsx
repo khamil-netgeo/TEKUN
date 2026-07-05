@@ -18,19 +18,25 @@ export default function ProtectedRoute({
   const location = useLocation();
 
   // Wait for Zustand persist to hydrate from localStorage before checking auth.
-  // Without this, a direct URL navigation (e.g. /module2/credit-scoring) would
-  // see isAuthenticated=false and redirect to /login before the store loads.
-  const [hydrated, setHydrated] = useState(
-    () => useAuthStore.persist.hasHydrated()
-  );
+  // Dual-check: if isAuthenticated is already true (fresh login via login() call),
+  // skip hydration wait entirely. Otherwise wait for localStorage hydration.
+  const [hydrated, setHydrated] = useState(() => {
+    if (isAuthenticated) return true; // fresh login — already in memory
+    return useAuthStore.persist.hasHydrated();
+  });
 
   useEffect(() => {
+    // Fresh login: isAuthenticated just became true in memory
+    if (isAuthenticated && !hydrated) {
+      setHydrated(true);
+      return;
+    }
     if (!hydrated) {
       const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
       if (useAuthStore.persist.hasHydrated()) setHydrated(true);
       return unsub;
     }
-  }, [hydrated]);
+  }, [hydrated, isAuthenticated]);
 
   if (!hydrated) {
     return (
