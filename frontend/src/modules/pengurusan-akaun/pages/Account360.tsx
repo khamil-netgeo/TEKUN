@@ -1,249 +1,345 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useParams, useNavigate } from 'react-router-dom';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '@/services/api';
 
-const MOCK_ACCOUNT = {
-  id: 'SPPT-ACC-2026-00089', name: 'Siti Nurhaliza', scheme: 'TEKUN Usahawan',
-  status: 'LANCAR', health: 94, balance: 23456.78, monthly_payment: 763.89,
-  next_payment_date: '01 Ogos 2026', payments_made: 3, total_payments: 36,
-  classification: 'LANCAR - Tiada Tunggakan', ai_forecast: 'Akaun akan kekal LANCAR sepanjang tempoh',
-};
+interface Account {
+  id: string;
+  account_no: string;
+  borrower_name: string;
+  scheme?: string;
+  status: string;
+  outstanding_balance: number;
+  monthly_instalment: number;
+  profit_rate: number;
+  arrears_days: number;
+  arrears_amount: number;
+  total_paid?: number;
+  tenure_months?: number;
+  start_date?: string;
+  maturity_date?: string;
+  classification?: string;
+  upcoming_schedule?: ScheduleItem[];
+  payments?: PaymentItem[];
+}
 
-const SCHEDULE = [
-  { bulan: 'Ogos 2026', tarikh: '01 Ogos 2026', ansuran: 763.89, prinsipal: 540.00, keuntungan: 223.89, status: 'AKAN DATANG' },
-  { bulan: 'September 2026', tarikh: '01 Sep 2026', ansuran: 763.89, prinsipal: 541.49, keuntungan: 222.40, status: 'AKAN DATANG' },
-  { bulan: 'Oktober 2026', tarikh: '01 Okt 2026', ansuran: 763.89, prinsipal: 542.98, keuntungan: 220.91, status: 'AKAN DATANG' },
-  { bulan: 'November 2026', tarikh: '01 Nov 2026', ansuran: 763.89, prinsipal: 544.48, keuntungan: 219.41, status: 'AKAN DATANG' },
-  { bulan: 'Disember 2026', tarikh: '01 Dis 2026', ansuran: 763.89, prinsipal: 545.98, keuntungan: 217.91, status: 'AKAN DATANG' },
-  { bulan: 'Januari 2027', tarikh: '01 Jan 2027', ansuran: 763.89, prinsipal: 547.49, keuntungan: 216.40, status: 'AKAN DATANG' },
-  { bulan: 'Mei 2026', tarikh: '01 Mei 2026', ansuran: 763.89, prinsipal: 536.33, keuntungan: 227.56, status: 'DIBAYAR' },
-  { bulan: 'Jun 2026', tarikh: '01 Jun 2026', ansuran: 763.89, prinsipal: 537.81, keuntungan: 226.08, status: 'DIBAYAR' },
-  { bulan: 'Julai 2026', tarikh: '01 Jul 2026', ansuran: 763.89, prinsipal: 539.29, keuntungan: 224.60, status: 'DIBAYAR' },
-];
+interface ScheduleItem {
+  month: string;
+  due_date: string;
+  instalment: number;
+  principal: number;
+  interest: number;
+  balance: number;
+  status: string;
+}
 
-const TRANSACTIONS = [
-  { tarikh: '01 Jul 2026', amaun: 763.89, saluran: 'FPX', resit: 'FPX260701234567' },
-  { tarikh: '01 Jun 2026', amaun: 763.89, saluran: 'DuitNow', resit: 'DN260601234123' },
-  { tarikh: '01 Mei 2026', amaun: 763.89, saluran: 'FPX', resit: 'FPX260501123789' },
-];
+interface PaymentItem {
+  id: string;
+  receipt_no: string;
+  amount: number;
+  channel: string;
+  paid_at: string;
+  status: string;
+}
 
-const generateChartData = () => {
-  const data = [];
-  let balance = 100000;
-  const rate = 0.08 / 12;
-  const payment = 763.89;
-  for (let i = 0; i <= 36; i += 6) {
-    data.push({ bulan: `Bulan ${i === 0 ? 1 : i}`, baki: Math.round(balance), unjuran: Math.round(balance * 0.95) });
-    for (let j = 0; j < 6; j++) {
-      const interest = balance * rate;
-      const principal = payment - interest;
-      balance -= principal;
-    }
-  }
-  return data;
-};
-
-const chartData = generateChartData();
+interface AiPrediction {
+  probability: number;
+  risk_level: string;
+  factors: string[];
+}
 
 export default function Account360() {
-  const [account] = useState(MOCK_ACCOUNT);
-  const [reminderEnabled, setReminderEnabled] = useState(true);
-  const statusColor = account.status === 'LANCAR' ? '#16A34A' : '#DC2626';
-  const healthColor = account.health >= 80 ? '#16A34A' : account.health >= 60 ? '#F59E0B' : '#DC2626';
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const [account, setAccount] = useState<Account | null>(null);
+  const [aiPrediction, setAiPrediction] = useState<AiPrediction | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    fetchAccount(id);
+  }, [id]);
+
+  async function fetchAccount(accountId: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(`/accounts/${accountId}`);
+      const data = res.data?.data ?? res.data;
+      setAccount(data);
+
+      // Fetch AI default prediction (best-effort)
+      try {
+        const aiRes = await api.post('/ai/default-prediction', {
+          account_id: accountId,
+          outstanding_balance: data.outstanding_balance,
+          arrears_days: data.arrears_days,
+          status: data.status,
+        });
+        setAiPrediction(aiRes.data?.data ?? aiRes.data);
+      } catch {
+        // AI prediction is optional
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal memuatkan data akaun.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function getHealthScore(acc: Account): number {
+    if (acc.arrears_days === 0) return 95;
+    if (acc.arrears_days <= 30) return 75;
+    if (acc.arrears_days <= 60) return 55;
+    if (acc.arrears_days <= 90) return 35;
+    return 15;
+  }
+
+  function getStatusColor(status: string): string {
+    const s = (status ?? '').toUpperCase();
+    if (s === 'LANCAR') return 'bg-green-100 text-green-800';
+    if (s.includes('TUNGGAKAN')) return 'bg-orange-100 text-orange-800';
+    if (s === 'NPL' || s === 'HAPUS KIRA') return 'bg-red-100 text-red-800';
+    return 'bg-gray-100 text-gray-800';
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2B5E]" />
+        <span className="ml-3 text-gray-600">Memuatkan data akaun...</span>
+      </div>
+    );
+  }
+
+  if (error || !account) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700 font-medium">Ralat: {error ?? 'Akaun tidak dijumpai.'}</p>
+          <button onClick={() => navigate(-1)} className="mt-3 text-sm text-blue-600 underline">
+            ← Kembali
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const health = getHealthScore(account);
+  const healthColor = health >= 70 ? '#2E7D32' : health >= 40 ? '#E65100' : '#C62828';
+
+  const scheduleData = (account.upcoming_schedule ?? []).map((s) => ({
+    name: (s.month ?? '').split(' ')[0] ?? '',
+    baki: s.balance,
+    ansuran: s.instalment,
+  }));
 
   return (
-    <div className="space-y-4">
-      <div className="sppt-card">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h1 className="text-xl font-bold" style={{ color: '#1B2B5E' }}>Akaun Pembiayaan - {account.id}</h1>
-          <nav className="text-sm text-gray-500">🏠 › Akaun Pembiayaan › 360° Paparan Akaun</nav>
+    <div className="space-y-4 p-4">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-1">
+            ← Senarai Akaun
+          </button>
+          <h1 className="text-xl font-bold text-[#1B2B5E]">
+            Akaun 360° — {account.account_no}
+          </h1>
+          <p className="text-sm text-gray-500">{account.borrower_name}</p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-          {[
-            { icon: '👤', label: 'Nama', value: account.name },
-            { icon: '💳', label: 'No Akaun', value: account.id },
-            { icon: '📋', label: 'Skim', value: account.scheme },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">{item.icon}</div>
-              <div><div className="text-xs text-gray-500">{item.label}</div><div className="font-semibold text-sm">{item.value}</div></div>
-            </div>
-          ))}
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <div className="text-xs text-gray-500 mr-2">Status</div>
-            <span className="px-3 py-1 rounded font-bold text-white text-sm" style={{ background: statusColor }}>{account.status}</span>
-          </div>
+        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(account.status)}`}>
+          {account.status}
+        </span>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Baki Tertunggak</p>
+          <p className="text-xl font-bold text-[#1B2B5E] mt-1">
+            RM {Number(account.outstanding_balance).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Ansuran Bulanan</p>
+          <p className="text-xl font-bold text-[#2E7D32] mt-1">
+            RM {Number(account.monthly_instalment).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Hari Tunggakan</p>
+          <p className={`text-xl font-bold mt-1 ${account.arrears_days > 0 ? 'text-[#E65100]' : 'text-[#2E7D32]'}`}>
+            {account.arrears_days} hari
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Kadar Keuntungan</p>
+          <p className="text-xl font-bold text-[#1B2B5E] mt-1">{account.profit_rate}%</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="sppt-card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-base" style={{ color: '#1B2B5E' }}>Kesihatan Akaun</h2>
-            <span className="text-xl">❤️</span>
-          </div>
-          <div className="flex justify-center mb-4">
+      {/* Health Gauge + AI Prediction */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">Indikator Kesihatan Akaun</h2>
+          <div className="flex items-center justify-center">
             <div className="relative w-36 h-36">
               <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
                 <circle cx="60" cy="60" r="50" fill="none" stroke="#E5E7EB" strokeWidth="12" />
                 <circle cx="60" cy="60" r="50" fill="none" stroke={healthColor} strokeWidth="12"
-                  strokeDasharray={`${account.health * 3.14} 314`} strokeLinecap="round" />
+                  strokeDasharray={`${health * 3.14} 314`} strokeLinecap="round" />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="text-xs text-gray-500">Kesihatan Akaun:</div>
-                <div className="text-3xl font-bold" style={{ color: healthColor }}>{account.health}%</div>
+                <span className="text-3xl font-bold" style={{ color: healthColor }}>{health}</span>
+                <span className="text-xs text-gray-500">/ 100</span>
               </div>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 p-2 bg-blue-50 rounded">
-              <span>📄</span>
-              <div><div className="text-xs text-gray-500">Baki Tertunggak</div>
-                <div className="font-bold text-blue-700">RM {account.balance.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}</div></div>
-            </div>
-            <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
-              <span>📅</span>
-              <div><div className="text-xs text-gray-500">Bayaran Bulan Ini</div><div className="font-bold">RM {account.monthly_payment.toFixed(2)}</div></div>
-            </div>
-            <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
-              <span>🗓️</span>
-              <div><div className="text-xs text-gray-500">Tarikh Bayaran</div><div className="font-bold">{account.next_payment_date}</div></div>
-            </div>
-            <div className="flex items-center gap-3 p-2 bg-gray-50 rounded">
-              <span>✅</span>
-              <div><div className="text-xs text-gray-500">Bayaran Dibuat</div>
-                <div className="font-bold text-green-600">{account.payments_made}/{account.total_payments} bulan</div></div>
-            </div>
-            <div className="p-2 bg-green-50 rounded border border-green-200">
-              <div className="text-xs text-gray-500">Klasifikasi Akaun</div>
-              <div className="font-bold text-green-700">✅ {account.classification}</div>
-            </div>
-            <div className="p-2 bg-purple-50 rounded border border-purple-200 flex items-start gap-2">
-              <span className="text-purple-600 text-lg">🧠</span>
-              <div><div className="text-xs text-gray-500">Unjuran AI</div>
-                <div className="text-sm font-medium text-purple-700">{account.ai_forecast}</div></div>
-            </div>
-          </div>
+          <p className="text-center text-sm text-gray-600 mt-2">
+            {health >= 70 ? '✅ Akaun Sihat' : health >= 40 ? '⚠️ Perlu Perhatian' : '🔴 Risiko Tinggi'}
+          </p>
         </div>
 
-        <div className="lg:col-span-2 space-y-4">
-          <div className="sppt-card">
-            <h2 className="font-bold text-base mb-3" style={{ color: '#1B2B5E' }}>
-              Jadual Bayaran <span className="text-sm font-normal text-gray-500">(6 bulan akan datang & 3 bulan lepas)</span>
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-800 text-white">
-                    {['Bulan','Tarikh','Ansuran','Prinsipal','Keuntungan','Status'].map(h => (
-                      <th key={h} className="p-2 text-left">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {SCHEDULE.map((row, i) => (
-                    <tr key={i} className={`border-b ${row.status === 'DIBAYAR' ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
-                      <td className="p-2">{row.bulan}</td>
-                      <td className="p-2">{row.tarikh}</td>
-                      <td className="p-2 text-right">RM {row.ansuran.toFixed(2)}</td>
-                      <td className="p-2 text-right">RM {row.prinsipal.toFixed(2)}</td>
-                      <td className="p-2 text-right">RM {row.keuntungan.toFixed(2)}</td>
-                      <td className="p-2 text-center">
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${row.status === 'DIBAYAR' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {row.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        <div className="bg-white rounded-xl border border-purple-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full">AI</span>
+            <h2 className="text-sm font-semibold text-gray-700">Ramalan Kemungkiran (3 Bulan)</h2>
           </div>
-          <div className="sppt-card">
-            <h2 className="font-bold text-base mb-3" style={{ color: '#1B2B5E' }}>
-              Graf Pengurangan Baki <span className="text-sm font-normal text-gray-500">(36 bulan)</span>
-            </h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v: number) => `${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: any) => `RM ${Number(v).toLocaleString()}`} />
-                <Legend />
-                <Line type="monotone" dataKey="baki" name="Baki Pembiayaan (RM)" stroke="#1B2B5E" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="unjuran" name="Unjuran" stroke="#9CA3AF" strokeWidth={1} strokeDasharray="5 5" dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {aiPrediction ? (
+            <>
+              <div className="flex items-center gap-4 mb-3">
+                <span className="text-4xl font-bold text-purple-700">{aiPrediction.probability}%</span>
+                <span className="text-sm font-semibold text-purple-600">{aiPrediction.risk_level}</span>
+              </div>
+              <ul className="space-y-1">
+                {(aiPrediction.factors ?? []).slice(0, 3).map((f, i) => (
+                  <li key={i} className="text-xs text-gray-600 flex items-start gap-1">
+                    <span className="text-purple-400 mt-0.5">•</span> {f}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 italic">Analisis AI tidak tersedia.</p>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="sppt-card">
-          <h2 className="font-bold text-base mb-3" style={{ color: '#1B2B5E' }}>Tindakan Pantas</h2>
-          <div className="space-y-2">
-            <button className="w-full flex items-center justify-between p-3 rounded-lg text-white font-semibold text-sm" style={{ background: '#16A34A' }}>
-              <span>💳 Buat Bayaran Sekarang</span><span>›</span>
-            </button>
-            {['⬇️ Muat Turun Penyata','⏸️ Mohon Moratorium','📅 Mohon Penjadualan Semula'].map(a => (
-              <button key={a} className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 text-gray-700 text-sm hover:bg-gray-50">
-                <span>{a}</span><span>›</span>
-              </button>
-            ))}
-          </div>
+      {/* Schedule Chart */}
+      {scheduleData.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">Graf Baki Pembiayaan (6 Bulan)</h2>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={scheduleData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v: number) => `RM ${Number(v).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`} />
+              <Line type="monotone" dataKey="baki" stroke="#1B2B5E" strokeWidth={2} name="Baki" dot={false} />
+              <Line type="monotone" dataKey="ansuran" stroke="#2E7D32" strokeWidth={2} name="Ansuran" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
+      )}
 
-        <div className="sppt-card">
-          <h2 className="font-bold text-base mb-3" style={{ color: '#1B2B5E' }}>
-            Transaksi Terkini <span className="text-sm font-normal text-gray-500">(3 bayaran terakhir)</span>
-          </h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-800 text-white">
-                {['Tarikh','Amaun','Saluran','No. Resit'].map(h => <th key={h} className="p-2 text-left">{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {TRANSACTIONS.map((t, i) => (
-                <tr key={i} className="border-b hover:bg-gray-50">
-                  <td className="p-2">{t.tarikh}</td>
-                  <td className="p-2">RM {t.amaun.toFixed(2)}</td>
-                  <td className="p-2">{t.saluran}</td>
-                  <td className="p-2 text-xs text-gray-500">{t.resit}</td>
+      {/* Upcoming Schedule Table */}
+      {(account.upcoming_schedule ?? []).length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-700">Jadual Ansuran Akan Datang</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['Bulan', 'Tarikh Bayar', 'Ansuran (RM)', 'Prinsipal (RM)', 'Keuntungan (RM)', 'Baki (RM)', 'Status'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {account.upcoming_schedule!.map((row, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-800">{row.month}</td>
+                    <td className="px-4 py-3 text-gray-600">{row.due_date}</td>
+                    <td className="px-4 py-3 text-gray-800">{Number(row.instalment).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-800">{Number(row.principal).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-800">{Number(row.interest).toFixed(2)}</td>
+                    <td className="px-4 py-3 font-medium text-[#1B2B5E]">{Number(row.balance).toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{row.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+      )}
 
-        <div className="space-y-3">
-          <div className="sppt-card bg-yellow-50 border border-yellow-200">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">🔔</span>
-              <div>
-                <div className="font-bold text-yellow-800 text-sm">Peringatan AI</div>
-                <div className="text-sm text-yellow-700 mt-1">
-                  Bayaran bulan hadapan <strong>RM 763.89</strong> perlu dibuat sebelum <strong>01 Ogos 2026</strong> (28 hari lagi).
-                </div>
-              </div>
-            </div>
+      {/* Recent Payments */}
+      {(account.payments ?? []).length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700">Transaksi Terkini</h2>
+            <button onClick={() => navigate(`/akaun/${id}/pembayaran`)} className="text-xs text-blue-600 hover:underline">
+              Lihat Semua →
+            </button>
           </div>
-          <div className="sppt-card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span>🔔</span>
-                <div>
-                  <div className="font-semibold text-sm">Peringatan Bayaran</div>
-                  <div className="text-xs text-gray-500">Terima peringatan sebelum tarikh bayaran anda.</div>
-                </div>
-              </div>
-              <button onClick={() => setReminderEnabled(!reminderEnabled)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${reminderEnabled ? 'bg-green-500' : 'bg-gray-300'}`}>
-                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${reminderEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
-              </button>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['No. Resit', 'Amaun (RM)', 'Saluran', 'Tarikh', 'Status'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {account.payments!.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{p.receipt_no}</td>
+                    <td className="px-4 py-3 font-medium text-[#2E7D32]">{Number(p.amount).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-600 uppercase">{p.channel}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {p.paid_at ? new Date(p.paid_at).toLocaleDateString('ms-MY') : '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                        {p.status ?? 'completed'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={() => navigate(`/akaun/${id}/bayar`)}
+          className="bg-[#2E7D32] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+        >
+          💳 Rekod Pembayaran
+        </button>
+        <button
+          onClick={() => navigate(`/akaun/${id}/tawidh`)}
+          className="bg-[#E65100] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+        >
+          📐 Kira Ta&apos;widh
+        </button>
+        <button
+          onClick={() => navigate(`/akaun/${id}/moratorium`)}
+          className="bg-[#1B2B5E] text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-900 transition-colors"
+        >
+          📋 Permohonan Moratorium
+        </button>
       </div>
     </div>
   );

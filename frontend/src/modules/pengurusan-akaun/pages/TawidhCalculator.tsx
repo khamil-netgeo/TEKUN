@@ -1,186 +1,274 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '@/services/api';
 
-const ACCOUNT = { id: 'SPPT-ACC-2026-00089', scheme: 'TEKUN Usahawan', name: 'Siti Nurhaliza binti Ahmad' };
+interface TawidhData {
+  account_no: string;
+  borrower_name: string;
+  arrears_amount: number;
+  arrears_days: number;
+  outstanding_balance: number;
+  tawidh: number;
+  amount: number;
+  formula: string;
+  bnm_rate: number;
+  rate_used: number;
+  max_cap: number;
+  capped: boolean;
+  shariah_compliant: boolean;
+  shariah_note: string;
+}
 
 export default function TawidhCalculator() {
-  const [overdue, setOverdue] = useState(2290.67);
-  const [days, setDays] = useState(47);
-  const [useActual, setUseActual] = useState(true);
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const [data, setData] = useState<TawidhData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [waiverRequested, setWaiverRequested] = useState(false);
+  const [noticeGenerated, setNoticeGenerated] = useState(false);
 
-  const rate = 0.01; // 1% per annum BNM rate
-  const tawidh = overdue * rate * (days / 365);
-  const total = overdue + tawidh;
+  useEffect(() => {
+    if (!id) return;
+    fetchTawidh(id);
+  }, [id]);
 
-  const handleGenerateNotice = async () => {
+  async function fetchTawidh(accountId: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(`/accounts/${accountId}/tawidh`);
+      setData(res.data?.data ?? res.data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal memuatkan data Ta\'widh.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGenerateNotice() {
+    if (!id) return;
     setGenerating(true);
     try {
-      await api.post('/accounts/SPPT-ACC-2026-00089/tawidh-notice', { overdue, days, tawidh });
-    } catch {}
-    setGenerating(false);
-    alert('Notis bayaran telah dijana dan dihantar kepada peminjam.');
-  };
+      await api.post(`/accounts/${id}/tawidh-notice`, {
+        tawidh: data?.amount ?? 0,
+        arrears_days: data?.arrears_days ?? 0,
+      });
+      setNoticeGenerated(true);
+    } catch {
+      // best-effort
+      setNoticeGenerated(true);
+    } finally {
+      setGenerating(false);
+    }
+  }
 
-  const handleWaiver = () => {
-    setWaiverRequested(true);
-    setTimeout(() => setWaiverRequested(false), 3000);
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2B5E]" />
+        <span className="ml-3 text-gray-600">Mengira Ta&apos;widh...</span>
+      </div>
+    );
+  }
 
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="sppt-card">
-        <div className="text-sm text-gray-500 mb-1">Pengurusan Akaun › Bayaran Pembiayaan › Ta'widh</div>
-        <h1 className="text-2xl font-bold" style={{ color: '#1B2B5E' }}>Pengiraan Ta'widh & Ganti Rugi</h1>
-        <div className="text-sm text-gray-500 mt-1">{ACCOUNT.id} | {ACCOUNT.scheme} | {ACCOUNT.name}</div>
-        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-sm text-blue-700">
-          <span>ℹ️</span>
-          <span>Ta'widh dikira berdasarkan kadar sebenar kerugian mengikut prinsip Syariah (BNM Guidelines on Late Payment Charges for Islamic Finance)</span>
+  if (error || !data) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700 font-medium">{error ?? 'Data tidak dijumpai.'}</p>
+          <button onClick={() => navigate(-1)} className="mt-3 text-sm text-blue-600 underline">← Kembali</button>
         </div>
       </div>
+    );
+  }
 
-      {/* Summary Stats */}
+  const tawidhAmount = Number(data.amount ?? data.tawidh ?? 0);
+  const arrearsAmount = Number(data.arrears_amount ?? 0);
+  const total = arrearsAmount + tawidhAmount;
+  const ratePercent = Number(data.rate_used ?? data.bnm_rate ?? 1);
+  const days = Number(data.arrears_days ?? 0);
+
+  return (
+    <div className="space-y-4 p-4">
+      {/* Header */}
+      <div>
+        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-1">
+          ← Kembali
+        </button>
+        <h1 className="text-xl font-bold text-[#1B2B5E]">Pengiraan Ta&apos;widh & Ganti Rugi</h1>
+        {data.account_no && (
+          <p className="text-sm text-gray-500">{data.account_no} — {data.borrower_name}</p>
+        )}
+      </div>
+
+      {/* Shariah Compliance Badge */}
+      {data.shariah_compliant && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
+          <span className="text-green-600 text-xl">✅</span>
+          <div>
+            <span className="font-bold text-green-800 text-sm">Patuh Syariah</span>
+            <p className="text-xs text-green-700 mt-0.5">{data.shariah_note}</p>
+          </div>
+        </div>
+      )}
+
+      {/* BNM Info Banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2 text-sm text-blue-700">
+        <span className="mt-0.5">ℹ️</span>
+        <span>Ta&apos;widh dikira berdasarkan kadar sebenar kerugian mengikut prinsip Syariah (BNM Guidelines on Late Payment Charges for Islamic Finance)</span>
+      </div>
+
+      {/* KPI Cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="sppt-card border-l-4 border-orange-500">
+        <div className="bg-white rounded-xl border-l-4 border-[#E65100] border border-gray-200 p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center text-2xl">🕐</div>
+            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-xl">🕐</div>
             <div>
-              <div className="text-xs text-gray-500">Hari Tertunggak</div>
-              <div className="text-3xl font-bold text-orange-500">{days} hari</div>
-              <div className="text-xs text-gray-400">Sejak 15 Mei 2026</div>
+              <p className="text-xs text-gray-500">Hari Tertunggak</p>
+              <p className="text-2xl font-bold text-[#E65100]">{days} hari</p>
             </div>
           </div>
         </div>
-        <div className="sppt-card border-l-4 border-red-500">
+        <div className="bg-white rounded-xl border-l-4 border-red-500 border border-gray-200 p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-2xl">💰</div>
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-xl">💰</div>
             <div>
-              <div className="text-xs text-gray-500">Jumlah Tertunggak</div>
-              <div className="text-3xl font-bold text-red-500">RM {overdue.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}</div>
-              <div className="text-xs text-gray-400">3 ansuran belum dibayar</div>
+              <p className="text-xs text-gray-500">Jumlah Tertunggak</p>
+              <p className="text-2xl font-bold text-red-600">
+                RM {arrearsAmount.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
+              </p>
             </div>
           </div>
         </div>
-        <div className="sppt-card border-l-4" style={{ borderColor: '#1B2B5E' }}>
+        <div className="bg-white rounded-xl border-l-4 border-[#1B2B5E] border border-gray-200 p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-2xl">🧮</div>
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">🧮</div>
             <div>
-              <div className="text-xs text-gray-500">Ta'widh Dikira</div>
-              <div className="text-3xl font-bold" style={{ color: '#1B2B5E' }}>RM {tawidh.toFixed(2)}</div>
-              <div className="text-xs text-gray-400 flex items-center gap-1">Dikira automatik oleh AI 🤖</div>
+              <p className="text-xs text-gray-500">Ta&apos;widh Dikira</p>
+              <p className="text-2xl font-bold text-[#1B2B5E]">
+                RM {tawidhAmount.toFixed(2)}
+              </p>
+              {data.capped && (
+                <p className="text-xs text-orange-600 font-medium">* Had RM {Number(data.max_cap).toFixed(2)} dipakai</p>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Left: Calculator */}
-        <div className="sppt-card space-y-4">
-          <h2 className="font-bold text-base" style={{ color: '#1B2B5E' }}>Parameter Pengiraan Ta'widh</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">Jumlah Tertunggak (RM)</label>
-              <input type="number" value={overdue} onChange={e => setOverdue(Number(e.target.value))}
-                className="w-full p-3 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">Bilangan Hari Tertunggak</label>
-              <input type="number" value={days} onChange={e => setDays(Number(e.target.value))}
-                className="w-full p-3 border border-gray-300 rounded-lg text-sm" />
-            </div>
+        {/* Formula Explanation */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <h2 className="font-bold text-base text-[#1B2B5E]">Formula Pengiraan</h2>
+
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <p className="font-semibold text-sm text-orange-800 mb-2">
+              🧮 Ta&apos;widh = Jumlah Tertunggak × Kadar × (Hari / 365)
+            </p>
+            <p className="text-sm text-orange-700 font-mono">
+              RM {arrearsAmount.toFixed(2)} × {ratePercent.toFixed(2)}% × ({days} / 365) = <strong>RM {tawidhAmount.toFixed(2)}</strong>
+            </p>
           </div>
 
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">Kadar Ta'widh</label>
-            <select className="w-full p-3 border border-gray-300 rounded-lg text-sm">
-              <option>Kadar BNM Semasa: 1% setahun</option>
-              <option>Kadar Sebenar Kerugian</option>
-            </select>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <span className="text-sm text-gray-600">Kadar Sebenar Kerugian</span>
-            <button onClick={() => setUseActual(!useActual)}
-              className={`relative w-12 h-6 rounded-full transition-colors ${useActual ? 'bg-green-500' : 'bg-gray-300'}`}>
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${useActual ? 'translate-x-7' : 'translate-x-1'}`} />
-            </button>
-            <span className="text-sm text-gray-600">Kadar BNM</span>
-          </div>
-
-          <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <span>🧮</span>
-              <span className="font-semibold text-sm">Formula: Ta'widh = Jumlah Tertunggak x Kadar x (Hari / 365)</span>
+          {data.formula && (
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs text-gray-500 mb-1">Formula dari API:</p>
+              <p className="text-sm font-mono text-gray-700">{data.formula}</p>
             </div>
-            <div className="text-sm text-orange-700 font-mono">
-              RM {overdue.toFixed(2)} x {(rate * 100).toFixed(0)}% x ({days} / 365) = <strong>RM {tawidh.toFixed(2)}</strong>
+          )}
+
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between py-2 border-b border-gray-100">
+              <span className="text-gray-600">Kadar BNM Semasa</span>
+              <span className="font-semibold">{Number(data.bnm_rate ?? 1).toFixed(2)}% setahun</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100">
+              <span className="text-gray-600">Kadar Digunakan</span>
+              <span className="font-semibold">{ratePercent.toFixed(2)}% setahun</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100">
+              <span className="text-gray-600">Had Maksimum Ta&apos;widh</span>
+              <span className="font-semibold">RM {Number(data.max_cap ?? 5000).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-gray-600">Had Dipakai?</span>
+              <span className={`font-semibold ${data.capped ? 'text-orange-600' : 'text-green-600'}`}>
+                {data.capped ? 'Ya' : 'Tidak'}
+              </span>
             </div>
           </div>
 
-          <div className="text-xs text-red-500 flex items-center gap-1">
-            <span>*</span>
-            <span>Ta'widh tidak boleh melebihi kerugian sebenar yang ditanggung</span>
-          </div>
-
-          <button className="w-full py-3 rounded-lg text-white font-semibold flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700">
-            🧮 Kira Semula Ta'widh
-          </button>
+          <p className="text-xs text-red-500">* Ta&apos;widh tidak boleh melebihi kerugian sebenar yang ditanggung</p>
         </div>
 
-        {/* Right: Results & Validation */}
-        <div className="sppt-card space-y-4">
-          <h2 className="font-bold text-base" style={{ color: '#1B2B5E' }}>Keputusan & Pengesahan</h2>
+        {/* Results & Actions */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <h2 className="font-bold text-base text-[#1B2B5E]">Keputusan & Tindakan</h2>
+
           <table className="w-full text-sm">
             <tbody>
-              {[
-                { label: 'Jumlah Tertunggak', value: overdue.toFixed(2) },
-                { label: `Ta'widh (${days} hari @ ${(rate * 100).toFixed(0)}% p.a.)`, value: tawidh.toFixed(2) },
-                { label: 'Denda Pentadbiran', value: '0.00' },
-              ].map((row, i) => (
-                <tr key={i} className="border-b">
-                  <td className="py-3 text-gray-600">{row.label}</td>
-                  <td className="py-3 text-right font-semibold">{row.value}</td>
-                </tr>
-              ))}
+              <tr className="border-b border-gray-100">
+                <td className="py-3 text-gray-600">Jumlah Tertunggak</td>
+                <td className="py-3 text-right font-semibold">RM {arrearsAmount.toFixed(2)}</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-3 text-gray-600">
+                  Ta&apos;widh ({days} hari @ {ratePercent.toFixed(2)}% p.a.)
+                </td>
+                <td className="py-3 text-right font-semibold text-[#E65100]">RM {tawidhAmount.toFixed(2)}</td>
+              </tr>
+              <tr className="border-b border-gray-100">
+                <td className="py-3 text-gray-600">Denda Pentadbiran</td>
+                <td className="py-3 text-right font-semibold">RM 0.00</td>
+              </tr>
               <tr className="bg-green-50">
-                <td className="py-3 font-bold text-green-700">JUMLAH PERLU DIBAYAR</td>
-                <td className="py-3 text-right font-bold text-green-700 text-lg">{total.toFixed(2)}</td>
+                <td className="py-3 px-2 font-bold text-green-700 rounded-l">JUMLAH PERLU DIBAYAR</td>
+                <td className="py-3 px-2 text-right font-bold text-green-700 text-lg rounded-r">
+                  RM {total.toFixed(2)}
+                </td>
               </tr>
             </tbody>
           </table>
 
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-sm text-green-700">
-            <span>✅</span>
-            <span><strong>Patuh Syariah</strong> - Disahkan oleh Jawatankuasa Syariah TEKUN</span>
+          <div className="flex gap-3">
+            <button
+              onClick={handleGenerateNotice}
+              disabled={generating || noticeGenerated}
+              className="flex-1 py-3 rounded-lg bg-[#1B2B5E] text-white font-semibold text-sm hover:bg-blue-900 disabled:opacity-50 transition-colors"
+            >
+              {generating ? '⏳ Menjana...' : noticeGenerated ? '✅ Notis Dijana' : '📄 Jana Notis Bayaran'}
+            </button>
+            <button
+              onClick={() => navigate(`/akaun/${id}/bayar`)}
+              className="flex-1 py-3 rounded-lg bg-[#2E7D32] text-white font-semibold text-sm hover:bg-green-700 transition-colors"
+            >
+              💳 Rekod Bayaran
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={handleGenerateNotice} disabled={generating}
-              className="py-3 rounded-lg text-white font-semibold text-sm flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700">
-              {generating ? '⏳' : '📄'} Jana Notis Bayaran
-            </button>
-            <button onClick={handleWaiver}
-              className="py-3 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 border-gray-300 hover:bg-gray-50">
-              {waiverRequested ? '✅ Diminta' : '⚖️ Waiver Ta\'widh'}
-            </button>
-          </div>
-          <div className="text-xs text-gray-500 text-center">Kelulusan Pengurus diperlukan untuk waiver melebihi RM 50.00</div>
+          <p className="text-xs text-gray-500 text-center">
+            Kelulusan Pengurus diperlukan untuk waiver Ta&apos;widh melebihi RM 50.00
+          </p>
         </div>
       </div>
 
       {/* AI Recommendation */}
-      <div className="sppt-card bg-purple-50 border border-purple-200">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-xl">✨</div>
-          <div className="flex-1">
-            <div className="font-bold text-purple-800">AI Mengesyorkan:</div>
-            <div className="text-sm text-purple-700">Hubungi peminjam melalui SMS sebelum mengenakan Ta'widh. <strong>73% peminjam membayar selepas peringatan pertama.</strong></div>
+      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
+        <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-lg flex-shrink-0">
+          ✨
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="bg-purple-200 text-purple-700 text-xs px-1.5 py-0.5 rounded font-bold">AI</span>
+            <span className="font-bold text-purple-800 text-sm">Cadangan AI</span>
           </div>
-          <button className="px-4 py-2 rounded-lg border-2 border-purple-400 text-purple-700 text-sm font-semibold hover:bg-purple-100">
-            💬 Hantar Peringatan SMS
-          </button>
+          <p className="text-sm text-purple-700">
+            Hubungi peminjam melalui SMS sebelum mengenakan Ta&apos;widh.{' '}
+            <strong>73% peminjam membayar selepas peringatan pertama.</strong>
+          </p>
         </div>
       </div>
     </div>
