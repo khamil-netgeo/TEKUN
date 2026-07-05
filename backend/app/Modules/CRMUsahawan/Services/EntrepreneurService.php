@@ -156,7 +156,7 @@ class EntrepreneurService
 
     /**
      * Generate an AI visit report for a completed field visit.
-     * Calls the OpenAI-compatible LLM proxy.
+     * Calls the SPPT AI LLM proxy.
      */
     public function generateVisitReport(FieldVisit $visit): string
     {
@@ -172,7 +172,7 @@ class EntrepreneurService
             $response = Http::withToken($apiKey)
                 ->timeout(30)
                 ->post("{$apiBase}/chat/completions", [
-                    'model'       => 'gpt-4o-mini',
+                    'model'       => 'sppt-ai',
                     'max_tokens'  => 600,
                     'temperature' => 0.4,
                     'messages'    => [
