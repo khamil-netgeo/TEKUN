@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, AlertCircle, ArrowRight, ChevronDown } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, ArrowRight, ChevronDown } from 'lucide-react';
+import PublicHeader from '@/components/PublicHeader';
 
 interface FormData {
   age: string;
@@ -71,6 +72,7 @@ function checkEligibility(form: FormData): { eligible: boolean; schemes: SchemeR
 
 export default function SemakKelayakanPage() {
   const navigate = useNavigate();
+  const [lang, setLang] = useState<'bm' | 'en'>('bm');
   const [form, setForm] = useState<FormData>({
     age: '', gender: '', citizenship: '', businessAge: '',
     blacklisted: '', bankrupt: '', existingTekun: '', amount: '',
@@ -114,15 +116,11 @@ export default function SemakKelayakanPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-[#1B2B5E] text-white py-16 px-6">
+      <PublicHeader lang={lang} setLang={setLang} />
+
+      {/* Page title section */}
+      <div className="bg-[#1B2B5E] text-white pt-40 pb-12 px-6">
         <div className="max-w-3xl mx-auto">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-6 transition-colors"
-          >
-            <ArrowLeft size={16} /> Kembali ke Laman Utama
-          </button>
           <h1 className="text-3xl md:text-4xl font-bold">Semak Kelayakan Pembiayaan</h1>
           <p className="text-white/70 mt-3 text-lg">Jawab beberapa soalan mudah untuk mengetahui skim pembiayaan TEKUN yang sesuai untuk anda.</p>
         </div>

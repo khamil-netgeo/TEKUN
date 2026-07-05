@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, FileText, CreditCard,
+  ArrowRight, ArrowLeft, CheckCircle2, FileText, CreditCard,
   Building2, Receipt, UserCheck, Upload, Brain, Banknote
 } from 'lucide-react';
+import PublicHeader from '@/components/PublicHeader';
 
 const COPY = {
   bm: {
@@ -149,28 +150,10 @@ export default function CaraMohonPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 antialiased">
 
-      {/* ── Navbar ── */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft size={16} />
-            {t.back}
-          </button>
-          <img src="/images/tekun-icon.png" alt="TEKUN Nasional" className="h-10 w-auto object-contain" />
-          <button
-            onClick={() => setLang(lang === 'bm' ? 'en' : 'bm')}
-            className="text-xs font-semibold text-slate-500 border border-slate-200 rounded-full px-3 py-1.5 hover:bg-slate-50 transition-colors"
-          >
-            {lang === 'bm' ? 'EN' : 'BM'}
-          </button>
-        </div>
-      </header>
+      <PublicHeader lang={lang} setLang={setLang} />
 
       {/* ── Hero ── */}
-      <section className="bg-[#1B2B5E] py-16 text-center">
+      <section className="bg-[#1B2B5E] py-16 text-center pt-40">
         <div className="max-w-3xl mx-auto px-6">
           <p className="text-xs font-bold tracking-[0.2em] text-white/50 uppercase mb-4">{t.eyebrow}</p>
           <h1 className="text-3xl md:text-4xl font-bold text-white">{t.title}</h1>

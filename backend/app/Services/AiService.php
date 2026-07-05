@@ -459,4 +459,67 @@ KPI Data: " . json_encode($kpiData) . "
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
+
+    // =========================================================================
+    // MODULE 1 — Narrative & Document Classification
+    // =========================================================================
+
+    /**
+     * Generate a formal narrative for rejection or approval letters.
+     */
+    public function generateNarrative(array $data): array
+    {
+        try {
+            $type      = $data['type'] ?? 'rejection';
+            $applicant = $data['applicant'] ?? 'Pemohon';
+            $scheme    = $data['scheme'] ?? 'Skim TEKUN';
+            $reason    = $data['reject_reason'] ?? '';
+            $refNo     = $data['ref_no'] ?? '';
+
+            $prompt = "You are a formal letter writer for TEKUN Nasional Malaysia. Write a formal {$type} letter in Bahasa Malaysia. Return ONLY valid JSON with no markdown:\n{\n  \"narrative\": \"string (formal letter body in Bahasa Malaysia, 2-3 paragraphs)\",\n  \"subject\": \"string (letter subject line in BM)\",\n  \"confidence\": 0.95\n}\n\nApplicant: {$applicant}\nScheme: {$scheme}\nReason: {$reason}\nRef No: {$refNo}";
+
+            $response = Gemini::generativeModel('gemini-2.5-flash')->generateContent($prompt);
+            $text     = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $result   = json_decode(trim($text), true);
+            return $result ?? ['narrative' => null, 'error' => 'Parse failed'];
+        } catch (\Exception $e) {
+            Log::error('AiService::generateNarrative error: ' . $e->getMessage());
+            return ['narrative' => null, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Classify and extract fields from a document image using Gemini Vision.
+     */
+    public function classifyDocument(string $base64Image, string $mimeType = 'image/jpeg'): array
+    {
+        try {
+            $prompt = 'You are a document classifier for TEKUN Nasional Malaysia. Analyze this document image and return ONLY valid JSON with no markdown:\n{\n  "document_type": "string (mykad|bank_statement|ssm_cert|income_proof|business_permit|other)",\n  "classification": "string",\n  "completeness_score": 85,\n  "extracted_fields": {\n    "name": "string or null",\n    "ic_number": "string or null",\n    "address": "string or null",\n    "date": "string or null",\n    "amount": "string or null"\n  },\n  "issues": [],\n  "confidence": 0.9\n}';
+
+            $response = Gemini::generativeModel('gemini-2.5-flash')->generateContent([
+                ['text' => $prompt],
+                ['inline_data' => ['mime_type' => $mimeType, 'data' => $base64Image]],
+            ]);
+            $text   = preg_replace('/```json\s*|\s*```/', '', $response->text());
+            $result = json_decode(trim($text), true);
+            return $result ?? [
+                'document_type'      => 'unknown',
+                'classification'     => 'unknown',
+                'completeness_score' => 50,
+                'extracted_fields'   => [],
+                'issues'             => [],
+                'confidence'         => 0.5,
+            ];
+        } catch (\Exception $e) {
+            Log::error('AiService::classifyDocument error: ' . $e->getMessage());
+            return [
+                'document_type'      => 'unknown',
+                'classification'     => 'unknown',
+                'completeness_score' => 50,
+                'extracted_fields'   => [],
+                'issues'             => [],
+                'confidence'         => 0.5,
+            ];
+        }
+    }
 }

@@ -588,4 +588,149 @@ class ApplicationController extends Controller
             'based_on_records' => Application::where('status', 'approved')->count(),
         ];
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Alias: uploadDocuments (called by main routes/api.php)
+    // ─────────────────────────────────────────────────────────────────────────
+    public function uploadDocuments(StoreDocumentRequest $request, string $id): JsonResponse
+    {
+        return $this->uploadDocument($request, $id);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/applications/{id}/documents
+    // ─────────────────────────────────────────────────────────────────────────
+    public function getDocuments(Request $request, string $id): JsonResponse
+    {
+        $application = Application::findOrFail($id);
+        $documents   = Document::where('application_id', $application->id)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn ($d) => $d->append(['type_label', 'file_size_kb', 'is_ai_approved']));
+
+        return response()->json([
+            'data'  => $documents,
+            'total' => $documents->count(),
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/applications/{id}/verify-docs
+    // ─────────────────────────────────────────────────────────────────────────
+    public function verifyDocuments(Request $request, string $id): JsonResponse
+    {
+        $application = Application::findOrFail($id);
+        $documents   = Document::where('application_id', $application->id)->get();
+
+        $allVerified = $documents->every(fn ($d) => $d->status === 'verified');
+
+        return response()->json([
+            'verified'       => $allVerified,
+            'total_docs'     => $documents->count(),
+            'verified_docs'  => $documents->where('status', 'verified')->count(),
+            'pending_docs'   => $documents->where('status', 'pending')->count(),
+            'rejected_docs'  => $documents->where('status', 'rejected')->count(),
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DELETE /api/applications/{id}/documents/{docId}
+    // ─────────────────────────────────────────────────────────────────────────
+    public function deleteDocument(Request $request, string $id, string $docId): JsonResponse
+    {
+        $application = Application::findOrFail($id);
+        $document    = Document::where('application_id', $application->id)
+            ->where('id', $docId)
+            ->firstOrFail();
+
+        // Delete from MinIO S3
+        if ($document->storage_path) {
+            Storage::disk('s3')->delete($document->storage_path);
+        }
+
+        AuditTrail::log('delete_document', 'module1', $document, [
+            'type' => $document->type,
+            'file' => $document->original_name,
+        ], null);
+
+        $document->delete();
+
+        return response()->json(['message' => 'Dokumen berjaya dipadam.']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/integrations/check/{icNumber}
+    // Returns all 6 integration checks for a given IC number (mock for POC)
+    // ─────────────────────────────────────────────────────────────────────────
+    public function checkIntegrations(Request $request, string $icNumber): JsonResponse
+    {
+        // POC: All responses are mock data. Real API integration in production.
+        return response()->json([
+            'ic_number'  => $icNumber,
+            'checked_at' => now()->toISOString(),
+            'esyariah'   => [
+                'status'     => 'clear',
+                'blacklisted' => false,
+                'checked_at' => now()->toISOString(),
+            ],
+            'muflis'     => [
+                'status'     => 'clear',
+                'bankrupt'   => false,
+                'checked_at' => now()->toISOString(),
+            ],
+            'ssm'        => [
+                'status'          => 'registered',
+                'business_name'   => 'SYARIKAT CONTOH SDN BHD',
+                'registration_no' => 'SA0123456-A',
+                'checked_at'      => now()->toISOString(),
+            ],
+            'ccris'      => [
+                'status'    => 'ok',
+                'npl_count' => 0,
+                'score'     => 720,
+                'checked_at' => now()->toISOString(),
+            ],
+            'ctos'       => [
+                'status'    => 'ok',
+                'score'     => 680,
+                'grade'     => 'B',
+                'checked_at' => now()->toISOString(),
+            ],
+            'mykad'      => [
+                'status'     => 'verified',
+                'ic_number'  => $icNumber,
+                'checked_at' => now()->toISOString(),
+            ],
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/ai/document-check (module route alias)
+    // ─────────────────────────────────────────────────────────────────────────
+    public function aiDocumentCheck(Request $request): JsonResponse
+    {
+        $base64   = $request->input('image');
+        $mimeType = $request->input('mime_type', 'image/jpeg');
+
+        if (!$base64) {
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'document_type'      => 'unknown',
+                    'classification'     => 'Tidak dikenal pasti',
+                    'completeness_score' => 0,
+                    'extracted_fields'   => [],
+                    'issues'             => ['Tiada imej disertakan.'],
+                    'confidence'         => 0.0,
+                ],
+            ]);
+        }
+
+        $result = $this->ai->classifyDocument($base64, $mimeType);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $result,
+        ]);
+    }
 }

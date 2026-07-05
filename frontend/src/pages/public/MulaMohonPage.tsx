@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowRight, ArrowLeft, CheckCircle2, FileText, CreditCard,
+  ArrowRight, CheckCircle2, FileText, CreditCard,
   Building2, Receipt, Store, Briefcase, Users, Rocket,
   ChevronRight, Cpu, ShieldCheck, Landmark
 } from 'lucide-react';
+import PublicHeader from '@/components/PublicHeader';
 
 /* ──────────────────────────────────────────────
    i18n copy
@@ -193,28 +194,10 @@ export default function MulaMohonPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 antialiased">
 
-      {/* ── Minimal Navbar ── */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft size={16} />
-            {t.back}
-          </button>
-          <img src="/images/tekun-icon.png" alt="TEKUN Nasional" className="h-10 w-auto object-contain" />
-          <button
-            onClick={() => setLang(lang === 'bm' ? 'en' : 'bm')}
-            className="text-xs font-semibold text-slate-500 border border-slate-200 rounded-full px-3 py-1.5 hover:bg-slate-50 transition-colors"
-          >
-            {lang === 'bm' ? 'EN' : 'BM'}
-          </button>
-        </div>
-      </header>
+      <PublicHeader lang={lang} setLang={setLang} />
 
       {/* ── Section A: Hero ── */}
-      <section className="pt-16 pb-12 text-center bg-white border-b border-slate-100">
+      <section className="pt-24 pb-12 text-center bg-white border-b border-slate-100">
         <div className="max-w-3xl mx-auto px-6">
           <p className="text-xs font-bold tracking-[0.2em] text-red-600 uppercase mb-4">{t.eyebrow}</p>
           <h1 className="text-4xl md:text-5xl font-bold text-slate-900">{t.title}</h1>

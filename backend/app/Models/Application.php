@@ -106,6 +106,15 @@ class Application extends Model
         return $this->belongsTo(User::class, 'officer_id');
     }
 
+    /**
+     * Alias for officer — used when the officer IS the applicant (usahawan self-apply).
+     * The controller loads 'applicant:id,name,email,phone' in the show() method.
+     */
+    public function applicant()
+    {
+        return $this->belongsTo(User::class, 'officer_id');
+    }
+
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');

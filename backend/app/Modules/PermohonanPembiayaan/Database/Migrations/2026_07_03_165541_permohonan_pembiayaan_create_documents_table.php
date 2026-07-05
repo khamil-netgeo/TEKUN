@@ -4,7 +4,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void {
-        if (!Schema::hasTable('documents')) { Schema::create('documents', function (Blueprint $table) {
+        if (Schema::hasTable('documents')) {
+            return;
+        }
+        Schema::create('documents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('application_id')->constrained('applications')->cascadeOnDelete();
             $table->string('type'); // mykad_front, mykad_back, bank_statement, ssm_cert, etc.
@@ -21,7 +24,7 @@ return new class extends Migration {
             $table->foreignId('verified_by')->nullable()->constrained('users');
             $table->timestamp('verified_at')->nullable();
             $table->timestamps();
-        }); } // end if !hasTable
+        });
     }
     public function down(): void { Schema::dropIfExists('documents'); }
 };

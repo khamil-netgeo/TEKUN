@@ -11,8 +11,8 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
-        <testsuite name="M2-PenilaianKredit">
-            <directory>app/Modules/PenilaianKredit/Tests</directory>
+        <testsuite name="Modules">
+            <directory suffix="Test.php">app/Modules</directory>
         </testsuite>
     </testsuites>
     <source>
