@@ -1,7 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '@/services/api';
 
-const ACCOUNT = { id: 'SPPT-ACC-2026-00089', name: 'Siti Nurhaliza', balance: 23456.78, monthly: 763.89, end_date: 'Ogos 2029' };
+interface AccountInfo {
+  id: string;
+  account_no: string;
+  borrower_name: string;
+  outstanding_balance: number;
+  monthly_instalment: number;
+  maturity_date?: string;
+  profit_rate: number;
+  status: string;
+}
+
+interface MoratoriumResult {
+  id: string;
+  account_id: string;
+  type: string;
+  months_requested: number;
+  reason: string;
+  status: string;
+  new_instalment?: number;
+  new_end_date?: string;
+  ai_recommendation?: string;
+  ai_risk_score?: number;
+}
 
 const REASONS = [
   'Masalah Kewangan Sementara - COVID/Bencana',
@@ -12,190 +35,319 @@ const REASONS = [
 ];
 
 export default function Moratorium() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [loadingAccount, setLoadingAccount] = useState(true);
   const [type, setType] = useState<'moratorium' | 'restructuring'>('moratorium');
   const [months, setMonths] = useState(3);
   const [reason, setReason] = useState(REASONS[0]);
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [result, setResult] = useState<MoratoriumResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const extraInterest = (ACCOUNT.balance * 0.08 / 12) * months;
-  const newBalance = ACCOUNT.balance + extraInterest;
-  const newEndDate = new Date(2029, 7 + months, 1).toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' });
+  useEffect(() => {
+    if (!id) return;
+    api.get(`/accounts/${id}`)
+      .then((res) => {
+        const data = res.data?.data ?? res.data;
+        setAccount(data);
+      })
+      .catch(() => setError('Gagal memuatkan maklumat akaun.'))
+      .finally(() => setLoadingAccount(false));
+  }, [id]);
 
-  const handleSubmit = async () => {
-    if (!agreed) return;
+  async function handleSubmit() {
+    if (!agreed || !id) return;
     setSubmitting(true);
+    setError(null);
     try {
-      await api.post('/accounts/SPPT-ACC-2026-00089/moratorium', { type, months, reason });
-      setSubmitted(true);
-    } catch {
-      setSubmitted(true);
+      const res = await api.post(`/accounts/${id}/moratorium`, {
+        type,
+        months_requested: months,
+        reason,
+      });
+      setResult(res.data?.data ?? res.data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal menghantar permohonan.';
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  if (submitted) {
+  // Compute projected impact from account data
+  const balance = Number(account?.outstanding_balance ?? 0);
+  const monthly = Number(account?.monthly_instalment ?? 0);
+  const profitRate = Number(account?.profit_rate ?? 8);
+  const extraInterest = balance * (profitRate / 100 / 12) * months;
+  const newBalance = balance + extraInterest;
+
+  if (loadingAccount) {
     return (
-      <div className="sppt-card text-center py-12">
-        <div className="text-6xl mb-4">✅</div>
-        <h2 className="text-2xl font-bold text-green-700 mb-2">Permohonan Dihantar!</h2>
-        <p className="text-gray-600">Permohonan moratorium anda sedang diproses. Kelulusan dijangka dalam 2-3 hari bekerja.</p>
-        <button onClick={() => setSubmitted(false)} className="mt-6 px-6 py-2 rounded-lg text-white font-semibold" style={{ background: '#1B2B5E' }}>
-          Kembali
-        </button>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2B5E]" />
+        <span className="ml-3 text-gray-600">Memuatkan maklumat akaun...</span>
+      </div>
+    );
+  }
+
+  if (result) {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-xl border border-green-200 p-8 text-center max-w-md mx-auto">
+          <div className="text-6xl mb-4">✅</div>
+          <h2 className="text-2xl font-bold text-green-700 mb-2">Permohonan Dihantar!</h2>
+          <p className="text-gray-600 mb-2">
+            Permohonan {result.type === 'moratorium' ? 'moratorium' : 'penjadualan semula'} untuk{' '}
+            <strong>{result.months_requested} bulan</strong> sedang diproses.
+          </p>
+          <p className="text-sm text-gray-500 mb-1">Status: <span className="font-semibold uppercase">{result.status}</span></p>
+          {result.new_instalment && (
+            <p className="text-sm text-gray-500 mb-1">
+              Ansuran Baru: <span className="font-bold text-[#1B2B5E]">RM {Number(result.new_instalment).toFixed(2)}</span>
+            </p>
+          )}
+          {result.new_end_date && (
+            <p className="text-sm text-gray-500 mb-1">
+              Tarikh Tamat Baru: <span className="font-bold">{result.new_end_date}</span>
+            </p>
+          )}
+          {result.ai_recommendation && (
+            <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-3 text-left">
+              <p className="text-xs font-bold text-purple-700 mb-1">
+                <span className="bg-purple-200 text-purple-700 px-1.5 py-0.5 rounded text-xs mr-1">AI</span>
+                Cadangan AI
+              </p>
+              <p className="text-sm text-purple-700">{result.ai_recommendation}</p>
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-3">Kelulusan dijangka dalam 2-3 hari bekerja.</p>
+          <div className="flex gap-3 justify-center mt-4">
+            <button
+              onClick={() => setResult(null)}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50"
+            >
+              Permohonan Lain
+            </button>
+            <button
+              onClick={() => navigate(`/akaun/${id}`)}
+              className="px-5 py-2 rounded-lg bg-[#1B2B5E] text-white text-sm hover:bg-blue-900"
+            >
+              Kembali ke Akaun 360°
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="sppt-card">
-        <h1 className="text-xl font-bold mb-1" style={{ color: '#1B2B5E' }}>Permohonan Moratorium / Penjadualan Semula</h1>
-        <div className="flex items-center gap-6 mt-3 p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400">👤</span>
-            <div><div className="text-xs text-gray-500">Pemohon</div><div className="font-semibold">{ACCOUNT.name}</div></div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400">📁</span>
-            <div><div className="text-xs text-gray-500">Akaun SPPT</div><div className="font-semibold">{ACCOUNT.id}</div></div>
+    <div className="space-y-4 p-4">
+      {/* Header */}
+      <div>
+        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-1">
+          ← Kembali
+        </button>
+        <h1 className="text-xl font-bold text-[#1B2B5E]">Permohonan Moratorium / Penjadualan Semula</h1>
+        {account && (
+          <p className="text-sm text-gray-500">{account.account_no} — {account.borrower_name}</p>
+        )}
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-red-700 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Account Summary */}
+      {account && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500">Baki Tertunggak</p>
+              <p className="text-xl font-bold text-[#1B2B5E]">
+                RM {balance.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500">Ansuran Bulanan</p>
+              <p className="text-xl font-bold text-[#2E7D32]">
+                RM {monthly.toFixed(2)}
+              </p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500">Status Akaun</p>
+              <p className="text-xl font-bold text-[#E65100]">{account.status}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Left: Form */}
-        <div className="sppt-card space-y-5">
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+          {/* 1. Type */}
           <div>
-            <div className="font-semibold mb-3">1. Jenis Permohonan</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div onClick={() => setType('moratorium')}
-                className={`p-4 rounded-lg border-2 cursor-pointer ${type === 'moratorium' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={`w-4 h-4 rounded-full border-2 ${type === 'moratorium' ? 'border-blue-500 bg-blue-500' : 'border-gray-400'}`} />
-                  <div className="font-semibold text-sm">Moratorium (Penangguhan Bayaran)</div>
+            <p className="font-semibold text-sm text-gray-700 mb-3">1. Jenis Permohonan</p>
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                {
+                  value: 'moratorium' as const,
+                  label: 'Moratorium (Penangguhan Bayaran)',
+                  desc: 'Tangguhkan bayaran selama 1-6 bulan. Keuntungan terus dikira.',
+                },
+                {
+                  value: 'restructuring' as const,
+                  label: 'Penjadualan Semula (Restructuring)',
+                  desc: 'Ubah tempoh atau jumlah ansuran. Memerlukan penilaian semula.',
+                },
+              ].map((opt) => (
+                <div
+                  key={opt.value}
+                  onClick={() => setType(opt.value)}
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    type === opt.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${type === opt.value ? 'border-blue-500 bg-blue-500' : 'border-gray-400'}`} />
+                    <span className="font-semibold text-sm">{opt.label}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 ml-6">{opt.desc}</p>
                 </div>
-                <div className="text-xs text-gray-500 ml-6">Tangguhkan bayaran selama 1-6 bulan. Keuntungan terus dikira.</div>
-              </div>
-              <div onClick={() => setType('restructuring')}
-                className={`p-4 rounded-lg border-2 cursor-pointer ${type === 'restructuring' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={`w-4 h-4 rounded-full border-2 ${type === 'restructuring' ? 'border-blue-500 bg-blue-500' : 'border-gray-400'}`} />
-                  <div className="font-semibold text-sm">Penjadualan Semula (Restructuring)</div>
-                </div>
-                <div className="text-xs text-gray-500 ml-6">Ubah tempoh atau jumlah ansuran. Memerlukan penilaian semula.</div>
-              </div>
+              ))}
             </div>
           </div>
 
+          {/* 2. Duration */}
           <div>
-            <div className="font-semibold mb-2">2. Tempoh Moratorium</div>
-            <select value={months} onChange={e => setMonths(Number(e.target.value))}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm">
-              {[1,2,3,4,5,6].map(m => (
-                <option key={m} value={m}>{m} bulan (Julai - {new Date(2026, 6 + m, 1).toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' })})</option>
+            <p className="font-semibold text-sm text-gray-700 mb-2">2. Tempoh (Bulan)</p>
+            <select
+              value={months}
+              onChange={(e) => setMonths(Number(e.target.value))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {[1, 2, 3, 4, 5, 6].map((m) => (
+                <option key={m} value={m}>{m} bulan</option>
               ))}
             </select>
           </div>
 
+          {/* 3. Reason */}
           <div>
-            <div className="font-semibold mb-2">3. Sebab Permohonan</div>
-            <select value={reason} onChange={e => setReason(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm">
-              {REASONS.map(r => <option key={r}>{r}</option>)}
+            <p className="font-semibold text-sm text-gray-700 mb-2">3. Sebab Permohonan</p>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {REASONS.map((r) => <option key={r}>{r}</option>)}
             </select>
           </div>
 
+          {/* 4. Acknowledgement */}
           <div>
-            <div className="font-semibold mb-2">4. Surat Sokongan / Bukti</div>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50">
-              <div className="text-4xl mb-2">☁️</div>
-              <div className="font-semibold text-blue-600">Klik untuk muat naik</div>
-              <div className="text-xs text-gray-500">PDF, JPG, PNG (Maksimum 10MB)</div>
-            </div>
-          </div>
-
-          <div>
-            <div className="font-semibold mb-2">5. Pengesahan</div>
+            <p className="font-semibold text-sm text-gray-700 mb-2">4. Pengesahan</p>
             <label className="flex items-start gap-3 cursor-pointer">
-              <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} className="mt-1" />
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="mt-1 rounded"
+              />
               <span className="text-sm text-gray-600">
-                Saya memahami bahawa keuntungan akan terus dikira semasa tempoh moratorium dan baki tertunggak akan meningkat.
+                Saya memahami bahawa keuntungan akan terus dikira semasa tempoh moratorium dan baki tertunggak akan meningkat sebanyak{' '}
+                <strong>RM {extraInterest.toFixed(2)}</strong>.
               </span>
             </label>
           </div>
 
-          <button onClick={handleSubmit} disabled={!agreed || submitting}
-            className={`w-full py-3 rounded-lg text-white font-semibold flex items-center justify-center gap-2 ${agreed ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 cursor-not-allowed'}`}>
+          <button
+            onClick={handleSubmit}
+            disabled={!agreed || submitting}
+            className="w-full py-3 rounded-lg bg-[#1B2B5E] text-white font-semibold text-sm hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
             {submitting ? '⏳ Menghantar...' : '📤 Hantar Permohonan'}
           </button>
         </div>
 
         {/* Right: AI Impact Analysis */}
-        <div className="sppt-card" style={{ background: 'linear-gradient(135deg, #6B21A8 0%, #4F46E5 100%)', color: 'white' }}>
-          <div className="flex items-center justify-between mb-4">
+        <div
+          className="rounded-xl p-6 text-white space-y-4"
+          style={{ background: 'linear-gradient(135deg, #6B21A8 0%, #4F46E5 100%)' }}
+        >
+          <div className="flex items-center justify-between">
             <h2 className="font-bold text-lg flex items-center gap-2">✨ Analisis Impak AI</h2>
             <span className="px-2 py-1 bg-white bg-opacity-20 rounded text-xs font-bold">AI</span>
           </div>
 
-          <div className="mb-4">
-            <div className="font-semibold mb-3 text-purple-100">Perbandingan Sebelum & Selepas</div>
+          {/* Before/After Comparison */}
+          <div>
+            <p className="font-semibold text-sm text-purple-100 mb-3">Perbandingan Sebelum & Selepas</p>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white border-opacity-20">
-                  <th className="p-2 text-left text-purple-200">Perkara</th>
-                  <th className="p-2 text-center text-purple-200">SEBELUM</th>
-                  <th className="p-2 text-center text-yellow-300">SELEPAS ({months}-BULAN MORATORIUM)</th>
+                  <th className="py-2 text-left text-purple-200 font-medium">Perkara</th>
+                  <th className="py-2 text-center text-purple-200 font-medium">Sebelum</th>
+                  <th className="py-2 text-center text-yellow-300 font-medium">Selepas ({months} bln)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-white border-opacity-10">
-                  <td className="p-2">Baki Semasa</td>
-                  <td className="p-2 text-center">RM {ACCOUNT.balance.toLocaleString()}</td>
-                  <td className="p-2 text-center text-yellow-300 font-bold">RM {newBalance.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}</td>
+                  <td className="py-2 text-purple-100">Baki</td>
+                  <td className="py-2 text-center">RM {balance.toLocaleString('ms-MY', { minimumFractionDigits: 0 })}</td>
+                  <td className="py-2 text-center text-yellow-300 font-bold">
+                    RM {newBalance.toLocaleString('ms-MY', { minimumFractionDigits: 0 })}
+                  </td>
                 </tr>
                 <tr className="border-b border-white border-opacity-10">
-                  <td className="p-2">Ansuran</td>
-                  <td className="p-2 text-center">RM {ACCOUNT.monthly.toFixed(2)}</td>
-                  <td className="p-2 text-center text-yellow-300 font-bold">RM {ACCOUNT.monthly.toFixed(2)} (sama)</td>
+                  <td className="py-2 text-purple-100">Ansuran</td>
+                  <td className="py-2 text-center">RM {monthly.toFixed(2)}</td>
+                  <td className="py-2 text-center text-yellow-300 font-bold">RM {monthly.toFixed(2)} (sama)</td>
                 </tr>
                 <tr>
-                  <td className="p-2">Tarikh Tamat</td>
-                  <td className="p-2 text-center">{ACCOUNT.end_date}</td>
-                  <td className="p-2 text-center text-yellow-300 font-bold">{newEndDate} ({months} bulan lanjut)</td>
+                  <td className="py-2 text-purple-100">Keuntungan Tambahan</td>
+                  <td className="py-2 text-center">—</td>
+                  <td className="py-2 text-center text-yellow-300 font-bold">+RM {extraInterest.toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div className="p-3 bg-red-500 bg-opacity-30 rounded-lg mb-4 border border-red-400 border-opacity-50">
-            <div className="flex items-center gap-2 text-sm">
-              <span>⚠️</span>
-              <span><strong>Impak:</strong> Jumlah keuntungan tambahan RM {extraInterest.toFixed(2)} akibat moratorium</span>
+          {/* Warning */}
+          <div className="p-3 bg-red-500 bg-opacity-30 rounded-lg border border-red-400 border-opacity-50">
+            <div className="flex items-start gap-2 text-sm">
+              <span className="mt-0.5">⚠️</span>
+              <span>
+                <strong>Impak:</strong> Keuntungan tambahan RM {extraInterest.toFixed(2)} akan ditambah kepada baki pembiayaan.
+              </span>
             </div>
           </div>
 
-          <div className="mb-4">
-            <div className="font-semibold mb-2 text-purple-100">Cadangan AI</div>
+          {/* AI Recommendation */}
+          <div>
+            <p className="font-semibold text-sm text-purple-100 mb-2">Cadangan AI</p>
             <div className="p-3 bg-white bg-opacity-10 rounded-lg text-sm">
               <div className="flex items-start gap-2">
-                <span>🧠</span>
-                <div>
-                  Moratorium disyorkan jika masalah kewangan bersifat sementara.
-                  Pertimbangkan penjadualan semula jika masalah berpanjangan.
-                </div>
+                <span className="mt-0.5">🧠</span>
+                <p>
+                  {type === 'moratorium'
+                    ? 'Moratorium disyorkan jika masalah kewangan bersifat sementara (kurang 6 bulan). Pastikan peminjam mempunyai rancangan untuk meneruskan bayaran selepas tempoh moratorium.'
+                    : 'Penjadualan semula sesuai untuk masalah kewangan berpanjangan. Ansuran baru akan dikira berdasarkan baki semasa dan tempoh baru.'}
+                </p>
               </div>
             </div>
           </div>
 
-          <div>
-            <div className="font-semibold mb-2 text-purple-100">Maklumat Kelulusan</div>
-            <div className="p-3 bg-white bg-opacity-10 rounded-lg text-sm flex items-center gap-2">
-              <span>🕐</span>
-              <span>Kelulusan dijangka dalam 2-3 hari bekerja.</span>
-            </div>
+          {/* Approval Info */}
+          <div className="p-3 bg-white bg-opacity-10 rounded-lg text-sm flex items-center gap-2">
+            <span>🕐</span>
+            <span>Kelulusan Pengurus Cawangan diperlukan. Dijangka 2-3 hari bekerja.</span>
           </div>
         </div>
       </div>

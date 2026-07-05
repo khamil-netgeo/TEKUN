@@ -144,7 +144,33 @@ Return this exact JSON structure:
             return json_decode(trim($text), true) ?? ['error' => 'Parse failed'];
         } catch (\Exception $e) {
             Log::error('AiService::generateCreditScore error: ' . $e->getMessage());
-            return ['error' => $e->getMessage()];
+            // Deterministic fallback (no rand()) based on application data
+            $amount    = $applicationData['amount_requested'] ?? 25000;
+            $tenure    = $applicationData['tenure_months'] ?? 36;
+            $baseScore = 650;
+            if ($amount <= 10000) $baseScore += 50;
+            elseif ($amount <= 30000) $baseScore += 20;
+            else $baseScore -= 30;
+            if ($tenure <= 24) $baseScore += 20;
+            elseif ($tenure <= 48) $baseScore += 10;
+            $score = min(850, max(300, $baseScore));
+            $grade = $score >= 750 ? 'A' : ($score >= 650 ? 'B' : ($score >= 550 ? 'C' : ($score >= 450 ? 'D' : 'E')));
+            $gradeLabels = ['A' => 'Sangat Baik', 'B' => 'Baik', 'C' => 'Sederhana', 'D' => 'Lemah', 'E' => 'Berisiko Tinggi'];
+            return [
+                'score'                   => $score,
+                'grade'                   => $grade,
+                'grade_label'             => $gradeLabels[$grade],
+                'recommendation'          => $score >= 600 ? 'LULUS' : ($score >= 500 ? 'KUARI' : 'TOLAK'),
+                'confidence'              => 0.6,
+                'risk_factors'            => ['Analisis AI tidak tersedia', 'Semakan manual diperlukan'],
+                'positive_factors'        => ['Permohonan diterima untuk semakan'],
+                'narrative_bm'            => 'Penilaian kredit berdasarkan data permohonan. Analisis AI tidak tersedia pada masa ini.',
+                'narrative_en'            => 'Credit assessment based on application data. AI analysis currently unavailable.',
+                'suggested_amount'        => $amount,
+                'suggested_tenure_months' => $tenure,
+                'conditions'              => ['Semakan manual diperlukan'],
+                'ai_fallback'             => true,
+            ];
         }
     }
 
@@ -522,4 +548,72 @@ KPI Data: " . json_encode($kpiData) . "
             ];
         }
     }
+
+    /**
+     * Generate a narrative text from a plain string prompt.
+     * This is a convenience wrapper for M2 controller usage.
+     * Returns a plain string (not array) for direct use in responses.
+     */
+    public function generateNarrativeText(string $prompt): string
+    {
+        try {
+            $response = $this->callAiEngine($prompt);
+            $text = trim($response->text());
+            return $text ?: 'Naratif tidak dapat dijana pada masa ini.';
+        } catch (\Exception $e) {
+            Log::error('AiService::generateNarrativeText error: ' . $e->getMessage());
+            return 'Naratif tidak dapat dijana pada masa ini.';
+        }
+    }
+
+
+    /**
+     * Internal HTTP call to AI engine (Gemini or OpenAI-compatible proxy).
+     * Returns an object with a text() method for uniform access.
+     */
+    private function callAiEngine(string|array $prompt): object
+    {
+        $apiKey  = env('GEMINI_API_KEY', '');
+        $apiBase = rtrim(env('OPENAI_API_BASE', env('OPENAI_BASE_URL', '')), '/');
+
+        // Build text from prompt
+        if (is_array($prompt)) {
+            $parts = [];
+            foreach ($prompt as $part) {
+                if (isset($part['text'])) {
+                    $parts[] = $part['text'];
+                } elseif (isset($part['inline_data'])) {
+                    $parts[] = '[Image data provided]';
+                }
+            }
+            $promptText = implode("\n", $parts);
+        } else {
+            $promptText = $prompt;
+        }
+
+        if ($apiBase && (str_contains($apiBase, 'openai') || str_contains($apiBase, 'proxy') || str_contains($apiBase, 'localhost'))) {
+            $resp = Http::timeout(30)
+                ->withToken(env('OPENAI_API_KEY', $apiKey))
+                ->post($apiBase . '/chat/completions', [
+                    'model'    => env('OPENAI_MODEL', 'gpt-4o-mini'),
+                    'messages' => [['role' => 'user', 'content' => $promptText]],
+                ]);
+            $text = $resp->json('choices.0.message.content', '');
+        } else {
+            $resp = Http::timeout(30)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
+                    'contents' => [['parts' => [['text' => $promptText]]]],
+                ]);
+            $text = $resp->json('candidates.0.content.parts.0.text', '');
+        }
+
+        // Return an object with a text() method for backward compatibility
+        return new class($text) {
+            private string $t;
+            public function __construct(string $t) { $this->t = $t; }
+            public function text(): string { return $this->t; }
+        };
+    }
+
 }

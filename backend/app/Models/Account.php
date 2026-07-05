@@ -95,6 +95,11 @@ class Account extends Model
         return $this->hasMany(DunningAction::class);
     }
 
+    public function moratoriums()
+    {
+        return $this->hasMany(\App\Modules\PengurusanAkaun\Models\Moratorium::class, 'account_id');
+    }
+
     // ─── Scopes ───────────────────────────────────────────────────────────────
 
     public function scopeActive($query)
