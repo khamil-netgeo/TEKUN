@@ -1,6 +1,43 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, Component, type ReactNode, type ErrorInfo } from 'react';
 import '@/i18n';
+
+// Global Error Boundary — catches component crashes and shows a user-friendly message instead of blank screen
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[SPPT ErrorBoundary]', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#F5F6FA', gap: 16, padding: 24 }}>
+          <div style={{ fontSize: 48 }}>⚠️</div>
+          <h2 style={{ color: '#1B2B5E', fontSize: 20, fontWeight: 700, margin: 0 }}>Ralat Sistem</h2>
+          <p style={{ color: '#6B7280', fontSize: 14, textAlign: 'center', maxWidth: 400, margin: 0 }}>
+            Halaman ini mengalami ralat yang tidak dijangka. Sila muat semula halaman atau hubungi pentadbir sistem.
+          </p>
+          <p style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'monospace', background: '#F3F4F6', padding: '8px 16px', borderRadius: 8, maxWidth: 500, wordBreak: 'break-all' }}>
+            {this.state.error?.message}
+          </p>
+          <button
+            onClick={() => window.location.href = '/'}
+            style={{ background: '#1B2B5E', color: 'white', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Muat Semula
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { useAuthStore } from '@/store/authStore';
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -123,6 +160,7 @@ function LoadingSpinner() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
@@ -228,5 +266,6 @@ export default function App() {
         </Routes>
       </Suspense>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
