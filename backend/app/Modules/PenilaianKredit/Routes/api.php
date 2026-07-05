@@ -1,18 +1,20 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\CreditAssessmentController;
+use App\Modules\PenilaianKredit\Controllers\CreditAssessmentController;
 
 /**
- * Module 2 — Penilaian Kredit Routes
+ * Module 2 — Penilaian Risiko & Skor Kredit Routes
+ * These routes are automatically loaded by AppServiceProvider
  */
+
 Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/credit-assessments', [CreditAssessmentController::class, 'index']);
-    Route::post('/credit-assessments', [CreditAssessmentController::class, 'store']);
-    Route::get('/credit-assessments/{id}', [CreditAssessmentController::class, 'show']);
-    Route::put('/credit-assessments/{id}', [CreditAssessmentController::class, 'update']);
-    Route::post('/credit-assessments/{id}/approve', [CreditAssessmentController::class, 'approve']);
-    Route::post('/credit-assessments/{id}/reject', [CreditAssessmentController::class, 'reject']);
-    Route::get('/credit-assessments/{id}/offer-letter', [CreditAssessmentController::class, 'offerLetter']);
-    Route::post('/credit-assessments/{id}/amortization', [CreditAssessmentController::class, 'amortization']);
+    // POC Requirements endpoints
+    Route::get('/applications', [CreditAssessmentController::class, 'index']);
+    Route::get('/applications/{id}/credit-score', [CreditAssessmentController::class, 'creditScore']);
+    Route::get('/applications/{id}/amortization', [CreditAssessmentController::class, 'amortization']);
+    Route::post('/applications/{id}/approve', [CreditAssessmentController::class, 'approve']);
+    Route::post('/applications/{id}/reject', [CreditAssessmentController::class, 'reject']);
+    Route::post('/applications/{id}/kuari', [CreditAssessmentController::class, 'kuari']);
+    Route::get('/applications/{id}/offer-letter', [CreditAssessmentController::class, 'offerLetter']);
 });
