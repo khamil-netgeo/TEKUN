@@ -55,9 +55,8 @@ export default function LoginPage() {
       localStorage.setItem('sppt-auth', JSON.stringify(authState));
       
       toast.success(`Selamat datang, ${user.name}! (${user.role_label})`);
-      await new Promise(r => setTimeout(r, 100));
-      window.location.href = '/dashboard';
       setLoading(false);
+      navigate('/dashboard', { replace: true });
       return;
     }
 
@@ -66,8 +65,7 @@ export default function LoginPage() {
       const res = await api.post('/auth/login', { email, password });
       login(res.data.user, res.data.token);
       toast.success(`Selamat datang, ${res.data.user.name}!`);
-      await new Promise(r => setTimeout(r, 50));
-      window.location.href = '/dashboard';
+      navigate('/dashboard', { replace: true });
     } catch {
       toast.error('E-mel atau kata laluan tidak sah.');
     } finally {
