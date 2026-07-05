@@ -5,16 +5,19 @@ namespace App\Modules\ProdukPembiayaan\Tests;
 use Tests\TestCase;
 use App\Models\User;
 use App\Modules\ProdukPembiayaan\Models\FinancingProduct;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
 
 /**
  * Module 9 — Produk Pembiayaan
  * Feature tests for all product API endpoints.
+ *
+ * PHPUnit 12 compatible — uses test_ prefix (not @test annotation).
+ * Uses DatabaseTransactions to avoid dropping/recreating tables.
  */
 class ProductApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private User $adminUser;
     private User $pegawaiUser;
@@ -24,42 +27,53 @@ class ProductApiTest extends TestCase
     {
         parent::setUp();
 
-        // Seed roles and permissions
-        $this->artisan('db:seed', ['--class' => 'CoreRbacSeeder']);
+        $uid = substr(uniqid(), -6);
 
-        // Create test users
-        $this->adminUser = User::factory()->create(['email' => 'admin_test@tekun.gov.my']);
-        $this->adminUser->assignRole('system_admin');
+        $this->adminUser = User::factory()->create([
+            'email'       => "admin_m9_{$uid}@tekun.gov.my",
+            'role'        => 'system_admin',
+            'permissions' => [
+                'modules'        => ['*'],
+                'actions'        => ['*'],
+                'data_scope'     => 'national',
+                'approval_limit' => 999999,
+            ],
+        ]);
 
-        $this->pegawaiUser = User::factory()->create(['email' => 'pegawai_test@tekun.gov.my']);
-        $this->pegawaiUser->assignRole('branch_officer');
+        $this->pegawaiUser = User::factory()->create([
+            'email'       => "pegawai_m9_{$uid}@tekun.gov.my",
+            'role'        => 'branch_officer',
+            'permissions' => [
+                'modules'        => ['module9'],
+                'actions'        => ['read'],
+                'data_scope'     => 'branch',
+                'approval_limit' => 0,
+            ],
+        ]);
 
-        // Create a test product
         $this->product = FinancingProduct::create([
-            'code'             => 'SKM-TEST',
-            'name'             => 'TEKUN Test Scheme',
-            'name_en'          => 'TEKUN Test Scheme EN',
-            'min_amount'       => 1000.00,
-            'max_amount'       => 50000.00,
-            'profit_rate'      => 4.00,
-            'min_tenure_months'=> 6,
-            'max_tenure_months'=> 36,
-            'min_age'          => 18,
-            'max_age'          => 60,
-            'eligible_genders' => ['M', 'F'],
-            'is_active'        => true,
-            'color_hex'        => '#1B2B5E',
-            'display_order'    => 99,
+            'code'                     => 'TST' . $uid,
+            'name'                     => 'TEKUN Test Scheme',
+            'name_en'                  => 'TEKUN Test Scheme EN',
+            'min_amount'               => 1000.00,
+            'max_amount'               => 50000.00,
+            'profit_rate'              => 4.00,
+            'min_tenure_months'        => 6,
+            'max_tenure_months'        => 36,
+            'min_age'                  => 18,
+            'max_age'                  => 60,
+            'eligible_genders'         => ['M', 'F'],
+            'blacklist_check_required' => true,
+            'is_active'                => true,
+            'color_hex'                => '#1B2B5E',
+            'display_order'            => 99,
         ]);
     }
 
-    /** @test */
-    public function it_returns_product_list_for_authenticated_user(): void
+    public function test_authenticated_user_can_list_products(): void
     {
         Sanctum::actingAs($this->pegawaiUser);
-
         $response = $this->getJson('/api/products');
-
         $response->assertStatus(200)
                  ->assertJsonStructure([
                      'data' => [['id', 'code', 'name', 'profit_rate', 'is_active']],
@@ -67,77 +81,76 @@ class ProductApiTest extends TestCase
                  ]);
     }
 
-    /** @test */
-    public function it_rejects_unauthenticated_product_list_request(): void
+    public function test_unauthenticated_request_is_rejected(): void
     {
         $response = $this->getJson('/api/products');
         $response->assertStatus(401);
     }
 
-    /** @test */
-    public function it_returns_product_detail(): void
+    public function test_product_detail_is_returned(): void
     {
         Sanctum::actingAs($this->pegawaiUser);
-
         $response = $this->getJson("/api/products/{$this->product->id}");
-
         $response->assertStatus(200)
-                 ->assertJsonPath('data.code', 'SKM-TEST')
+                 ->assertJsonPath('data.code', $this->product->code)
                  ->assertJsonStructure([
                      'data' => ['id', 'code', 'name', 'profit_rate', 'min_age', 'max_age', 'eligibility_rules'],
                  ]);
     }
 
-    /** @test */
-    public function it_returns_404_for_nonexistent_product(): void
+    public function test_nonexistent_product_returns_404(): void
     {
         Sanctum::actingAs($this->pegawaiUser);
-
-        $response = $this->getJson('/api/products/99999');
+        $response = $this->getJson('/api/products/99999999');
         $response->assertStatus(404);
     }
 
-    /** @test */
-    public function admin_can_update_product_configuration(): void
+    public function test_admin_can_update_product(): void
     {
         Sanctum::actingAs($this->adminUser);
-
         $response = $this->putJson("/api/products/{$this->product->id}", [
-            'profit_rate'      => 3.75,
-            'max_tenure_months'=> 48,
+            'profit_rate'       => 3.75,
+            'max_tenure_months' => 48,
         ]);
-
         $response->assertStatus(200)
                  ->assertJsonPath('data.profit_rate', 3.75)
                  ->assertJsonPath('data.max_tenure_months', 48);
     }
 
-    /** @test */
-    public function branch_officer_cannot_update_product_configuration(): void
+    public function test_branch_officer_cannot_update_product(): void
     {
         Sanctum::actingAs($this->pegawaiUser);
-
         $response = $this->putJson("/api/products/{$this->product->id}", [
             'profit_rate' => 2.00,
         ]);
-
         $response->assertStatus(403);
     }
 
-    /** @test */
-    public function admin_can_deactivate_and_reactivate_product(): void
+    public function test_invalid_amount_fails_validation(): void
     {
         Sanctum::actingAs($this->adminUser);
+        $response = $this->putJson("/api/products/{$this->product->id}", [
+            'min_amount' => 50000,
+            'max_amount' => 1000,
+        ]);
+        $response->assertStatus(422);
+    }
 
-        // Deactivate
+    public function test_admin_can_deactivate_product(): void
+    {
+        Sanctum::actingAs($this->adminUser);
         $response = $this->postJson("/api/products/{$this->product->id}/activate", [
             'action' => 'deactivate',
             'notes'  => 'Temporary suspension for review.',
         ]);
         $response->assertStatus(200)
                  ->assertJsonPath('data.is_active', false);
+    }
 
-        // Reactivate
+    public function test_admin_can_reactivate_product(): void
+    {
+        $this->product->update(['is_active' => false]);
+        Sanctum::actingAs($this->adminUser);
         $response = $this->postJson("/api/products/{$this->product->id}/activate", [
             'action' => 'activate',
         ]);
@@ -145,33 +158,28 @@ class ProductApiTest extends TestCase
                  ->assertJsonPath('data.is_active', true);
     }
 
-    /** @test */
-    public function it_prevents_double_activation(): void
+    public function test_double_activation_returns_conflict(): void
     {
         Sanctum::actingAs($this->adminUser);
-
-        // Product is already active
         $response = $this->postJson("/api/products/{$this->product->id}/activate", [
             'action' => 'activate',
         ]);
         $response->assertStatus(409);
     }
 
-    /** @test */
-    public function eligibility_check_passes_for_valid_applicant(): void
+    public function test_eligibility_check_returns_result(): void
     {
         Sanctum::actingAs($this->pegawaiUser);
-
-        $response = $this->getJson("/api/products/{$this->product->id}/eligibility-check?" . http_build_query([
+        $params = http_build_query([
             'ic'                  => '900101015678',
             'gender'              => 'M',
             'sector'              => 'perniagaan',
             'business_age_months' => 12,
-            'is_blacklisted'      => false,
-            'ccris_clear'         => true,
-            'muflis_clear'        => true,
-        ]));
-
+            'is_blacklisted'      => 0,
+            'ccris_clear'         => 1,
+            'muflis_clear'        => 1,
+        ]);
+        $response = $this->getJson("/api/products/{$this->product->id}/eligibility-check?{$params}");
         $response->assertStatus(200)
                  ->assertJsonPath('data.eligible', true)
                  ->assertJsonStructure([
@@ -179,51 +187,30 @@ class ProductApiTest extends TestCase
                  ]);
     }
 
-    /** @test */
-    public function eligibility_check_fails_for_blacklisted_applicant(): void
+    public function test_eligibility_check_rejects_blacklisted(): void
     {
         Sanctum::actingAs($this->pegawaiUser);
-
-        $response = $this->getJson("/api/products/{$this->product->id}/eligibility-check?" . http_build_query([
+        $params = http_build_query([
             'ic'             => '900101015678',
-            'is_blacklisted' => true,
-        ]));
-
+            'is_blacklisted' => 1,
+        ]);
+        $response = $this->getJson("/api/products/{$this->product->id}/eligibility-check?{$params}");
         $response->assertStatus(200)
                  ->assertJsonPath('data.eligible', false);
     }
 
-    /** @test */
-    public function eligibility_check_requires_ic_parameter(): void
+    public function test_eligibility_check_requires_ic_parameter(): void
     {
         Sanctum::actingAs($this->pegawaiUser);
-
         $response = $this->getJson("/api/products/{$this->product->id}/eligibility-check");
         $response->assertStatus(422)
                  ->assertJsonStructure(['errors' => ['ic']]);
     }
 
-    /** @test */
-    public function it_validates_max_amount_greater_than_min_amount(): void
+    public function test_audit_logs_are_returned(): void
     {
         Sanctum::actingAs($this->adminUser);
-
-        $response = $this->putJson("/api/products/{$this->product->id}", [
-            'min_amount' => 50000,
-            'max_amount' => 1000,
-        ]);
-
-        $response->assertStatus(422);
-    }
-
-    /** @test */
-    public function it_returns_audit_logs_for_product(): void
-    {
-        Sanctum::actingAs($this->adminUser);
-
-        // Make a change to generate an audit log
         $this->putJson("/api/products/{$this->product->id}", ['profit_rate' => 3.50]);
-
         $response = $this->getJson("/api/products/{$this->product->id}/audit-logs");
         $response->assertStatus(200)
                  ->assertJsonStructure(['data', 'total', 'per_page']);

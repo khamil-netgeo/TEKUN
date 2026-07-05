@@ -73,7 +73,7 @@ class ProductController extends Controller
         $validator = Validator::make($request->all(), [
             'profit_rate'             => 'sometimes|numeric|min:0|max:100',
             'min_amount'              => 'sometimes|numeric|min:0',
-            'max_amount'              => 'sometimes|numeric|min:0',
+            'max_amount'              => 'sometimes|numeric|min:0|gte:min_amount',
             'min_tenure_months'       => 'sometimes|integer|min:1',
             'max_tenure_months'       => 'sometimes|integer|min:1',
             'min_age'                 => 'sometimes|integer|min:18|max:100',
@@ -95,7 +95,7 @@ class ProductController extends Controller
             ], 422);
         }
 
-        $updated = $this->productService->updateProduct($product, $request->all(), $request);
+        $updated = $this->productService->updateProduct($product, $request->all(), auth()->id());
 
         return response()->json([
             'message' => 'Konfigurasi produk berjaya dikemaskini.',
@@ -121,11 +121,21 @@ class ProductController extends Controller
         }
 
         $activate = $request->input('action') === 'activate';
+
+        // 409 Conflict: product is already in the desired state
+        if ($product->is_active === $activate) {
+            $state = $activate ? 'aktif' : 'tidak aktif';
+            return response()->json([
+                'message' => "Produk sudah dalam keadaan {$state}.",
+                'data'    => ['id' => $product->id, 'is_active' => $product->is_active],
+            ], 409);
+        }
+
         $updated  = $this->productService->toggleActivation(
             $product,
             $activate,
-            $request,
             $request->input('notes'),
+            auth()->id(),
         );
 
         $label = $activate ? 'diaktifkan' : 'dinyahaktifkan';
@@ -144,10 +154,18 @@ class ProductController extends Controller
     // ── GET /api/products/{id}/eligibility-check ──────────────────────────────
     public function eligibilityCheck(Request $request, int $id): JsonResponse
     {
+        $validator = Validator::make($request->all(), [
+            'ic' => 'required|string|min:12|max:12',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
         $product = FinancingProduct::with('activeRules')->findOrFail($id);
-
         $result = $this->eligibilityService->check($product, $request->all());
-
         return response()->json(['data' => $result]);
     }
 
