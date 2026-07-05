@@ -80,9 +80,9 @@ const DEMO_ACCOUNTS = [
 ];
 
 const FEATURES = [
-  { Icon: Cpu,      title: 'AI Kredit & eKYC',    desc: 'Pemarkahan kredit automatik & pengesahan dokumen Gemini AI' },
+  { Icon: Cpu,      title: 'AI Kredit & eKYC',    desc: 'Pemarkahan kredit automatik & pengesahan dokumen SPPT AI' },
   { Icon: Shield,   title: 'RBAC 7 Peranan',       desc: 'Kawalan akses berasaskan tender TEKUN/SPPT/2026' },
-  { Icon: BarChart3, title: 'Analitik Nasional',   desc: 'Dashboard eksekutif & laporan Power BI masa nyata' },
+  { Icon: BarChart3, title: 'Analitik Nasional',   desc: 'Dashboard eksekutif & laporan analitik masa nyata' },
   { Icon: Users,    title: 'Dwibahasa',             desc: 'Bahasa Malaysia & English — togol sebarang masa' },
 ];
 
@@ -133,6 +133,15 @@ export default function LoginPage() {
   const [loginError,       setLoginError]       = useState('');
   const [showAllRoles,     setShowAllRoles]     = useState(false);
   const [selectedRole,     setSelectedRole]     = useState<string | null>(null);
+  // MFA / OTP state
+  const [mfaStep,          setMfaStep]          = useState(false);
+  const [otpCode,          setOtpCode]          = useState('');
+  const [otpLoading,       setOtpLoading]       = useState(false);
+  const [otpError,         setOtpError]         = useState('');
+  const [otpResendTimer,   setOtpResendTimer]   = useState(0);
+  const [pendingUser,      setPendingUser]       = useState<any>(null);
+  const [pendingToken,     setPendingToken]      = useState<string>('');
+  const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const emailRef     = useRef<HTMLInputElement>(null);
   const lockoutTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -198,10 +207,23 @@ export default function LoginPage() {
 
     try {
       const res = await api.post('/auth/login', { email: trimmedEmail, password });
-      login(res.data.user, res.data.token);
+      // Store pending user/token, trigger OTP step
+      setPendingUser(res.data.user);
+      setPendingToken(res.data.token);
+      // Send OTP to email
+      try {
+        await api.post('/auth/send-otp', { identifier: trimmedEmail, channel: 'email', purpose: 'login_2fa' });
+      } catch {
+        // OTP send failed — log but still proceed (graceful degradation for demo)
+        console.warn('OTP send failed, proceeding without MFA for demo');
+      }
       resetAttempts();
-      toast.success(`Selamat datang, ${res.data.user.name}!`);
-      navigate('/dashboard');
+      setMfaStep(true);
+      setOtpResendTimer(60);
+      if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+      otpTimerRef.current = setInterval(() => {
+        setOtpResendTimer(prev => { if (prev <= 1) { clearInterval(otpTimerRef.current!); return 0; } return prev - 1; });
+      }, 1000);
     } catch {
       const newAttempts = incrementAttempts();
       setAttempts(newAttempts);
@@ -218,6 +240,55 @@ export default function LoginPage() {
   };
 
   const visibleAccounts = showAllRoles ? DEMO_ACCOUNTS : DEMO_ACCOUNTS.slice(0, 4);
+
+  const handleOtpVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpError('');
+    if (otpCode.length !== 6) { setOtpError('Sila masukkan kod OTP 6 digit.'); return; }
+    setOtpLoading(true);
+    try {
+      // For demo accounts, accept any 6-digit code
+      const isDemo = DEMO_ACCOUNTS.some(a => a.email === email.trim().toLowerCase());
+      if (isDemo) {
+        login(pendingUser, pendingToken);
+        toast.success(`Selamat datang, ${pendingUser.name}! (${pendingUser.role_label})`);
+        navigate('/dashboard');
+        return;
+      }
+      const res = await api.post('/auth/verify-otp', {
+        identifier: email.trim().toLowerCase(),
+        channel: 'email',
+        code: otpCode,
+        purpose: 'login_2fa',
+      });
+      if (res.data.verified) {
+        login(pendingUser, pendingToken);
+        toast.success(`Selamat datang, ${pendingUser.name}!`);
+        navigate('/dashboard');
+      } else {
+        setOtpError(res.data.message ?? 'Kod OTP tidak sah atau telah tamat tempoh.');
+      }
+    } catch (err: any) {
+      setOtpError(err.response?.data?.message ?? 'Pengesahan OTP gagal. Cuba lagi.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleOtpResend = async () => {
+    if (otpResendTimer > 0) return;
+    try {
+      await api.post('/auth/send-otp', { identifier: email.trim().toLowerCase(), channel: 'email', purpose: 'login_2fa' });
+      toast.success('Kod OTP baharu telah dihantar ke emel anda.');
+      setOtpResendTimer(60);
+      if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+      otpTimerRef.current = setInterval(() => {
+        setOtpResendTimer(prev => { if (prev <= 1) { clearInterval(otpTimerRef.current!); return 0; } return prev - 1; });
+      }, 1000);
+    } catch {
+      toast.error('Gagal menghantar semula OTP. Cuba lagi.');
+    }
+  };
 
   return (
     <div className="min-h-screen flex" style={{ background: '#F0F2F8' }}>
@@ -357,6 +428,7 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {!mfaStep ? (
               <form onSubmit={handleLogin} className="space-y-4" noValidate>
                 <div>
                   <label htmlFor="login-email" className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>
@@ -461,6 +533,8 @@ export default function LoginPage() {
                 </button>
               </form>
 
+              {!mfaStep && (
+              <>
               {/* Divider */}
               <div className="flex items-center gap-3 my-5">
                 <div className="flex-1 h-px" style={{ background: '#E5E7EB' }} />
