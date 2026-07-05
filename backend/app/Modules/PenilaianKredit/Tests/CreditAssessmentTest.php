@@ -3,13 +3,21 @@
 namespace App\Modules\PenilaianKredit\Tests;
 
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
+/**
+ * CreditAssessmentTest — M2 Penilaian Risiko & Skor Kredit
+ *
+ * Uses DatabaseTransactions (not RefreshDatabase) to avoid PostgreSQL deadlocks
+ * when multiple test suites run concurrently on the shared sppt_test database.
+ * Each test is wrapped in a transaction that rolls back after completion,
+ * leaving the schema intact for other concurrent test suites.
+ */
 class CreditAssessmentTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected $token;
     protected $userId;
@@ -19,13 +27,15 @@ class CreditAssessmentTest extends TestCase
     {
         parent::setUp();
 
-        // Ensure branches exist
+        // Use unique identifiers to avoid conflicts with concurrent test runs
+        $uniqueSuffix = uniqid();
+
+        // Ensure a branch exists for this test
         $branchId = DB::table('branches')->insertGetId([
-            'code' => 'TEST01',
-            'name' => 'Cawangan Test',
-            'state' => 'W.P. Kuala Lumpur',
+            'code'     => 'TST' . substr($uniqueSuffix, -4),
+            'name'     => 'Cawangan Test ' . $uniqueSuffix,
+            'state'    => 'W.P. Kuala Lumpur',
             'district' => 'Kuala Lumpur',
-            
             'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
@@ -33,20 +43,22 @@ class CreditAssessmentTest extends TestCase
 
         // Insert a credit officer user with full module permissions
         $permissions = json_encode([
-            'modules' => ['module1', 'module2', 'module3', 'module4', 'module5', 'module6', 'module7', 'module8', 'module9', 'module10', 'module11', 'module12'],
+            'modules' => ['module1', 'module2', 'module3', 'module4', 'module5',
+                          'module6', 'module7', 'module8', 'module9', 'module10',
+                          'module11', 'module12'],
             'actions' => ['*'],
         ]);
-        
+
         $this->userId = DB::table('users')->insertGetId([
             'name'        => 'Pegawai Kredit Test',
-            'email'       => 'kredit.test@tekun.gov.my',
+            'email'       => 'kredit.test.' . $uniqueSuffix . '@tekun.gov.my',
             'password'    => Hash::make('demo1234'),
             'role'        => 'credit_officer',
             'role_label'  => 'Pegawai Kredit',
             'branch'      => 'Cawangan KL Sentral',
             'branch_code' => 'KL01',
             'is_active'   => true,
-            'is_suspended'=> false,
+            'is_suspended' => false,
             'permissions' => $permissions,
             'created_at'  => now(),
             'updated_at'  => now(),
@@ -54,25 +66,25 @@ class CreditAssessmentTest extends TestCase
 
         // Login to get token
         $response = $this->postJson('/api/auth/login', [
-            'email' => 'kredit.test@tekun.gov.my',
+            'email'    => 'kredit.test.' . $uniqueSuffix . '@tekun.gov.my',
             'password' => 'demo1234',
         ]);
         $this->token = $response->json('token');
 
-        // Create an application
+        // Create an application for this test run
         $this->appId = DB::table('applications')->insertGetId([
-            'ref_no' => 'APP-TEST-001',
-            'applicant_name' => 'Test Applicant',
-            'ic_no' => '900101145566',
-            'scheme' => 'TEKUN Niaga',
+            'ref_no'           => 'APP-TEST-' . $uniqueSuffix,
+            'applicant_name'   => 'Test Applicant',
+            'ic_no'            => '9001' . substr(preg_replace('/[^0-9]/', '', $uniqueSuffix), 0, 8),
+            'scheme'           => 'TEKUN Niaga',
             'amount_requested' => 50000,
-            'status' => 'pending_assessment',
-            'branch_id' => $branchId,
-            'officer_id' => $this->userId,
-            'phone' => '0123456789',
-            'tenure_months' => 60,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'status'           => 'pending_assessment',
+            'branch_id'        => $branchId,
+            'officer_id'       => $this->userId,
+            'phone'            => '0123456789',
+            'tenure_months'    => 60,
+            'created_at'       => now(),
+            'updated_at'       => now(),
         ]);
     }
 
@@ -132,7 +144,7 @@ class CreditAssessmentTest extends TestCase
             ->assertJsonFragment(['status' => 'approved']);
 
         $this->assertDatabaseHas('applications', [
-            'id' => $this->appId,
+            'id'     => $this->appId,
             'status' => 'approved'
         ]);
     }
@@ -149,7 +161,7 @@ class CreditAssessmentTest extends TestCase
             ->assertJsonStructure(['rejection_letter_url']);
 
         $this->assertDatabaseHas('applications', [
-            'id' => $this->appId,
+            'id'     => $this->appId,
             'status' => 'rejected'
         ]);
     }
@@ -159,7 +171,7 @@ class CreditAssessmentTest extends TestCase
         $response = $this->withToken($this->token)
             ->postJson("/api/applications/{$this->appId}/kuari", [
                 'fields' => ['ic_no', 'bank_statement'],
-                'notes' => 'Sila muat naik penyata bank yang jelas'
+                'notes'  => 'Sila muat naik penyata bank yang jelas'
             ]);
 
         $response->assertStatus(200)
@@ -167,7 +179,7 @@ class CreditAssessmentTest extends TestCase
             ->assertJsonStructure(['flagged_fields']);
 
         $this->assertDatabaseHas('applications', [
-            'id' => $this->appId,
+            'id'     => $this->appId,
             'status' => 'kuari'
         ]);
     }
