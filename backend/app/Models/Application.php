@@ -223,4 +223,27 @@ class Application extends Model
             default          => 50000,
         };
     }
+
+    /**
+     * Accessor: full_name → maps to DB column 'applicant_name'
+     * Ensures frontend Application type field 'full_name' is always populated.
+     */
+    public function getFullNameAttribute(): ?string
+    {
+        return $this->attributes['applicant_name'] ?? null;
+    }
+
+    /**
+     * Accessor: loan_purpose → maps to DB column 'purpose'
+     * Ensures frontend Application type field 'loan_purpose' is always populated.
+     */
+    public function getLoanPurposeAttribute(): ?string
+    {
+        return $this->attributes['purpose'] ?? null;
+    }
+
+    /**
+     * Ensure full_name and loan_purpose are always included in JSON/array output.
+     */
+    protected $appends = ['status_label', 'scheme_label', 'full_name', 'loan_purpose'];
 }
