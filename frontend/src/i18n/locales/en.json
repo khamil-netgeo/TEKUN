@@ -160,7 +160,17 @@
     "kpi": "Key Performance Indicators",
     "disbursementYTD": "Disbursement (YTD)",
     "collectionRate": "Collection Rate",
-    "nplRatio": "NPL Ratio"
+    "nplRatio": "NPL Ratio",
+    "branchPerformance": "Branch Performance",
+    "predictiveAnalytics": "AI Predictive Analytics",
+    "aiDashboardBuilder": "AI Dashboard Builder",
+    "officerSkillProfile": "Officer Skill Profile",
+    "aiInsightPanel": "SPPT AI Insight Panel",
+    "generateDashboard": "Generate Dashboard",
+    "saveDashboard": "Save Dashboard",
+    "myAiPersona": "My AI Persona",
+    "decisionHistory": "Decision History",
+    "requestDecisionAssist": "Request AI Decision Assist"
   },
   "ai": {
     "analyzing": "AI is analyzing...",

@@ -160,7 +160,17 @@
     "kpi": "Penunjuk Prestasi Utama (KPI)",
     "disbursementYTD": "Agihan Dana (YTD)",
     "collectionRate": "Kadar Kutipan",
-    "nplRatio": "Nisbah NPL"
+    "nplRatio": "Nisbah NPL",
+    "branchPerformance": "Prestasi Cawangan",
+    "predictiveAnalytics": "Analitik Ramalan AI",
+    "aiDashboardBuilder": "Pembina Papan Pemuka AI",
+    "officerSkillProfile": "Profil Kemahiran Pegawai",
+    "aiInsightPanel": "Panel Pandangan SPPT AI",
+    "generateDashboard": "Jana Papan Pemuka",
+    "saveDashboard": "Simpan Papan Pemuka",
+    "myAiPersona": "Persona AI Saya",
+    "decisionHistory": "Sejarah Keputusan",
+    "requestDecisionAssist": "Minta Bantuan Keputusan AI"
   },
   "ai": {
     "analyzing": "AI sedang menganalisis...",
