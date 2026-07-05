@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Modules\PengeluaranDana\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,8 +25,8 @@ use App\Traits\LogsAuditTrail;
  * @property string $payment_ref
  * @property string $payment_channel ibg | duitnow | rtgs
  * @property string $payment_date
- * @property string $authority_level pegawai | pengurus | kredit | eksekutif
- * @property int    $approved_by     FK → users.id
+ * @property string $approval_level pegawai | pengurus | kredit | eksekutif
+ * @property int    $approved_by_l1     FK → users.id
  * @property string $approved_at
  * @property string $disbursed_at
  */
@@ -43,14 +43,26 @@ class Disbursement extends Model
         'bank_account_name',
         'bank_verified',
         'esign_status',
+        'status',
+        'is_batch',
+        'aging_days',
+        'is_escalated',
+        'ai_anomaly_flag',
+        'twofa_required',
+        'twofa_confirmed',
+        'esign_reminder_sent',
+        'esign_ai_anomaly',
+        'sla_breach',
+        'notify_sent',
+        'approval_level',
         'esign_doc_path',
         'esign_signed_at',
         'payment_status',
         'payment_ref',
         'payment_channel',
         'payment_date',
-        'authority_level',
-        'approved_by',
+        'approval_level',
+        'approved_by_l1',
         'approved_at',
         'disbursed_at',
     ];
@@ -74,14 +86,26 @@ class Disbursement extends Model
 
     public function approver()
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'approved_by_l1');
     }
 
     // ─── Scopes ───────────────────────────────────────────────────────────────
 
     public function scopePendingEsign($query)
     {
-        return $query->where('esign_status', 'pending');
+        return $query->where('esign_status',
+        'status',
+        'is_batch',
+        'aging_days',
+        'is_escalated',
+        'ai_anomaly_flag',
+        'twofa_required',
+        'twofa_confirmed',
+        'esign_reminder_sent',
+        'esign_ai_anomaly',
+        'sla_breach',
+        'notify_sent',
+        'approval_level', 'pending');
     }
 
     public function scopePendingPayment($query)
