@@ -1,186 +1,204 @@
-import { CheckCircle, Clock, AlertTriangle, Users, Bell, RefreshCw } from 'lucide-react';
+/**
+ * Module 3 — Pengeluaran Dana
+ * EsignTracking.tsx — e-Sign queue with real API and reminder actions.
+ */
+import React, { useState, useEffect, useCallback } from 'react';
+import { FileSignature, Bell, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
+import StatCard from '../../../components/ui/StatCard';
+import AiBadge from '../../../components/ui/AiBadge';
+import PageHeader from '../../../components/ui/PageHeader';
+import LoadingSpinner from '../../../components/ui/LoadingSpinner';
+import disbursementService, { type EsignRecord } from '../services/disbursementService';
 
-const queue = [
-  { no: 1, id: 'SPPT-00089', name: 'Siti Nurhaliza', sent: '03/07', deadline: '10/07', status: 'DITANDATANGANI', daysLeft: null, reminder: 'Selesai' },
-  { no: 2, id: 'SPPT-00091', name: 'Noraini Hassan', sent: '02/07', deadline: '09/07', status: 'MENUNGGU', daysLeft: 6, reminder: 'Peringatan Hari-3 Dihantar' },
-  { no: 3, id: 'SPPT-00093', name: 'Haslinda', sent: '01/07', deadline: '08/07', status: 'MENUNGGU', daysLeft: 5, reminder: 'Peringatan Hari-6 Dihantar' },
-  { no: 4, id: 'SPPT-00095', name: 'Sharifah', sent: '25/06', deadline: '02/07', status: 'TAMAT TEMPOH', daysLeft: 0, reminder: 'Eskalasi Automatik' },
-  { no: 5, id: 'SPPT-00096', name: 'Muhammad Rizal', sent: '26/06', deadline: '03/07', status: 'TAMAT TEMPOH', daysLeft: 0, reminder: 'Eskalasi Automatik' },
-  { no: 6, id: 'SPPT-00097', name: 'Zarina Binti Ali', sent: '27/06', deadline: '04/07', status: 'MENUNGGU', daysLeft: 1, reminder: 'Peringatan Hari-6 Dihantar' },
-  { no: 7, id: 'SPPT-00098', name: 'Ahmad Faizal', sent: '28/06', deadline: '05/07', status: 'MENUNGGU', daysLeft: 2, reminder: 'Peringatan Hari-3 Dihantar' },
-  { no: 8, id: 'SPPT-00099', name: 'Rohani Abdul Rahman', sent: '29/06', deadline: '06/07', status: 'MENUNGGU', daysLeft: 3, reminder: 'Peringatan Hari-3 Dihantar' },
-];
-
-const statusBadge = (status: string) => {
-  if (status === 'DITANDATANGANI') return <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">{status} 03/07 14:23</span>;
-  if (status === 'TAMAT TEMPOH') return <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700">{status}</span>;
-  return <span className="px-2 py-1 rounded text-xs font-semibold bg-orange-100 text-orange-700">{status}</span>;
+const ESIGN_COLOURS: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  signed: 'bg-green-100 text-green-800',
+  rejected: 'bg-red-100 text-red-800',
+  expired: 'bg-gray-100 text-gray-600',
 };
 
-const reminderBadge = (reminder: string) => {
-  if (reminder === 'Selesai') return <span className="flex items-center gap-1 text-green-600 text-xs font-semibold"><CheckCircle className="w-3 h-3" /> Selesai</span>;
-  if (reminder === 'Eskalasi Automatik') return <span className="flex items-center gap-1 text-red-600 text-xs font-semibold"><AlertTriangle className="w-3 h-3" /> Eskalasi Automatik</span>;
-  return <span className="flex items-center gap-1 text-orange-600 text-xs font-semibold"><Bell className="w-3 h-3" /> {reminder}</span>;
+const ESIGN_LABELS: Record<string, string> = {
+  pending: 'Menunggu',
+  signed: 'Ditandatangani',
+  rejected: 'Ditolak',
+  expired: 'Tamat Tempoh',
 };
 
 export default function EsignTracking() {
+  const [records, setRecords] = useState<EsignRecord[]>([]);
+  const [stats, setStats] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<number | null>(null);
+  const [filterStatus, setFilterStatus] = useState('');
+
+  const fetchQueue = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await disbursementService.getEsignQueue();
+      setRecords(res.data);
+      setStats(res.stats);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg || 'Gagal memuatkan baris gilir e-Tandatangan.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchQueue();
+  }, [fetchQueue]);
+
+  const handleSendReminder = async (id: number, refNo: string) => {
+    setSendingId(id);
+    try {
+      await disbursementService.sendReminder(id);
+      toast.success(`Peringatan dihantar untuk ${refNo}.`);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Gagal menghantar peringatan.');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  const filtered = filterStatus ? records.filter(r => r.esign_status === filterStatus) : records;
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen" style={{ fontFamily: 'Inter, sans-serif' }}>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button className="text-gray-400 hover:text-gray-600">←</button>
-          <h1 className="text-2xl font-bold text-gray-900">Penjejakan e-Tandatangan - Surat Tawaran</h1>
-        </div>
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-          <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">AI</div>
-          <span className="text-sm text-blue-700 font-medium">Peringatan automatik dihantar oleh AI</span>
-        </div>
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Penjejakan e-Tandatangan"
+        subtitle="Pantau status e-Tandatangan dan hantar peringatan kepada pemohon"
+      />
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard title="Jumlah" value={stats.total || 0} icon={<FileSignature size={20} />} colour="navy" />
+        <StatCard title="Ditandatangani" value={stats.signed || 0} icon={<CheckCircle size={20} />} colour="green" />
+        <StatCard title="Menunggu" value={stats.pending || 0} icon={<Clock size={20} />} colour="orange" />
+        <StatCard title="Tamat Tempoh" value={stats.expired || 0} icon={<AlertTriangle size={20} />} colour="orange" />
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center"><CheckCircle className="w-6 h-6 text-green-600" /></div>
-          <div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Ditandatangani</p><p className="text-3xl font-bold text-green-600">16</p></div>
+      {/* AI Anomaly Detection Panel */}
+      {(stats.expired || 0) > 0 && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
+          <AiBadge label="AI Pengesanan Anomali" size="md" variant="gradient" />
+          <div>
+            <p className="text-sm font-semibold text-purple-900">
+              {stats.expired} dokumen telah tamat tempoh. AI mengesyorkan tindakan segera.
+            </p>
+            <p className="text-xs text-purple-700 mt-1">
+              Pola anomali dikesan: dokumen tamat tempoh melebihi norma. Sila semak dan hantar semula.
+            </p>
+          </div>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center"><Clock className="w-6 h-6 text-orange-500" /></div>
-          <div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Menunggu</p><p className="text-3xl font-bold text-orange-500">7</p></div>
+      )}
+
+      {/* Filter */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
+        <label className="text-sm font-medium text-gray-700">Tapis Status:</label>
+        <div className="flex gap-2">
+          {['', 'pending', 'signed', 'rejected', 'expired'].map(s => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                filterStatus === s
+                  ? 'bg-[#1B2B5E] text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {s ? ESIGN_LABELS[s] : 'Semua'}
+            </button>
+          ))}
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><AlertTriangle className="w-6 h-6 text-red-600" /></div>
-          <div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Tamat Tempoh</p><p className="text-3xl font-bold text-red-600">2</p></div>
-        </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center"><Users className="w-6 h-6 text-blue-600" /></div>
-          <div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Jumlah Aktif</p><p className="text-3xl font-bold text-blue-600">25</p></div>
-        </div>
+        <button onClick={fetchQueue} className="ml-auto p-1.5 text-gray-500 hover:text-[#1B2B5E]" title="Muat semula">
+          <RefreshCw size={16} />
+        </button>
       </div>
 
-      <div className="flex gap-6">
-        {/* Queue Table */}
-        <div className="flex-1">
-          <h2 className="text-base font-bold text-gray-800 mb-3">Senarai e-Tandatangan (Queue)</h2>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><LoadingSpinner /></div>
+        ) : error ? (
+          <div className="text-center py-16 text-red-500">
+            <AlertTriangle className="mx-auto mb-2" size={32} />
+            <p className="text-sm">{error}</p>
+            <button onClick={fetchQueue} className="mt-3 text-[#1B2B5E] underline text-sm">Cuba semula</button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <FileSignature className="mx-auto mb-2" size={32} />
+            <p className="text-sm">Tiada rekod e-Tandatangan ditemui.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-8">#</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">No Permohonan</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Nama Pemohon</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Tarikh Hantar</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Tarikh Akhir</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Hari Berbaki</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Peringatan AI</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Tindakan</th>
+              <thead>
+                <tr className="bg-[#1B2B5E] text-white">
+                  <th className="px-4 py-3 text-left">No. Rujukan</th>
+                  <th className="px-4 py-3 text-left">Pemohon</th>
+                  <th className="px-4 py-3 text-right">Amaun</th>
+                  <th className="px-4 py-3 text-center">Status e-Sign</th>
+                  <th className="px-4 py-3 text-center">Tarikh Dihantar</th>
+                  <th className="px-4 py-3 text-center">Tarikh Akhir</th>
+                  <th className="px-4 py-3 text-center">Baki Hari</th>
+                  <th className="px-4 py-3 text-center">Tindakan</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {queue.map(q => (
-                  <tr key={q.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-gray-500 text-xs">{q.no}</td>
-                    <td className="px-4 py-3 text-blue-600 font-medium cursor-pointer hover:underline">{q.id}</td>
-                    <td className="px-4 py-3 text-gray-800 font-medium">{q.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{q.sent}</td>
-                    <td className="px-4 py-3 text-gray-600">{q.deadline}</td>
-                    <td className="px-4 py-3">{statusBadge(q.status)}</td>
-                    <td className="px-4 py-3 text-gray-700 font-semibold">{q.daysLeft !== null ? `${q.daysLeft} hari` : '-'}</td>
-                    <td className="px-4 py-3">{reminderBadge(q.reminder)}</td>
-                    <td className="px-4 py-3">
-                      {q.status === 'DITANDATANGANI' ? (
-                        <button className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50">👁 View</button>
-                      ) : q.status === 'TAMAT TEMPOH' ? (
-                        <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500 hover:bg-red-600"><RefreshCw className="w-3 h-3" /> Jana Semula</button>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map(r => (
+                  <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${r.esign_status === 'expired' ? 'bg-red-50' : ''}`}>
+                    <td className="px-4 py-3 font-mono text-xs text-[#1B2B5E] font-semibold">{r.ref_no}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{r.name}</td>
+                    <td className="px-4 py-3 text-right font-semibold">
+                      {new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(r.amount)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ESIGN_COLOURS[r.esign_status] || 'bg-gray-100 text-gray-800'}`}>
+                        {ESIGN_LABELS[r.esign_status] || r.esign_status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-gray-600">{formatDate(r.sent_at)}</td>
+                    <td className="px-4 py-3 text-center text-xs text-gray-600">{formatDate(r.deadline)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {r.esign_status === 'signed' ? (
+                        <span className="text-green-600 font-semibold text-xs">Selesai</span>
+                      ) : r.esign_status === 'expired' ? (
+                        <span className="text-red-600 font-semibold text-xs">Tamat</span>
                       ) : (
-                        <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700"><Bell className="w-3 h-3" /> Hantar Semula</button>
+                        <span className={`font-semibold text-xs ${r.days_left <= 1 ? 'text-red-600' : r.days_left <= 3 ? 'text-orange-600' : 'text-green-600'}`}>
+                          {r.days_left} hari
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {r.esign_status !== 'signed' && (
+                        <button
+                          onClick={() => handleSendReminder(r.id, r.ref_no)}
+                          disabled={sendingId === r.id}
+                          className="flex items-center gap-1 mx-auto px-3 py-1.5 bg-[#1B2B5E] text-white rounded-lg text-xs font-semibold hover:bg-blue-900 disabled:opacity-50 transition-colors"
+                        >
+                          {sendingId === r.id ? <LoadingSpinner size="sm" /> : <Bell size={12} />}
+                          Hantar Peringatan
+                        </button>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-              <span>Memaparkan 1 hingga 8 daripada 25 rekod</span>
-              <div className="flex items-center gap-2">
-                <select className="border border-gray-200 rounded px-2 py-1 text-xs">
-                  <option>10</option><option>25</option><option>50</option>
-                </select>
-                <button className="px-2 py-1 rounded border border-gray-200 text-xs hover:bg-gray-50">‹</button>
-                <button className="px-2 py-1 rounded bg-blue-600 text-white text-xs">1</button>
-                <button className="px-2 py-1 rounded border border-gray-200 text-xs hover:bg-gray-50">2</button>
-                <button className="px-2 py-1 rounded border border-gray-200 text-xs hover:bg-gray-50">3</button>
-                <button className="px-2 py-1 rounded border border-gray-200 text-xs hover:bg-gray-50">›</button>
-              </div>
-            </div>
           </div>
-        </div>
-
-        {/* AI Reminder Engine Panel */}
-        <div className="w-72 space-y-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center">
-                <Bell className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="font-bold text-gray-800 text-sm">Enjin Peringatan AI</h3>
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Jadual Peringatan Automatik</p>
-            <div className="space-y-3">
-              {[
-                { day: 'Day 0', text: 'Surat Tawaran Dihantar (E-mel + SMS + Portal)' },
-                { day: 'Day 3', text: 'Peringatan Pertama (SMS + E-mel) - Auto' },
-                { day: 'Day 6', text: 'Peringatan Kedua (SMS + E-mel + Panggilan) - Auto' },
-                { day: 'Day 8', text: 'Notis Akhir (Berdaftar + SMS) - Auto' },
-                { day: 'Day 10', text: 'Tamat Tempoh - Eskalasi ke Pengurus - Auto' },
-              ].map((item, i) => (
-                <div key={i} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-3 h-3 rounded-full bg-indigo-500 mt-0.5 flex-shrink-0"></div>
-                    {i < 4 && <div className="w-0.5 h-6 bg-indigo-200 mt-1"></div>}
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-indigo-600">{item.day}</span>
-                    <p className="text-xs text-gray-600 mt-0.5">{item.text}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Integrasi e-Tandatangan</p>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">☁</div>
-                <span className="text-sm font-semibold text-gray-700">SigningCloud</span>
-              </div>
-              <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">TERHUBUNG ✓</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="text-center">
-                <p className="text-xs text-gray-500 mb-1">Kadar tandatangan dalam 24 jam</p>
-                <p className="text-2xl font-bold text-blue-600">67%</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-gray-500 mb-1">Kadar tandatangan keseluruhan</p>
-                <p className="text-2xl font-bold text-green-600">89%</p>
-              </div>
-            </div>
-            <div className="bg-indigo-50 rounded-lg p-3">
-              <p className="text-xs font-semibold text-indigo-700 mb-1">AI Prediction</p>
-              <p className="text-xs text-indigo-600">Dijangka 5 dari 7 pemohon akan menandatangani dalam 3 hari akan datang.</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <p className="text-xs font-semibold text-gray-700 mb-3">Tindakan Pukal untuk Semua Yang Menunggu (7)</p>
-            <p className="text-xs text-gray-500 mb-3">Hantar peringatan kepada semua pemohon yang masih menunggu.</p>
-            <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700">
-              <Bell className="w-4 h-4" /> Hantar Peringatan Batch
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
