@@ -17,7 +17,8 @@ class EntrepreneurTest extends TestCase
     private function getAuthToken(): string
     {
         $user = User::factory()->create();
-        $user->assignRole('system_admin');
+        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Pentadbir Sistem', 'guard_name' => 'sanctum']);
+        $user->assignRole('Pentadbir Sistem');
         return $user->createToken('test')->plainTextToken;
     }
 

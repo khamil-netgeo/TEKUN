@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

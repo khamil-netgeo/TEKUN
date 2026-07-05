@@ -522,4 +522,21 @@ KPI Data: " . json_encode($kpiData) . "
             ];
         }
     }
+
+    // =========================================================================
+    // PRIVATE HELPER — callAiEngine
+    // =========================================================================
+    /**
+     * Call the Gemini AI engine with a prompt (string or array of content parts).
+     * Returns the Gemini response object.
+     */
+    private function callAiEngine(string|array $prompt): mixed
+    {
+        $model = \Gemini\Laravel\Facades\Gemini::generativeModel('gemini-2.5-flash');
+        if (is_string($prompt)) {
+            return $model->generateContent($prompt);
+        }
+        return $model->generateContent($prompt);
+    }
+
 }

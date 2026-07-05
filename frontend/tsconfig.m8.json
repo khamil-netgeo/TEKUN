@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": [
+    "src/modules/pengurusan-cawangan/**/*.tsx",
+    "src/modules/pengurusan-cawangan/**/*.ts",
+    "src/components/**/*.tsx",
+    "src/components/**/*.ts",
+    "src/contexts/**/*.tsx",
+    "src/contexts/**/*.ts",
+    "src/services/**/*.ts"
+  ]
+}

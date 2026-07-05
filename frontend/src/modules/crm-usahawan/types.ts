@@ -34,6 +34,7 @@ export interface Entrepreneur360 extends Entrepreneur {
   business_age_years?: number;
   business_address?: string;
   sub_sector?: string;
+  business_sector?: string;
   race?: string;
   gender?: string;
   dob?: string;
@@ -43,6 +44,7 @@ export interface Entrepreneur360 extends Entrepreneur {
   monthly_sales?: number;
   employee_count: number;
   kpi_updated_at?: string;
+  kpi_trend?: Record<string, number>[];
   default_probability?: number;
   ai_factors: string[];
   ai_score_updated_at?: string;
@@ -76,6 +78,7 @@ export interface FieldVisit {
   reported_revenue?: number;
   reported_employees?: number;
   checklist_items: string[];
+  location?: string;
   created_at?: string;
 }
 
@@ -85,8 +88,11 @@ export interface AiHealthResult {
   score: number;
   distress_level: string;
   default_probability: number;
-  factors: string[];
+  factors: string[] | { impact: string; description: string; factor: string }[];
   health_badge: string;
+  badge?: string;
+  recommendation?: string;
+  computed_at?: string;
   updated_at?: string;
 }
 

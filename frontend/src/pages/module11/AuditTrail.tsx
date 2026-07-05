@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { AiBadge } from '@/components/ui/AiBadge';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useAuthStore } from '@/store/authStore';
+import AiBadge from '@/components/ui/AiBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface AuditLog {
@@ -76,8 +76,8 @@ const SeverityBadge: React.FC<{ severity: string }> = ({ severity }) => {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function AuditTrail() {
-  const { token } = useAuth();
-
+  const token = useAuthStore.getState().token ?? '';
+  
   // State
   const [logs, setLogs]             = useState<AuditLog[]>([]);
   const [stats, setStats]           = useState<AuditStats | null>(null);
@@ -153,7 +153,7 @@ export default function AuditTrail() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: AnomalyResponse = await res.json();
       setAnomalies(data.anomalies);
-      setAnomalyMeta({ total: data.total, critical: data.critical, high: data.high, medium: data.medium, ai_model: data.ai_model, generated_at: (data as any).generated_at });
+      setAnomalyMeta({ total: data.total, critical: data.critical, high: data.high, medium: data.medium, ai_model: data.ai_model });
     } catch {
       // Anomaly fetch failure is non-critical
     } finally {

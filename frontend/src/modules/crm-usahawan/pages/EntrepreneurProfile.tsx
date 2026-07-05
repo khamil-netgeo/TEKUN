@@ -9,10 +9,10 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from 'recharts';
-import { entrepreneurService } from '../services/entrepreneurService';
-import { HealthScoreRing } from '../components/HealthScoreRing';
-import { ScheduleVisitModal } from '../components/ScheduleVisitModal';
-import type { Entrepreneur, AiHealthResult, FieldVisit } from '../types';
+import { getEntrepreneur, getVisits, getAiHealth } from '../services/entrepreneurService';
+import HealthScoreRing from '../components/HealthScoreRing';
+import ScheduleVisitModal from '../components/ScheduleVisitModal';
+import type { Entrepreneur360 as Entrepreneur, AiHealthResult, FieldVisit } from '../types';
 
 const DISTRESS_COLORS: Record<string, string> = {
   low: 'bg-green-100 text-green-800',
@@ -52,11 +52,11 @@ export default function EntrepreneurProfile() {
     setLoading(true);
     try {
       const [profile, health, visitData] = await Promise.all([
-        entrepreneurService.get(id),
-        entrepreneurService.getAiHealth(id),
-        entrepreneurService.getVisits(id),
+        getEntrepreneur(id),
+        getAiHealth(id),
+        getVisits(id),
       ]);
-      setEntrepreneur(profile);
+      setEntrepreneur('entrepreneur' in profile ? (profile as any).entrepreneur : profile as any);
       setAiHealth(health);
       setVisits(visitData.data);
     } catch (err) {
@@ -241,7 +241,7 @@ export default function EntrepreneurProfile() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
                         <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `RM${(v / 1000).toFixed(0)}k`} />
-                        <Tooltip formatter={(v: number) => [`RM ${v.toLocaleString()}`, 'Pendapatan']} />
+                        <Tooltip formatter={(v: unknown) => [`RM ${Number(v).toLocaleString()}`, 'Pendapatan']} />
                         <Area type="monotone" dataKey="revenue" stroke="#1B2B5E" fill="url(#revGrad)" strokeWidth={2} />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -333,7 +333,7 @@ export default function EntrepreneurProfile() {
                   </div>
                   <p className="text-sm text-gray-600">{aiHealth.recommendation}</p>
                   <p className="text-xs text-gray-400">
-                    Dikira pada: {new Date(aiHealth.computed_at).toLocaleString('ms-MY')}
+                    Dikira pada: {aiHealth.computed_at ? new Date(aiHealth.computed_at).toLocaleString('ms-MY') : '-'}
                   </p>
                 </div>
               </div>
@@ -341,8 +341,8 @@ export default function EntrepreneurProfile() {
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3">Faktor Penilaian AI</h3>
                 <div className="space-y-2">
-                  {aiHealth.factors.map((f, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+                  {(aiHealth.factors as any[]).map((f: any, idx: number) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
                       {f.impact === 'positive' ? (
                         <CheckCircle size={16} className="text-green-600 mt-0.5 shrink-0" />
                       ) : f.impact === 'negative' ? (
@@ -351,8 +351,8 @@ export default function EntrepreneurProfile() {
                         <Activity size={16} className="text-gray-400 mt-0.5 shrink-0" />
                       )}
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{f.factor}</p>
-                        <p className="text-xs text-gray-500">{f.description}</p>
+                        <p className="text-sm font-medium text-gray-900">{(f as any).factor}</p>
+                        <p className="text-xs text-gray-500">{(f as any).description}</p>
                       </div>
                     </div>
                   ))}
@@ -369,7 +369,7 @@ export default function EntrepreneurProfile() {
           entrepreneurId={entrepreneur.ref_no}
           entrepreneurName={entrepreneur.name}
           onClose={() => setShowScheduleModal(false)}
-          onSuccess={() => {
+          onScheduled={() => {
             setShowScheduleModal(false);
             load();
           }}
