@@ -1,115 +1,305 @@
-import { useState } from 'react';
-import api from '@/services/api';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  Calendar, Plus, RefreshCw, Search, CheckCircle, Clock, XCircle,
+  MapPin, User, FileText, ChevronLeft, ChevronRight,
+} from 'lucide-react';
+import { entrepreneurService } from '../services/entrepreneurService';
+import type { FieldVisit as FieldVisitType, Entrepreneur } from '../types';
+import { ScheduleVisitModal } from '../components/ScheduleVisitModal';
 
-const VISITS = [
-  { id: 'LW-001', entrepreneur: 'Ahmad Bin Mohd Ali', date: '2026-07-10', time: '10:00 AM', officer: 'Hafiz Bin Ramli', status: 'Dijadualkan', purpose: 'Pemantauan Perniagaan', address: 'No. 12, Jalan Mawar, KL' },
-  { id: 'LW-002', entrepreneur: 'Siti Noraini Binti Hassan', date: '2026-07-08', time: '2:30 PM', officer: 'Aminah Bt Yusof', status: 'Selesai', purpose: 'Tindakan Susulan NPL', address: 'No. 5, Jalan Melati, Shah Alam' },
-  { id: 'LW-003', entrepreneur: 'Tan Wei Ming', date: '2026-07-12', time: '11:00 AM', officer: 'Hafiz Bin Ramli', status: 'Dijadualkan', purpose: 'Penilaian Semula', address: 'No. 88, Jalan Kenanga, JB' },
-];
-
-const STATUS_COLORS: Record<string, string> = {
-  'Dijadualkan': 'bg-blue-100 text-blue-700',
-  'Selesai': 'bg-green-100 text-green-700',
-  'Dibatalkan': 'bg-red-100 text-red-700',
+const STATUS_STYLES: Record<string, string> = {
+  Dijadualkan: 'bg-blue-100 text-blue-800',
+  Selesai: 'bg-green-100 text-green-800',
+  Dibatalkan: 'bg-gray-100 text-gray-600',
+  'Tidak Hadir': 'bg-red-100 text-red-800',
 };
 
-export default function FieldVisit() {
-  const [showForm, setShowForm] = useState(false);
-  const [generating, setGenerating] = useState<string | null>(null);
+const STATUS_ICONS: Record<string, React.ReactNode> = {
+  Dijadualkan: <Clock size={14} />,
+  Selesai: <CheckCircle size={14} />,
+  Dibatalkan: <XCircle size={14} />,
+  'Tidak Hadir': <XCircle size={14} />,
+};
 
-  const handleGenerateReport = async (id: string) => {
-    setGenerating(id);
-    try { await api.post(`/entrepreneurs/visits/${id}/report`, {}); } catch {}
-    setTimeout(() => setGenerating(null), 2000);
+export default function FieldVisitPage() {
+  const [entrepreneurs, setEntrepreneurs] = useState<Entrepreneur[]>([]);
+  const [selectedEntrepreneur, setSelectedEntrepreneur] = useState<Entrepreneur | null>(null);
+  const [visits, setVisits] = useState<FieldVisitType[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedVisit, setSelectedVisit] = useState<FieldVisitType | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  useEffect(() => {
+    entrepreneurService.list({ per_page: 50 }).then(r => setEntrepreneurs(r.data));
+  }, []);
+
+  const loadVisits = useCallback(async (entrepreneurId: string) => {
+    setLoading(true);
+    try {
+      const res = await entrepreneurService.getVisits(entrepreneurId, {
+        status: statusFilter || undefined,
+      });
+      setVisits(res.data);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => {
+    if (selectedEntrepreneur) {
+      loadVisits(selectedEntrepreneur.ref_no);
+    }
+  }, [selectedEntrepreneur, loadVisits]);
+
+  const handleGenerateReport = async (visit: FieldVisitType) => {
+    setGeneratingReport(true);
+    try {
+      const result = await entrepreneurService.generateReport(visit.id, {
+        observations: 'Lawatan lapangan telah dilaksanakan.',
+      });
+      setVisits(prev => prev.map(v => v.id === visit.id ? result.visit : v));
+      setSelectedVisit(result.visit);
+    } finally {
+      setGeneratingReport(false);
+    }
   };
 
+  const daysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+
+  const visitsByDate = visits.reduce<Record<string, FieldVisitType[]>>((acc, v) => {
+    const d = v.scheduled_date.split('T')[0];
+    if (!acc[d]) acc[d] = [];
+    acc[d].push(v);
+    return acc;
+  }, {});
+
+  const filteredEntrepreneurs = entrepreneurs.filter(e =>
+    e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.ref_no.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const monthName = currentMonth.toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' });
+  const today = new Date().toISOString().split('T')[0];
+
   return (
-    <div className="space-y-4">
-      <div className="sppt-card flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: '#1B2B5E' }}>Lawatan Lapangan</h1>
-          <p className="text-sm text-gray-500 mt-1">Jadualkan dan rekod lawatan lapangan pegawai ke premis usahawan</p>
+          <h1 className="text-2xl font-bold text-[#1B2B5E]">Lawatan Lapangan</h1>
+          <p className="text-sm text-gray-500 mt-1">Jadual dan pengurusan lawatan usahawan</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 rounded-lg text-white font-semibold text-sm"
-          style={{ background: '#1B2B5E' }}>
-          + Jadual Lawatan Baru
-        </button>
+        {selectedEntrepreneur && (
+          <button
+            onClick={() => setShowScheduleModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1B2B5E] text-white rounded-lg text-sm hover:bg-blue-900"
+          >
+            <Plus size={16} />
+            Jadual Lawatan
+          </button>
+        )}
       </div>
 
-      {showForm && (
-        <div className="sppt-card">
-          <h2 className="font-bold text-sm mb-3" style={{ color: '#1B2B5E' }}>Borang Jadual Lawatan Baru</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <div><label className="text-xs text-gray-500 block mb-1">Usahawan</label>
-              <select className="w-full p-2 border border-gray-300 rounded text-sm">
-                {VISITS.map(v => <option key={v.id}>{v.entrepreneur}</option>)}
-              </select></div>
-            <div><label className="text-xs text-gray-500 block mb-1">Tarikh</label>
-              <input type="date" className="w-full p-2 border border-gray-300 rounded text-sm" /></div>
-            <div><label className="text-xs text-gray-500 block mb-1">Masa</label>
-              <input type="time" className="w-full p-2 border border-gray-300 rounded text-sm" /></div>
-            <div><label className="text-xs text-gray-500 block mb-1">Pegawai</label>
-              <select className="w-full p-2 border border-gray-300 rounded text-sm">
-                <option>Hafiz Bin Ramli</option><option>Aminah Bt Yusof</option>
-              </select></div>
-            <div><label className="text-xs text-gray-500 block mb-1">Tujuan</label>
-              <select className="w-full p-2 border border-gray-300 rounded text-sm">
-                <option>Pemantauan Perniagaan</option><option>Tindakan Susulan NPL</option><option>Penilaian Semula</option>
-              </select></div>
-            <div className="flex items-end">
-              <button className="w-full py-2 rounded-lg text-white font-semibold text-sm" style={{ background: '#16A34A' }}>
-                Simpan Lawatan
+      <div className="grid md:grid-cols-3 gap-6">
+        {/* Entrepreneur Selector */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-900 text-sm mb-3">Pilih Usahawan</h2>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Cari usahawan..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <div className="overflow-y-auto max-h-96">
+            {filteredEntrepreneurs.map(e => (
+              <button
+                key={e.id}
+                onClick={() => setSelectedEntrepreneur(e)}
+                className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                  selectedEntrepreneur?.id === e.id ? 'bg-blue-50 border-l-2 border-l-[#1B2B5E]' : ''
+                }`}
+              >
+                <p className="text-sm font-medium text-gray-900 truncate">{e.name}</p>
+                <p className="text-xs text-gray-500">{e.ref_no} · {e.skim}</p>
+              </button>
+            ))}
+            {filteredEntrepreneurs.length === 0 && (
+              <p className="text-center text-sm text-gray-400 py-8">Tiada usahawan dijumpai.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Calendar View */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => setCurrentMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-sm font-semibold text-gray-900 capitalize">{monthName}</span>
+            <button
+              onClick={() => setCurrentMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center mb-2">
+            {['Ah', 'Is', 'Se', 'Ra', 'Kh', 'Ju', 'Sa'].map(d => (
+              <div key={d} className="text-xs text-gray-400 font-medium py-1">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDayOfMonth(currentMonth) }).map((_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+            {Array.from({ length: daysInMonth(currentMonth) }).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const dayVisits = visitsByDate[dateStr] ?? [];
+              const isToday = dateStr === today;
+              return (
+                <div
+                  key={day}
+                  className={`aspect-square flex flex-col items-center justify-center rounded-lg text-xs cursor-pointer transition-colors ${
+                    isToday ? 'bg-[#1B2B5E] text-white' :
+                    dayVisits.length > 0 ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' :
+                    'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>{day}</span>
+                  {dayVisits.length > 0 && (
+                    <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${isToday ? 'bg-white' : 'bg-blue-500'}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Visit List */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900 text-sm">
+              {selectedEntrepreneur ? `Lawatan — ${selectedEntrepreneur.name}` : 'Senarai Lawatan'}
+            </h2>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Semua Status</option>
+              <option value="Dijadualkan">Dijadualkan</option>
+              <option value="Selesai">Selesai</option>
+              <option value="Dibatalkan">Dibatalkan</option>
+            </select>
+          </div>
+          {!selectedEntrepreneur ? (
+            <div className="text-center py-12 text-gray-400">
+              <User size={32} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Pilih usahawan untuk melihat lawatan.</p>
+            </div>
+          ) : loading ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="animate-spin text-[#1B2B5E]" size={24} />
+            </div>
+          ) : visits.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Calendar size={32} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Tiada lawatan dijumpai.</p>
+            </div>
+          ) : (
+            <div className="overflow-y-auto max-h-80 divide-y divide-gray-50">
+              {visits.map(visit => (
+                <div
+                  key={visit.id}
+                  onClick={() => setSelectedVisit(visit)}
+                  className="p-4 hover:bg-gray-50 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[visit.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {STATUS_ICONS[visit.status]}
+                      {visit.status}
+                    </span>
+                    <span className="text-xs text-gray-400">{visit.ref_no}</span>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900">{visit.purpose}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Clock size={11} />
+                      {new Date(visit.scheduled_date).toLocaleDateString('ms-MY')} {visit.scheduled_time}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MapPin size={11} />
+                      {visit.location}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Visit Detail Panel */}
+      {selectedVisit && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-gray-900">{selectedVisit.purpose}</h3>
+              <p className="text-sm text-gray-500">{selectedVisit.ref_no}</p>
+            </div>
+            <div className="flex gap-2">
+              {selectedVisit.status === 'Dijadualkan' && (
+                <button
+                  onClick={() => handleGenerateReport(selectedVisit)}
+                  disabled={generatingReport}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50"
+                >
+                  <FileText size={14} />
+                  {generatingReport ? 'Menjana...' : 'Jana Laporan AI'}
+                </button>
+              )}
+              <button onClick={() => setSelectedVisit(null)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400">
+                <XCircle size={16} />
               </button>
             </div>
           </div>
+          {selectedVisit.ai_report && (
+            <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">AI Laporan</span>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">{selectedVisit.ai_report}</p>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="sppt-card">
-        <h2 className="font-bold text-sm mb-3" style={{ color: '#1B2B5E' }}>Senarai Lawatan</h2>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-800 text-white">
-              <th className="p-3 text-left">ID</th>
-              <th className="p-3 text-left">Usahawan</th>
-              <th className="p-3 text-left">Tarikh & Masa</th>
-              <th className="p-3 text-left">Pegawai</th>
-              <th className="p-3 text-left">Tujuan</th>
-              <th className="p-3 text-left">Status</th>
-              <th className="p-3 text-center">Tindakan</th>
-            </tr>
-          </thead>
-          <tbody>
-            {VISITS.map(v => (
-              <tr key={v.id} className="border-b hover:bg-gray-50">
-                <td className="p-3 font-mono text-xs text-blue-600">{v.id}</td>
-                <td className="p-3">{v.entrepreneur}</td>
-                <td className="p-3 text-xs">{v.date} • {v.time}</td>
-                <td className="p-3 text-xs">{v.officer}</td>
-                <td className="p-3 text-xs">{v.purpose}</td>
-                <td className="p-3">
-                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATUS_COLORS[v.status]}`}>{v.status}</span>
-                </td>
-                <td className="p-3 text-center">
-                  {v.status === 'Selesai' ? (
-                    <button onClick={() => handleGenerateReport(v.id)}
-                      disabled={generating === v.id}
-                      className="px-3 py-1 rounded text-xs font-semibold text-white flex items-center gap-1 mx-auto"
-                      style={{ background: '#7C3AED' }}>
-                      {generating === v.id ? '⏳' : '✨'} Jana Laporan AI
-                    </button>
-                  ) : (
-                    <button className="px-3 py-1 rounded text-xs font-semibold border border-gray-300 hover:bg-gray-50">
-                      Lihat
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Schedule Modal */}
+      {showScheduleModal && selectedEntrepreneur && (
+        <ScheduleVisitModal
+          entrepreneurId={selectedEntrepreneur.ref_no}
+          entrepreneurName={selectedEntrepreneur.name}
+          onClose={() => setShowScheduleModal(false)}
+          onSuccess={() => {
+            setShowScheduleModal(false);
+            loadVisits(selectedEntrepreneur.ref_no);
+          }}
+        />
+      )}
     </div>
   );
 }

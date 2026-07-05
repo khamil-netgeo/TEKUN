@@ -196,12 +196,34 @@
   "module9": {
     "productConfig": "Financing Schemes",
     "rateConfig": "Profit Rates",
-    "eligibilityRules": "Eligibility Rules"
+    "eligibilityRules": "Eligibility Rules",
+    "eligibilityChecker": "Eligibility Checker"
   },
   "module10": {
     "apiHealth": "API Health Monitor",
-    "integrationConfig": "Integration Config",
-    "retryFallback": "Retry & Fallback"
+    "integrationConfig": "Integration Configuration",
+    "retryFallback": "Retry & Fallback",
+    "circuitBreaker": "Circuit Breaker",
+    "latencyMonitor": "Latency Monitor",
+    "uptimeTracking": "Uptime Tracking",
+    "alertConfig": "Alert Configuration",
+    "healthLogs": "Health Logs",
+    "testService": "Test Service",
+    "resetCircuitBreaker": "Reset Circuit Breaker",
+    "serviceStatus": "Service Status",
+    "avgLatency": "Average Latency",
+    "uptime30d": "30-Day Uptime",
+    "lastChecked": "Last Checked",
+    "circuitOpen": "Circuit Open",
+    "circuitClosed": "Circuit Closed",
+    "circuitHalfOpen": "Circuit Half-Open",
+    "degraded": "Degraded Performance",
+    "latencyThreshold": "Latency Threshold",
+    "downtimeThreshold": "Downtime Threshold",
+    "errorRateThreshold": "Error Rate Threshold",
+    "notifyEmail": "Email Notification",
+    "notifySms": "SMS Notification",
+    "alertActive": "Alert Active"
   },
   "module11": {
     "auditTrail": "Audit Trail",

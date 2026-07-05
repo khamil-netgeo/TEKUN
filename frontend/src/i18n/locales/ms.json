@@ -196,12 +196,34 @@
   "module9": {
     "productConfig": "Skim Pembiayaan",
     "rateConfig": "Kadar Keuntungan",
-    "eligibilityRules": "Syarat Kelayakan"
+    "eligibilityRules": "Syarat Kelayakan",
+    "eligibilityChecker": "Semak Kelayakan"
   },
   "module10": {
     "apiHealth": "Monitor Kesihatan API",
     "integrationConfig": "Konfigurasi Integrasi",
-    "retryFallback": "Retry & Fallback"
+    "retryFallback": "Retry & Fallback",
+    "circuitBreaker": "Circuit Breaker",
+    "latencyMonitor": "Monitor Latensi",
+    "uptimeTracking": "Penjejakan Uptime",
+    "alertConfig": "Konfigurasi Amaran",
+    "healthLogs": "Log Kesihatan",
+    "testService": "Uji Perkhidmatan",
+    "resetCircuitBreaker": "Reset Circuit Breaker",
+    "serviceStatus": "Status Perkhidmatan",
+    "avgLatency": "Latensi Purata",
+    "uptime30d": "Uptime 30 Hari",
+    "lastChecked": "Semak Terakhir",
+    "circuitOpen": "Litar Terbuka",
+    "circuitClosed": "Litar Tertutup",
+    "circuitHalfOpen": "Litar Separuh Terbuka",
+    "degraded": "Prestasi Merosot",
+    "latencyThreshold": "Ambang Latensi",
+    "downtimeThreshold": "Ambang Downtime",
+    "errorRateThreshold": "Ambang Kadar Ralat",
+    "notifyEmail": "Notifikasi Email",
+    "notifySms": "Notifikasi SMS",
+    "alertActive": "Amaran Aktif"
   },
   "module11": {
     "auditTrail": "Jejak Audit",
