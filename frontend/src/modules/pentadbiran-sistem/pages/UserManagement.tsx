@@ -1,133 +1,275 @@
-import { useState } from 'react';
+/**
+ * Module 12 — Pentadbiran Sistem
+ * User Management — real DB via /api/admin/users
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { Users, Plus, Search, Shield, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '../../../services/api';
 
-const USERS = [
-  { id: 'USR-001', name: 'Hafiz Bin Ramli', email: 'kredit@tekun.gov.my', role: 'Pegawai Kredit', branch: 'KL Sentral', status: 'Aktif', lastLogin: '2026-07-04 09:45' },
-  { id: 'USR-002', name: 'Aminah Bt Yusof', email: 'eksekutif@tekun.gov.my', role: 'Eksekutif', branch: 'HQ', status: 'Aktif', lastLogin: '2026-07-04 08:30' },
-  { id: 'USR-003', name: 'Ahmad Faizal', email: 'kewangan@tekun.gov.my', role: 'Pegawai Kewangan', branch: 'Shah Alam', status: 'Aktif', lastLogin: '2026-07-03 17:22' },
-  { id: 'USR-004', name: 'Noraini Bt Hassan', email: 'pengurus@tekun.gov.my', role: 'Pengurus Cawangan', branch: 'Johor Bahru', status: 'Aktif', lastLogin: '2026-07-04 07:55' },
-  { id: 'USR-005', name: 'Zulkifli Bin Omar', email: 'zulkifli@tekun.gov.my', role: 'Pegawai Kredit', branch: 'Pulau Pinang', status: 'Tidak Aktif', lastLogin: '2026-06-28 14:10' },
-];
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  branch?: string;
+  status: string;
+  last_login_at?: string;
+}
 
-const ROLES = ['Pegawai Kredit', 'Pegawai Kewangan', 'Pengurus Cawangan', 'Eksekutif', 'Pentadbir Sistem', 'Pemohon'];
+const NAVY = '#1B2B5E';
+const GREEN = '#2E7D32';
 
 const STATUS_COLORS: Record<string, string> = {
-  'Aktif': 'bg-green-100 text-green-700',
-  'Tidak Aktif': 'bg-gray-100 text-gray-500',
-  'Digantung': 'bg-red-100 text-red-700',
+  'active':   'bg-green-100 text-green-700',
+  'inactive': 'bg-gray-100 text-gray-500',
+  'suspended':'bg-red-100 text-red-700',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  'active':   'Aktif',
+  'inactive': 'Tidak Aktif',
+  'suspended':'Digantung',
 };
 
 export default function UserManagement() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('Semua');
   const [showForm, setShowForm] = useState(false);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', role: '', password: '' });
+  const [submitting, setSubmitting] = useState(false);
 
-  const filtered = USERS.filter(u =>
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/users');
+      setUsers(res.data.data ?? res.data);
+    } catch {
+      toast.error('Gagal memuatkan senarai pengguna');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const roles = ['Semua', ...Array.from(new Set(users.map(u => u.role).filter(Boolean)))];
+
+  const filtered = users.filter(u =>
     (roleFilter === 'Semua' || u.role === roleFilter) &&
-    (u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+    (u.name?.toLowerCase().includes(search.toLowerCase()) ||
+     u.email?.toLowerCase().includes(search.toLowerCase()))
   );
 
-  return (
-    <div className="space-y-4">
-      <div className="sppt-card flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: '#1B2B5E' }}>Pengurusan Pengguna</h1>
-          <p className="text-sm text-gray-500 mt-1">Cipta, edit dan urus akaun pengguna dan peranan RBAC</p>
-        </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 rounded-lg text-white font-semibold text-sm"
-          style={{ background: '#1B2B5E' }}>
-          + Tambah Pengguna
-        </button>
-      </div>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      if (editUser) {
+        await api.put(`/users/${editUser.id}`, form);
+        toast.success('Pengguna dikemaskini');
+      } else {
+        await api.post('/users', form);
+        toast.success('Pengguna berjaya ditambah');
+      }
+      setShowForm(false);
+      setEditUser(null);
+      setForm({ name: '', email: '', role: '', password: '' });
+      fetchUsers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message ?? 'Ralat semasa menyimpan');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-      {showForm && (
-        <div className="sppt-card">
-          <h2 className="font-bold text-sm mb-3" style={{ color: '#1B2B5E' }}>Tambah Pengguna Baharu</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <div><label className="text-xs text-gray-500 block mb-1">Nama Penuh</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded text-sm" placeholder="Nama penuh..." /></div>
-            <div><label className="text-xs text-gray-500 block mb-1">E-mel</label>
-              <input type="email" className="w-full p-2 border border-gray-300 rounded text-sm" placeholder="nama@tekun.gov.my" /></div>
-            <div><label className="text-xs text-gray-500 block mb-1">Peranan</label>
-              <select className="w-full p-2 border border-gray-300 rounded text-sm">
-                {ROLES.map(r => <option key={r}>{r}</option>)}
-              </select></div>
-            <div><label className="text-xs text-gray-500 block mb-1">Cawangan</label>
-              <select className="w-full p-2 border border-gray-300 rounded text-sm">
-                <option>KL Sentral</option><option>Shah Alam</option><option>Johor Bahru</option><option>HQ</option>
-              </select></div>
-            <div><label className="text-xs text-gray-500 block mb-1">Kata Laluan Sementara</label>
-              <input type="password" className="w-full p-2 border border-gray-300 rounded text-sm" placeholder="Min. 8 aksara" /></div>
-            <div className="flex items-end">
-              <button className="w-full py-2 rounded-lg text-white font-semibold text-sm" style={{ background: '#16A34A' }}>
-                Simpan Pengguna
-              </button>
-            </div>
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Padam pengguna ini?')) return;
+    try {
+      await api.delete(`/users/${id}`);
+      toast.success('Pengguna dipadam');
+      fetchUsers();
+    } catch {
+      toast.error('Gagal memadam pengguna');
+    }
+  };
+
+  const handleEdit = (u: User) => {
+    setEditUser(u);
+    setForm({ name: u.name, email: u.email, role: u.role, password: '' });
+    setShowForm(true);
+  };
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: NAVY }}>
+            <Users className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: NAVY }}>Pengurusan Pengguna</h1>
+            <p className="text-sm text-gray-500">Urus akaun dan peranan pengguna sistem</p>
           </div>
         </div>
-      )}
+        <div className="flex gap-2">
+          <button onClick={fetchUsers} className="flex items-center gap-1 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">
+            <RefreshCw className="w-4 h-4" /> Muat Semula
+          </button>
+          <button
+            onClick={() => { setEditUser(null); setForm({ name: '', email: '', role: '', password: '' }); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium"
+            style={{ background: GREEN }}
+          >
+            <Plus className="w-4 h-4" /> Tambah Pengguna
+          </button>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Jumlah Pengguna', value: '312', color: '#1B2B5E' },
-          { label: 'Pengguna Aktif', value: '298', color: '#16A34A' },
-          { label: 'Pengguna Tidak Aktif', value: '14', color: '#9CA3AF' },
-          { label: 'Peranan', value: '6', color: '#7C3AED' },
-        ].map(kpi => (
-          <div key={kpi.label} className="sppt-card text-center">
-            <div className="text-xs text-gray-500 mb-1">{kpi.label}</div>
-            <div className="text-2xl font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
+          { label: 'Jumlah Pengguna', value: users.length, color: NAVY },
+          { label: 'Aktif', value: users.filter(u => u.status === 'active').length, color: GREEN },
+          { label: 'Tidak Aktif', value: users.filter(u => u.status === 'inactive').length, color: '#6B7280' },
+          { label: 'Digantung', value: users.filter(u => u.status === 'suspended').length, color: '#C62828' },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-xl p-4 border shadow-sm text-center">
+            <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs text-gray-500 mt-1">{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="sppt-card">
-        <div className="flex items-center gap-3 mb-4">
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="🔍 Cari nama atau e-mel..."
-            className="flex-1 p-2 border border-gray-300 rounded text-sm" />
-          <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
-            className="p-2 border border-gray-300 rounded text-sm">
-            <option>Semua</option>
-            {ROLES.map(r => <option key={r}>{r}</option>)}
+      <div className="bg-white rounded-xl border shadow-sm p-4">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari nama atau emel..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none"
+            />
+          </div>
+          <select
+            value={roleFilter}
+            onChange={e => setRoleFilter(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm focus:outline-none"
+          >
+            {roles.map(r => <option key={r}>{r}</option>)}
           </select>
         </div>
-
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-800 text-white">
-              {['ID', 'Nama', 'E-mel', 'Peranan', 'Cawangan', 'Status', 'Log Masuk Terakhir', 'Tindakan'].map(h => (
-                <th key={h} className="p-3 text-left text-xs">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(u => (
-              <tr key={u.id} className="border-b hover:bg-gray-50">
-                <td className="p-3 font-mono text-xs text-blue-600">{u.id}</td>
-                <td className="p-3 font-semibold text-sm">{u.name}</td>
-                <td className="p-3 text-xs text-gray-500">{u.email}</td>
-                <td className="p-3 text-xs">
-                  <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">{u.role}</span>
-                </td>
-                <td className="p-3 text-xs">{u.branch}</td>
-                <td className="p-3">
-                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATUS_COLORS[u.status]}`}>{u.status}</span>
-                </td>
-                <td className="p-3 text-xs text-gray-400">{u.lastLogin}</td>
-                <td className="p-3">
-                  <div className="flex gap-1">
-                    <button className="px-2 py-1 rounded border border-gray-300 text-xs hover:bg-gray-50">Edit</button>
-                    <button className="px-2 py-1 rounded border border-red-300 text-red-600 text-xs hover:bg-red-50">
-                      {u.status === 'Aktif' ? 'Gantung' : 'Aktifkan'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
+
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+            <span className="ml-2 text-gray-500">Memuatkan...</span>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-white" style={{ background: NAVY }}>
+                <th className="px-4 py-3">Pengguna</th>
+                <th className="px-4 py-3">Peranan</th>
+                <th className="px-4 py-3">Cawangan</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Log Masuk Terakhir</th>
+                <th className="px-4 py-3 text-right">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-10 text-gray-400">Tiada pengguna ditemui</td></tr>
+              ) : filtered.map(u => (
+                <tr key={u.id} className="border-t hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-800">{u.name}</div>
+                    <div className="text-xs text-gray-400">{u.email}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                      <Shield className="w-3 h-3" />{u.role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{u.branch ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[u.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                      {STATUS_LABELS[u.status] ?? u.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">
+                    {u.last_login_at ? new Date(u.last_login_at).toLocaleString('ms-MY') : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => handleEdit(u)} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="Edit">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(u.id)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Padam">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h2 className="font-bold text-lg" style={{ color: NAVY }}>
+                {editUser ? 'Kemaskini Pengguna' : 'Tambah Pengguna Baru'}
+              </h2>
+              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nama Penuh</label>
+                <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Nama pengguna" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Emel</label>
+                <input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="emel@tekun.gov.my" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Peranan</label>
+                <select required value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="">-- Pilih Peranan --</option>
+                  {['Pegawai Cawangan','Pengurus Cawangan','Pegawai Kredit','Eksekutif','Pentadbir Sistem'].map(r => (
+                    <option key={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              {!editUser && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Kata Laluan</label>
+                  <input required type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Minimum 12 aksara" minLength={12} />
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50">Batal</button>
+                <button type="submit" disabled={submitting} className="flex-1 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: GREEN }}>
+                  {submitting ? 'Menyimpan...' : editUser ? 'Kemaskini' : 'Tambah'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
