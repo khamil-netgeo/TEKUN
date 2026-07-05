@@ -254,8 +254,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/credit-assessments',          [CreditAssessmentController::class, 'index']);
         Route::get('/amortization',                [CreditAssessmentController::class, 'amortization']);
         // POC aliases — /api/applications/{id}/credit-score, /amortization, /approve
-        Route::get('/applications/{id}/credit-score',   [CreditAssessmentController::class, 'creditScoreForApp']);
-        Route::get('/applications/{id}/amortization',   [CreditAssessmentController::class, 'amortizationForApp']);
+        Route::get('/applications/{id}/credit-score',   [\App\Modules\PenilaianKredit\Controllers\CreditAssessmentController::class, 'creditScore']);
+        Route::get('/applications/{id}/amortization',   [\App\Modules\PenilaianKredit\Controllers\CreditAssessmentController::class, 'amortization']);
         Route::post('/applications/{id}/approve',       [CreditAssessmentController::class, 'approveApplication']);
         Route::post('/ai/credit-narrative',             [AiController::class, 'creditNarrative']);
     });

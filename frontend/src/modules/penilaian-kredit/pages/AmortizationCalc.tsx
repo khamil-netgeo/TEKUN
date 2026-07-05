@@ -1,162 +1,249 @@
-import { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Download, Calculator } from 'lucide-react';
-
-interface AmortRow {
-  bulan: number;
-  ansuranBulanan: number;
-  bayaranPokok: number;
-  bayaranKadar: number;
-  bakinPokok: number;
-}
-
-function calcAmortization(principal: number, annualRate: number, months: number): AmortRow[] {
-  const rows: AmortRow[] = [];
-  const monthlyRate = annualRate / 100 / 12;
-  const monthly = monthlyRate > 0
-    ? (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1)
-    : principal / months;
-  let balance = principal;
-  for (let i = 1; i <= months; i++) {
-    const interest = balance * monthlyRate;
-    const principalPay = monthly - interest;
-    balance = Math.max(0, balance - principalPay);
-    rows.push({
-      bulan: i,
-      ansuranBulanan: Math.round(monthly * 100) / 100,
-      bayaranPokok: Math.round(principalPay * 100) / 100,
-      bayaranKadar: Math.round(interest * 100) / 100,
-      bakinPokok: Math.round(balance * 100) / 100,
-    });
-  }
-  return rows;
-}
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Calculator, FileText, Download, Printer } from 'lucide-react';
+import { DataTable } from '@/components/ui/DataTable';
+import { creditService, AmortizationSchedule } from '../services/creditService';
+import toast from 'react-hot-toast';
 
 export default function AmortizationCalc() {
-  const [principal, setPrincipal] = useState(25000);
-  const [rate, setRate] = useState(4);
-  const [months, setMonths] = useState(36);
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [scheduleData, setScheduleData] = useState<AmortizationSchedule | null>(null);
+  
+  // Form state
+  const [amount, setAmount] = useState(50000);
+  const [tenure, setTenure] = useState(60);
+  const [rate, setRate] = useState(4.0);
+  const [type, setType] = useState<'flat' | 'reducing'>('flat');
 
-  const rows = useMemo(() => calcAmortization(principal, rate, months), [principal, rate, months]);
-  const monthly = rows[0]?.ansuranBulanan || 0;
-  const totalPayment = monthly * months;
-  const totalInterest = totalPayment - principal;
+  useEffect(() => {
+    if (id) {
+      calculateSchedule();
+    }
+  }, [id]);
 
-  // Chart data — show every 6 months
-  const chartData = rows.filter((_, i) => i % 6 === 0 || i === rows.length - 1).map(r => ({
-    name: `Bln ${r.bulan}`,
-    Pokok: r.bayaranPokok,
-    Kadar: r.bayaranKadar,
-    Baki: r.bakinPokok,
-  }));
+  const calculateSchedule = async () => {
+    try {
+      setLoading(true);
+      const data = await creditService.getAmortization(id as string, amount, tenure, rate, type);
+      setScheduleData(data);
+    } catch (error) {
+      console.error('Error calculating amortization:', error);
+      toast.error('Gagal mengira jadual amortisasi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCalculate = (e: React.FormEvent) => {
+    e.preventDefault();
+    calculateSchedule();
+  };
+
+  const columns = [
+    { header: 'Bulan', accessor: 'month' },
+    { 
+      header: 'Prinsipal (RM)', 
+      accessor: 'principal',
+      cell: (row: any) => new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.principal)
+    },
+    { 
+      header: 'Keuntungan (RM)', 
+      accessor: 'interest',
+      cell: (row: any) => new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.interest)
+    },
+    { 
+      header: 'Ansuran (RM)', 
+      accessor: 'total',
+      cell: (row: any) => <span className="font-medium text-navy-900">{new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.total)}</span>
+    },
+    { 
+      header: 'Baki (RM)', 
+      accessor: 'balance',
+      cell: (row: any) => new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.balance)
+    }
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1B2B5E]" style={{ fontFamily: 'Inter, sans-serif' }}>
-            Jadual Amortisasi Pembiayaan
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">Pengiraan ansuran bulanan dan jadual bayaran balik</p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#1B2B5E] text-white rounded-lg text-sm font-semibold hover:bg-[#152348]" style={{ fontFamily: 'Inter, sans-serif' }}>
-          <Download size={16} /> Muat Turun PDF
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="flex items-center gap-4 mb-6">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
         </button>
-      </div>
-
-      {/* Input Panel */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Calculator size={18} className="text-[#1B2B5E]" />
-          <h2 className="font-bold text-gray-800" style={{ fontFamily: 'Inter, sans-serif' }}>Parameter Pembiayaan</h2>
-        </div>
-        <div className="grid grid-cols-3 gap-6">
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Jumlah Pembiayaan (RM)
-            </label>
-            <input type="number" value={principal} onChange={e => setPrincipal(Number(e.target.value))}
-              className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#1B2B5E] focus:outline-none focus:border-[#1B2B5E]"
-              style={{ fontFamily: 'Inter, sans-serif' }} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Kadar Keuntungan (% setahun)
-            </label>
-            <input type="number" step="0.1" value={rate} onChange={e => setRate(Number(e.target.value))}
-              className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#1B2B5E] focus:outline-none focus:border-[#1B2B5E]"
-              style={{ fontFamily: 'Inter, sans-serif' }} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Tempoh Pembiayaan (Bulan)
-            </label>
-            <select value={months} onChange={e => setMonths(Number(e.target.value))}
-              className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#1B2B5E] focus:outline-none focus:border-[#1B2B5E]"
-              style={{ fontFamily: 'Inter, sans-serif' }}>
-              {[12, 24, 36, 48, 60].map(m => <option key={m} value={m}>{m} bulan ({m/12} tahun)</option>)}
-            </select>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-navy-900">Kalkulator Jadual Amortisasi</h1>
+          <p className="text-gray-500">Kira jadual pembayaran balik untuk Permohonan #{id}</p>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: 'Ansuran Bulanan', value: `RM ${monthly.toFixed(2)}`, color: 'text-[#1B2B5E]' },
-          { label: 'Jumlah Bayaran', value: `RM ${totalPayment.toFixed(2)}`, color: 'text-[#1B2B5E]' },
-          { label: 'Jumlah Kadar', value: `RM ${totalInterest.toFixed(2)}`, color: 'text-[#E65100]' },
-          { label: 'Tempoh', value: `${months} bulan`, color: 'text-[#2E7D32]' },
-        ].map(c => (
-          <div key={c.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide" style={{ fontFamily: 'Inter, sans-serif' }}>{c.label}</p>
-            <p className={`text-xl font-bold mt-1 ${c.color}`} style={{ fontFamily: 'Inter, sans-serif' }}>{c.value}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Calculator Form */}
+        <div className="lg:col-span-1">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm sticky top-6">
+            <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-100">
+              <Calculator className="w-5 h-5 text-primary-600" />
+              <h2 className="text-lg font-semibold text-navy-900">Parameter Kiraan</h2>
+            </div>
+            
+            <form onSubmit={handleCalculate} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amaun Pembiayaan (RM)</label>
+                <input 
+                  type="number" 
+                  value={amount}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  required
+                  min="1000"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tempoh (Bulan)</label>
+                <select 
+                  value={tenure}
+                  onChange={(e) => setTenure(Number(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                >
+                  <option value="12">12 Bulan (1 Tahun)</option>
+                  <option value="24">24 Bulan (2 Tahun)</option>
+                  <option value="36">36 Bulan (3 Tahun)</option>
+                  <option value="48">48 Bulan (4 Tahun)</option>
+                  <option value="60">60 Bulan (5 Tahun)</option>
+                  <option value="84">84 Bulan (7 Tahun)</option>
+                  <option value="120">120 Bulan (10 Tahun)</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Kadar Keuntungan (%)</label>
+                <input 
+                  type="number" 
+                  value={rate}
+                  onChange={(e) => setRate(Number(e.target.value))}
+                  step="0.1"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kaedah Kiraan</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setType('flat')}
+                    className={`py-2 px-3 border rounded-lg text-sm font-medium transition-colors ${
+                      type === 'flat' 
+                        ? 'bg-primary-50 border-primary-500 text-primary-700' 
+                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Kadar Rata (Flat)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setType('reducing')}
+                    className={`py-2 px-3 border rounded-lg text-sm font-medium transition-colors ${
+                      type === 'reducing' 
+                        ? 'bg-primary-50 border-primary-500 text-primary-700' 
+                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Baki Berkurangan
+                  </button>
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              >
+                {loading ? 'Mengira...' : 'Kira Semula'}
+              </button>
+            </form>
+
+            {scheduleData && (
+              <div className="mt-8 pt-6 border-t border-gray-100 space-y-4">
+                <h3 className="text-sm font-semibold text-navy-900 mb-3">Ringkasan</h3>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Ansuran Bulanan:</span>
+                  <span className="font-bold text-lg text-primary-700">
+                    RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(scheduleData.monthly_payment)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Jumlah Keuntungan:</span>
+                  <span className="font-medium text-gray-900">
+                    RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(scheduleData.total_interest)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Jumlah Keseluruhan:</span>
+                  <span className="font-medium text-gray-900">
+                    RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(scheduleData.total_payment)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-        ))}
-      </div>
-
-      {/* Chart */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="font-bold text-gray-800 mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>Graf Amortisasi</h2>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fontFamily: 'Inter, sans-serif' }} />
-            <YAxis tick={{ fontSize: 11, fontFamily: 'Inter, sans-serif' }} />
-            <Tooltip formatter={(v) => `RM ${Number(v).toFixed(2)}`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12 }} />
-            <Legend wrapperStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12 }} />
-            <Bar dataKey="Pokok" fill="#1B2B5E" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="Kadar" fill="#E65100" radius={[2, 2, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Amortization Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-800" style={{ fontFamily: 'Inter, sans-serif' }}>Jadual Bayaran Bulanan</h2>
         </div>
-        <div className="overflow-x-auto max-h-80 overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 sticky top-0">
-              <tr>
-                {['Bulan', 'Ansuran (RM)', 'Bayaran Pokok (RM)', 'Bayaran Kadar (RM)', 'Baki Pokok (RM)'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" style={{ fontFamily: 'Inter, sans-serif' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {rows.map(r => (
-                <tr key={r.bulan} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-semibold text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>{r.bulan}</td>
-                  <td className="px-4 py-2.5 font-bold text-[#1B2B5E]" style={{ fontFamily: 'Inter, sans-serif' }}>{r.ansuranBulanan.toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>{r.bayaranPokok.toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-[#E65100]" style={{ fontFamily: 'Inter, sans-serif' }}>{r.bayaranKadar.toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-[#2E7D32] font-semibold" style={{ fontFamily: 'Inter, sans-serif' }}>{r.bakinPokok.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        {/* Right Column: Schedule Table */}
+        <div className="lg:col-span-2">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-semibold text-navy-900">Jadual Pembayaran</h2>
+              
+              <div className="flex gap-2">
+                <button className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 tooltip-trigger" title="Cetak">
+                  <Printer className="w-4 h-4" />
+                </button>
+                <button className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <Download className="w-4 h-4" />
+                  Eksport PDF
+                </button>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : scheduleData && scheduleData.schedule ? (
+              <div className="overflow-auto max-h-[600px]">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                    <tr>
+                      {columns.map((col, i) => (
+                        <th key={i} className="px-6 py-3 font-semibold">{col.header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scheduleData.schedule.map((row, i) => (
+                      <tr key={i} className="bg-white border-b hover:bg-gray-50">
+                        {columns.map((col, j) => (
+                          <td key={j} className="px-6 py-3">
+                            {col.cell ? col.cell(row) : row[col.accessor as keyof typeof row]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-20 text-gray-500">
+                Sila tekan butang Kira untuk menjana jadual amortisasi.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

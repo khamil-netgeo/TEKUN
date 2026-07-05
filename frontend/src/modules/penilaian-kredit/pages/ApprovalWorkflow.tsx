@@ -1,139 +1,208 @@
-import { useState } from 'react';
-import { CheckCircle, Clock, AlertCircle, ChevronRight, Sparkles, User, FileText, Send } from 'lucide-react';
-
-type ApprovalLevel = 'pegawai' | 'pengurus' | 'kredit' | 'eksekutif';
-
-interface ApprovalStep {
-  id: ApprovalLevel;
-  title: string;
-  name: string;
-  status: 'approved' | 'pending' | 'waiting';
-  timestamp?: string;
-  comment?: string;
-  limit: string;
-}
-
-const steps: ApprovalStep[] = [
-  { id: 'pegawai', title: 'Pegawai Cawangan', name: 'Ahmad Faizal', status: 'approved', timestamp: '03/07/2026 09:15', comment: 'Dokumen lengkap, layak untuk penilaian lanjut.', limit: 'Sehingga RM 5,000' },
-  { id: 'pengurus', title: 'Pengurus Cawangan', name: 'Noraini Binti Hassan', status: 'approved', timestamp: '03/07/2026 11:30', comment: 'Skor kredit memuaskan. Disokong untuk kelulusan.', limit: 'Sehingga RM 15,000' },
-  { id: 'kredit', title: 'Pegawai Kredit', name: 'Mohd Rizal', status: 'pending', limit: 'Sehingga RM 50,000' },
-  { id: 'eksekutif', title: 'Eksekutif Pembiayaan', name: "Dato' Azman", status: 'waiting', limit: 'Melebihi RM 50,000' },
-];
-
-const StatusBadge = ({ status }: { status: string }) => {
-  const map: Record<string, { label: string; className: string }> = {
-    approved: { label: 'Diluluskan', className: 'bg-green-100 text-green-700' },
-    pending: { label: 'Menunggu Tindakan', className: 'bg-orange-100 text-orange-700' },
-    waiting: { label: 'Belum Sampai', className: 'bg-gray-100 text-gray-500' },
-  };
-  const s = map[status];
-  return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${s.className}`} style={{ fontFamily: 'Inter, sans-serif' }}>{s.label}</span>;
-};
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle, XCircle, HelpCircle, FileText, AlertTriangle } from 'lucide-react';
+import { creditService } from '../services/creditService';
+import toast from 'react-hot-toast';
 
 export default function ApprovalWorkflow() {
-  const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [action, setAction] = useState<'approve' | 'reject' | 'kuari' | null>(null);
+  const [comments, setComments] = useState('');
+  
+  // Kuari specific state
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
 
-  const handleApprove = async () => {
-    setSubmitting(true);
-    await new Promise(r => setTimeout(r, 1500));
-    setSubmitting(false);
-    setSubmitted(true);
+  const handleSubmit = async () => {
+    if (!action) return;
+    
+    try {
+      setLoading(true);
+      
+      if (action === 'approve') {
+        await creditService.approveApplication(id as string, comments);
+        toast.success('Permohonan berjaya diluluskan');
+        navigate('/penilaian-kredit');
+      } else if (action === 'reject') {
+        if (!comments) {
+          toast.error('Sila nyatakan sebab penolakan');
+          setLoading(false);
+          return;
+        }
+        await creditService.rejectApplication(id as string, comments);
+        toast.success('Permohonan telah ditolak');
+        navigate('/penilaian-kredit');
+      } else if (action === 'kuari') {
+        if (selectedFields.length === 0 || !comments) {
+          toast.error('Sila pilih medan dan masukkan nota kuari');
+          setLoading(false);
+          return;
+        }
+        await creditService.kuariApplication(id as string, selectedFields, comments);
+        toast.success('Permohonan dikembalikan untuk kuari');
+        navigate('/penilaian-kredit');
+      }
+    } catch (error) {
+      console.error('Error processing application:', error);
+      toast.error('Ralat semasa memproses permohonan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleField = (field: string) => {
+    if (selectedFields.includes(field)) {
+      setSelectedFields(selectedFields.filter(f => f !== field));
+    } else {
+      setSelectedFields([...selectedFields, field]);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#1B2B5E]" style={{ fontFamily: 'Inter, sans-serif' }}>Aliran Kerja Kelulusan</h1>
-        <p className="text-gray-500 text-sm mt-1">SPPT-2026-07-00089 | Siti Nurhaliza | RM 25,000</p>
-      </div>
-      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
-        <Sparkles size={18} className="text-purple-600 mt-0.5 flex-shrink-0" />
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-4 mb-6">
+        <button 
+          onClick={() => navigate(-1)}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </button>
         <div>
-          <p className="text-sm font-bold text-purple-800" style={{ fontFamily: 'Inter, sans-serif' }}>Cadangan AI — Kelulusan Automatik</p>
-          <p className="text-xs text-purple-700 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>Berdasarkan skor kredit 78/100 (Gred A) dan semua semakan automatik lulus, sistem AI mengesyorkan kelulusan automatik pada had RM 25,000 dengan tempoh 36 bulan.</p>
+          <h1 className="text-2xl font-bold text-navy-900">Keputusan Penilaian Kredit</h1>
+          <p className="text-gray-500">Buat keputusan untuk Permohonan #{id}</p>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="font-bold text-gray-800 mb-5" style={{ fontFamily: 'Inter, sans-serif' }}>Hierarki Kelulusan</h2>
-          <div className="space-y-4">
-            {steps.map((step, idx) => (
-              <div key={step.id} className="relative">
-                {idx < steps.length - 1 && (
-                  <div className={`absolute left-5 top-12 w-0.5 h-8 ${step.status === 'approved' ? 'bg-green-300' : 'bg-gray-200'}`} />
-                )}
-                <div className={`flex items-start gap-4 p-4 rounded-xl border ${
-                  step.status === 'approved' ? 'border-green-100 bg-green-50' :
-                  step.status === 'pending' ? 'border-orange-200 bg-orange-50' : 'border-gray-100 bg-gray-50'
-                }`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    step.status === 'approved' ? 'bg-green-500' : step.status === 'pending' ? 'bg-orange-500' : 'bg-gray-300'
-                  }`}>
-                    {step.status === 'approved' ? <CheckCircle size={20} className="text-white" /> :
-                     step.status === 'pending' ? <Clock size={20} className="text-white" /> :
-                     <User size={20} className="text-white" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-gray-800 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>{step.title}</p>
-                        <p className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>{step.name} · {step.limit}</p>
-                      </div>
-                      <StatusBadge status={step.status} />
-                    </div>
-                    {step.timestamp && <p className="text-xs text-gray-400 mt-1"><Clock size={10} className="inline mr-1" />{step.timestamp}</p>}
-                    {step.comment && <p className="text-xs text-gray-600 mt-2 bg-white rounded-lg px-3 py-2 border border-gray-100">"{step.comment}"</p>}
-                    {step.status === 'pending' && !submitted && (
-                      <div className="mt-3 space-y-2">
-                        <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Masukkan ulasan kelulusan..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none resize-none" rows={2} />
-                        <div className="flex gap-2">
-                          <button onClick={handleApprove} disabled={submitting} className="flex-1 py-2 bg-[#2E7D32] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:bg-[#1B5E20] disabled:opacity-50">
-                            {submitting ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle size={12} />} Luluskan
-                          </button>
-                          <button className="flex-1 py-2 bg-red-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><AlertCircle size={12} /> Tolak</button>
-                          <button className="flex-1 py-2 border border-gray-200 text-gray-600 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Send size={12} /> Kuari</button>
-                        </div>
-                      </div>
-                    )}
-                    {step.status === 'pending' && submitted && (
-                      <div className="mt-2 flex items-center gap-2 text-green-600"><CheckCircle size={14} /><span className="text-xs font-bold">Diluluskan — Surat Tawaran sedang dijana oleh AI...</span></div>
-                    )}
-                  </div>
-                </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <button
+          onClick={() => setAction('approve')}
+          className={`p-6 rounded-xl border-2 text-center transition-all ${
+            action === 'approve' 
+              ? 'border-green-500 bg-green-50' 
+              : 'border-gray-200 bg-white hover:border-green-200 hover:bg-green-50/50'
+          }`}
+        >
+          <CheckCircle className={`w-12 h-12 mx-auto mb-3 ${action === 'approve' ? 'text-green-600' : 'text-gray-400'}`} />
+          <h3 className={`font-bold ${action === 'approve' ? 'text-green-800' : 'text-gray-700'}`}>Luluskan</h3>
+          <p className="text-sm text-gray-500 mt-1">Teruskan ke peringkat seterusnya</p>
+        </button>
+
+        <button
+          onClick={() => setAction('kuari')}
+          className={`p-6 rounded-xl border-2 text-center transition-all ${
+            action === 'kuari' 
+              ? 'border-yellow-500 bg-yellow-50' 
+              : 'border-gray-200 bg-white hover:border-yellow-200 hover:bg-yellow-50/50'
+          }`}
+        >
+          <HelpCircle className={`w-12 h-12 mx-auto mb-3 ${action === 'kuari' ? 'text-yellow-600' : 'text-gray-400'}`} />
+          <h3 className={`font-bold ${action === 'kuari' ? 'text-yellow-800' : 'text-gray-700'}`}>Kuari (Pencerahan)</h3>
+          <p className="text-sm text-gray-500 mt-1">Kembalikan untuk maklumat lanjut</p>
+        </button>
+
+        <button
+          onClick={() => setAction('reject')}
+          className={`p-6 rounded-xl border-2 text-center transition-all ${
+            action === 'reject' 
+              ? 'border-red-500 bg-red-50' 
+              : 'border-gray-200 bg-white hover:border-red-200 hover:bg-red-50/50'
+          }`}
+        >
+          <XCircle className={`w-12 h-12 mx-auto mb-3 ${action === 'reject' ? 'text-red-600' : 'text-gray-400'}`} />
+          <h3 className={`font-bold ${action === 'reject' ? 'text-red-800' : 'text-gray-700'}`}>Tolak</h3>
+          <p className="text-sm text-gray-500 mt-1">Tolak permohonan ini</p>
+        </button>
+      </div>
+
+      {action && (
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+          <h2 className="text-lg font-semibold text-navy-900 mb-4">
+            {action === 'approve' ? 'Ulasan Kelulusan' : 
+             action === 'reject' ? 'Sebab Penolakan' : 'Butiran Kuari'}
+          </h2>
+
+          {action === 'kuari' && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Pilih Medan yang Perlu Diperbetulkan</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {['Salinan Kad Pengenalan', 'Penyata Bank 3 Bulan', 'Lesen SSM', 'Gambar Premis', 'Sebut Harga', 'Borang C'].map((field) => (
+                  <label key={field} className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input 
+                      type="checkbox" 
+                      className="rounded text-primary-600 focus:ring-primary-500"
+                      checked={selectedFields.includes(field)}
+                      onChange={() => toggleField(field)}
+                    />
+                    <span className="text-sm">{field}</span>
+                  </label>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {action === 'approve' ? 'Ulasan Tambahan (Pilihan)' : 
+               action === 'reject' ? 'Sebab Penolakan (Wajib)' : 'Nota Kuari (Wajib)'}
+            </label>
+            <textarea
+              rows={4}
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder={
+                action === 'approve' ? 'Masukkan ulasan sokongan anda di sini...' : 
+                action === 'reject' ? 'Sila nyatakan sebab permohonan ditolak mengikut polisi TEKUN...' : 
+                'Nyatakan dengan jelas apa yang perlu diperbetulkan atau dimuat naik semula...'
+              }
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none"
+              required={action !== 'approve'}
+            />
+          </div>
+
+          {action === 'reject' && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-red-800">Perhatian</h4>
+                <p className="text-sm text-red-700 mt-1">
+                  Surat penolakan rasmi akan dijana secara automatik berdasarkan sebab yang anda masukkan di atas dan dihantar kepada pemohon.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3">
+            <button 
+              onClick={() => setAction(null)}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+            >
+              Batal
+            </button>
+            <button 
+              onClick={handleSubmit}
+              disabled={loading || (action !== 'approve' && !comments) || (action === 'kuari' && selectedFields.length === 0)}
+              className={`px-6 py-2 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 
+                action === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-600 hover:bg-yellow-700'
+              }`}
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Memproses...
+                </>
+              ) : (
+                <>
+                  {action === 'approve' ? <CheckCircle className="w-4 h-4" /> : 
+                   action === 'reject' ? <XCircle className="w-4 h-4" /> : <HelpCircle className="w-4 h-4" />}
+                  Sahkan Keputusan
+                </>
+              )}
+            </button>
           </div>
         </div>
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 className="font-bold text-gray-800 text-sm mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>Ringkasan Permohonan</h3>
-            <div className="space-y-3">
-              {[{label:'Pemohon',value:'Siti Nurhaliza'},{label:'Skim',value:'TEKUN Usahawan'},{label:'Jumlah Dipohon',value:'RM 25,000'},{label:'Skor Kredit',value:'78/100 (Gred A)'},{label:'Tempoh',value:'36 bulan'},{label:'Ansuran',value:'RM 763.89/bulan'}].map(item=>(
-                <div key={item.label} className="flex justify-between">
-                  <span className="text-xs text-gray-500">{item.label}</span>
-                  <span className="text-xs font-bold text-gray-800">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 className="font-bold text-gray-800 text-sm mb-3">Semakan Automatik</h3>
-            <div className="space-y-2">
-              {['Semakan Muflis','Semakan CCRIS','Semakan CTOS','Semakan SSM','Had DSR (≤40%)','Umur Layak'].map(c=>(
-                <div key={c} className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">{c}</span>
-                  <div className="flex items-center gap-1 text-green-600"><CheckCircle size={12}/><span className="text-xs font-semibold">Lulus</span></div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <button className="w-full py-3 bg-[#1B2B5E] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#152348]">
-            <FileText size={16} /> Jana Surat Tawaran <ChevronRight size={16} />
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
