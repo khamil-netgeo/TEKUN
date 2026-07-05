@@ -1,47 +1,34 @@
 <?php
+
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
-    private static bool $modulesMigrated = false;
-    private static bool $rolesSeeded = false;
-
     protected function setUp(): void
     {
-        parent::setUp(); // This calls RefreshDatabase which runs migrate:fresh (once)
+        parent::setUp(); // RefreshDatabase runs migrate:fresh here
 
-        // Run module migrations once per test process
-        if (!self::$modulesMigrated) {
-            $this->runModuleMigrations();
-            self::$modulesMigrated = true;
-        }
+        // Always run module migrations after RefreshDatabase recreates the DB
+        $this->runModuleMigrations();
 
-        // Seed roles if not present (inside transaction, so available to test)
+        // Seed roles if not present
         try {
             if (\Spatie\Permission\Models\Role::count() === 0) {
                 $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\CoreRolesOnlySeeder']);
             }
         } catch (\Throwable $e) {
-            // Ignore
+            // Ignore seeding errors
         }
-    }
-
-    /**
-     * Reset flags when the application is refreshed (new test process).
-     */
-    protected function refreshApplication(): void
-    {
-        parent::refreshApplication();
-        self::$modulesMigrated = false;
-        self::$rolesSeeded = false;
     }
 
     private function runModuleMigrations(): void
     {
         $modulesPath = app_path('Modules');
-        if (!is_dir($modulesPath)) return;
+        if (!is_dir($modulesPath)) {
+            return;
+        }
 
         foreach (glob($modulesPath . '/*/Database/Migrations') as $path) {
             try {

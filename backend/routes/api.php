@@ -137,16 +137,29 @@ Route::middleware('auth:sanctum')->group(function () {
     // Roles: finance_officer (full), branch_manager (view), credit_officer (view), system_admin
     // ─────────────────────────────────────────────────────────────────────────
     Route::middleware('module:module3')->group(function () {
-        Route::get('/disbursements',                         [DisbursementController::class, 'index']);
-        Route::get('/disbursements/{id}',                    [DisbursementController::class, 'show']);
-        Route::post('/disbursements/batch',                  [DisbursementController::class, 'batch']);
-        Route::post('/disbursements/{id}/approve',           [DisbursementController::class, 'approve']);
-        Route::get('/disbursements/esign-queue',             [DisbursementController::class, 'esignQueue']);
-        Route::post('/disbursements/{id}/send-esign',        [DisbursementController::class, 'sendEsign']);
-        Route::get('/disbursements/aging-report',            [DisbursementController::class, 'agingReport']);
-        Route::post('/disbursements/{id}/escalate',          [DisbursementController::class, 'escalate']);
+        // ── Specific named routes MUST come before /{id} wildcard ──────────
         Route::get('/disbursements/authority-matrix',        [DisbursementController::class, 'authorityMatrix']);
+        Route::get('/disbursements/aging-report',            [DisbursementController::class, 'agingReport']);
+        Route::get('/disbursements/aging',                   [DisbursementController::class, 'agingReport']);
+        Route::get('/disbursements/esign-queue',             [DisbursementController::class, 'esignQueue']);
         Route::get('/authority-matrix',                      [DisbursementController::class, 'authorityMatrix']);
+        // ── Collection routes ────────────────────────────────────────────────
+        Route::get('/disbursements',                         [DisbursementController::class, 'index']);
+        Route::post('/disbursements',                        [DisbursementController::class, 'store']);
+        Route::post('/disbursements/batch',                  [DisbursementController::class, 'batch']);
+        // ── Single-resource routes (wildcard LAST) ───────────────────────────
+        Route::get('/disbursements/{id}',                    [DisbursementController::class, 'show']);
+        Route::put('/disbursements/{id}',                    [DisbursementController::class, 'update']);
+        Route::delete('/disbursements/{id}',                 [DisbursementController::class, 'destroy']);
+        // ── Action routes ────────────────────────────────────────────────────
+        Route::post('/disbursements/{id}/approve',           [DisbursementController::class, 'approve']);
+        Route::post('/disbursements/{id}/send-esign',        [DisbursementController::class, 'sendEsign']);
+        Route::post('/disbursements/{id}/escalate',          [DisbursementController::class, 'escalate']);
+        Route::get('/disbursements/{id}/offer-letter',       [DisbursementController::class, 'offerLetterData']);
+        Route::post('/disbursements/{id}/send-otp',          [DisbursementController::class, 'sendApprovalOtp']);
+        Route::post('/disbursements/{id}/verify-otp-approve',[DisbursementController::class, 'verifyOtpAndApprove']);
+        Route::post('/disbursements/{id}/confirm-payment',   [DisbursementController::class, 'confirmPayment']);
+        Route::post('/disbursements/{id}/esign',             [DisbursementController::class, 'sendEsign']);
     });
 
     // ─────────────────────────────────────────────────────────────────────────

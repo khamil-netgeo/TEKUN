@@ -540,4 +540,25 @@ class DisbursementController extends Controller
         Disbursement::findOrFail($id)->delete();
         return response()->json(['success' => true, 'message' => 'Rekod dipadam.']);
     }
+
+    /**
+     * POST /api/disbursements/{id}/confirm-payment
+     * Confirm bank payment received — update status to 'disbursed', notify usahawan.
+     */
+    public function confirmPayment(Request $request, string $id): \Illuminate\Http\JsonResponse
+    {
+        $disbursement = Disbursement::findOrFail($id);
+
+        $disbursement->update([
+            'status'       => 'disbursed',
+            'notify_sent'  => true,
+            'twofa_confirmed' => true,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pembayaran disahkan. Usahawan telah dimaklumkan.',
+            'data'    => $disbursement->fresh(),
+        ]);
+    }
 }

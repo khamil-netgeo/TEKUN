@@ -24,8 +24,7 @@ class DisbursementTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\CoreRbacSeeder']);
+        // Roles are seeded by the base TestCase — no duplicate seeding needed here.
 
         // Create admin user with system_admin role
         $this->adminUser = User::factory()->create([
