@@ -1,5 +1,5 @@
 <?php
-namespace App\Http\Controllers\Api;
+namespace App\Modules\PengurusanNPL\Controllers;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -14,66 +14,102 @@ class NplController extends Controller
             ->orderByDesc('days_overdue')
             ->limit(50)
             ->get();
-
         return response()->json(['data' => $records, 'total' => $records->count()]);
     }
 
     public function dashboard(Request $request)
     {
+        $totalNpl = DB::table('npl_records')->count();
+        $totalAccounts = DB::table('accounts')->count();
+        $nplRate = $totalAccounts > 0 ? round(($totalNpl / $totalAccounts) * 100, 2) : 0;
+        $totalOutstanding = DB::table('npl_records')->sum('outstanding') ?? 0;
+        $collectedMtd = DB::table('payments')
+            ->whereMonth('payment_date', now()->month)
+            ->whereYear('payment_date', now()->year)
+            ->sum('amount') ?? 0;
+        $totalDue = DB::table('payments')
+            ->whereMonth('payment_date', now()->month)
+            ->whereYear('payment_date', now()->year)
+            ->sum('amount_due') ?? 0;
+        $collectionRate = $totalDue > 0 ? round(($collectedMtd / $totalDue) * 100, 1) : 0;
+
+        $categoryRanges = [
+            ['label' => 'Lancar (0 hari)',        'min' => 0,   'max' => 0],
+            ['label' => 'Dalam Perhatian (1-30)', 'min' => 1,   'max' => 30],
+            ['label' => 'Substandard (31-90)',    'min' => 31,  'max' => 90],
+            ['label' => 'Doubtful (91-180)',      'min' => 91,  'max' => 180],
+            ['label' => 'Loss (>180 hari)',       'min' => 181, 'max' => 99999],
+        ];
+        $categories = [];
+        foreach ($categoryRanges as $cat) {
+            $q = DB::table('npl_records')->whereBetween('days_overdue', [$cat['min'], $cat['max']]);
+            $categories[] = ['label' => $cat['label'], 'count' => $q->count(), 'amount' => $q->sum('outstanding') ?? 0];
+        }
+
         return response()->json([
-            'total_npl'         => 1243,
-            'npl_rate'          => 1.8,
-            'total_outstanding' => 42500000,
-            'collected_mtd'     => 8750000,
-            'collection_rate'   => 89.4,
-            'categories' => [
-                ['label' => 'Lancar (0 hari)',        'count' => 45230, 'amount' => 380000000],
-                ['label' => 'Dalam Perhatian (1-30)', 'count' => 2340,  'amount' => 18500000],
-                ['label' => 'Substandard (31-90)',    'count' => 890,   'amount' => 7200000],
-                ['label' => 'Doubtful (91-180)',      'count' => 234,   'amount' => 2100000],
-                ['label' => 'Loss (>180 hari)',       'count' => 119,   'amount' => 980000],
-            ],
+            'total_npl'         => $totalNpl,
+            'npl_rate'          => $nplRate,
+            'total_outstanding' => $totalOutstanding,
+            'collected_mtd'     => $collectedMtd,
+            'collection_rate'   => $collectionRate,
+            'categories'        => $categories,
         ]);
     }
 
     public function nplAccounts(Request $request)
     {
-        return $this->index($request);
+        $classification = $request->query('classification');
+        $query = DB::table('npl_records')
+            ->join('accounts', 'npl_records.account_id', '=', 'accounts.id')
+            ->select('npl_records.*', 'accounts.account_no', 'accounts.applicant_name');
+        if ($classification) {
+            $query->where('npl_records.classification', $classification);
+        }
+        return response()->json($query->orderByDesc('npl_records.days_overdue')->paginate(15));
     }
 
     public function dunningList(Request $request)
     {
-        return response()->json([
-            'data' => [
-                ['id' => 1, 'account_no' => 'TKN-2024-001234', 'borrower' => 'Ahmad Bin Razak',  'level' => 1, 'overdue_days' => 35,  'amount' => 1250.00, 'status' => 'pending'],
-                ['id' => 2, 'account_no' => 'TKN-2024-002345', 'borrower' => 'Siti Binti Yusof', 'level' => 2, 'overdue_days' => 75,  'amount' => 3400.00, 'status' => 'sent'],
-                ['id' => 3, 'account_no' => 'TKN-2024-003456', 'borrower' => 'Mohd Hafizi',       'level' => 3, 'overdue_days' => 120, 'amount' => 8900.00, 'status' => 'pending'],
-            ],
-            'total' => 3,
-        ]);
+        $stage = $request->query('dunning_stage');
+        $query = DB::table('collection_tasks')
+            ->join('npl_records', 'collection_tasks.npl_record_id', '=', 'npl_records.id')
+            ->select('collection_tasks.*', 'npl_records.outstanding', 'npl_records.days_overdue');
+        if ($stage) {
+            $query->where('collection_tasks.dunning_stage', $stage);
+        }
+        return response()->json($query->orderByDesc('collection_tasks.created_at')->paginate(15));
     }
 
     public function generateDunning(Request $request)
     {
-        return response()->json([
-            'success'   => true,
-            'message'   => 'Notis dunning dijana oleh AI.',
-            'generated' => 12,
-            'channels'  => ['SMS', 'E-mel', 'WhatsApp'],
-        ]);
+        $nplIds = $request->input('npl_ids', []);
+        $channel = $request->input('channel', 'sms');
+        $count = 0;
+        foreach ($nplIds as $nplId) {
+            $exists = DB::table('collection_tasks')->where('npl_record_id', $nplId)->where('status', 'pending')->exists();
+            if (!$exists) {
+                DB::table('collection_tasks')->insert([
+                    'npl_record_id' => $nplId, 'dunning_stage' => 'stage1',
+                    'channel' => $channel, 'status' => 'pending',
+                    'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $count++;
+            }
+        }
+        return response()->json(['notis_sent' => $count, 'channel' => $channel]);
     }
 
     public function sendDunning(Request $request, string $id)
     {
-        return response()->json([
-            'success' => true,
-            'message' => "Notis dunning #{$id} dihantar.",
-            'sent_at' => now()->toISOString(),
-        ]);
+        $updated = DB::table('collection_tasks')->where('id', $id)->update(['status' => 'sent', 'sent_at' => now(), 'updated_at' => now()]);
+        return response()->json(['success' => $updated > 0, 'id' => $id]);
     }
 
     public function triggerDunning(Request $request, string $id)
     {
-        return $this->sendDunning($request, $id);
+        $outcome = $request->input('outcome', 'no_response');
+        $notes   = $request->input('notes', '');
+        $updated = DB::table('collection_tasks')->where('id', $id)->update(['outcome' => $outcome, 'notes' => $notes, 'status' => 'completed', 'updated_at' => now()]);
+        return response()->json(['success' => $updated > 0, 'id' => $id, 'outcome' => $outcome]);
     }
 }
