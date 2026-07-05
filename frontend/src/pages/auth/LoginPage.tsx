@@ -532,6 +532,29 @@ export default function LoginPage() {
                   )}
                 </button>
               </form>
+              ) : (
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ background: '#EEF2FF' }}>
+                    <Shield size={24} style={{ color: '#1B2B5E' }} />
+                  </div>
+                  <h3 className="text-base font-bold" style={{ color: '#1B2B5E' }}>Pengesahan Dua Faktor</h3>
+                  <p className="text-xs mt-1" style={{ color: '#6B7280' }}>Kod OTP telah dihantar ke emel anda</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Kod OTP (6 digit)</label>
+                  <input type="text" maxLength={6} className="sppt-input text-center text-lg tracking-widest font-mono" placeholder="000000" value={otpCode} onChange={e => { setOtpCode(e.target.value.replace(/[^0-9]/g, '')); setOtpError(''); }} autoFocus />
+                  {otpError && <p className="text-xs mt-1" style={{ color: '#C62828' }}>{otpError}</p>}
+                </div>
+                <button type="button" onClick={handleOtpVerify} disabled={otpLoading || otpCode.length !== 6} className="w-full py-3 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg, #1B2B5E 0%, #243570 100%)' }}>
+                  {otpLoading ? <><Loader2 size={16} className="animate-spin" /> Mengesahkan...</> : 'Sahkan OTP'}
+                </button>
+                <div className="flex items-center justify-between text-xs">
+                  <button type="button" onClick={() => { setMfaStep(false); setOtpCode(''); setOtpError(''); }} style={{ color: '#6B7280' }}>&#8592; Kembali</button>
+                  <button type="button" onClick={handleOtpResend} disabled={otpResendTimer > 0} style={{ color: otpResendTimer > 0 ? '#9CA3AF' : '#1B2B5E' }}>{otpResendTimer > 0 ? `Hantar semula (${otpResendTimer}s)` : 'Hantar semula OTP'}</button>
+                </div>
+              </div>
+              )}
 
               {!mfaStep && (
               <>
@@ -592,6 +615,8 @@ export default function LoginPage() {
                   </code>
                 </div>
               </div>
+              </>
+              )}
             </div>
 
             <p className="text-center text-xs mt-5" style={{ color: '#9CA3AF' }}>
