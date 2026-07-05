@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -8,8 +9,6 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * TEKUN SPPT — Module Access Middleware
  * Checks if the authenticated user has access to a specific module.
- *
- * Usage: Route::middleware(['auth:sanctum', 'module:module3'])->group(...)
  */
 class CheckModuleAccess
 {
@@ -21,10 +20,15 @@ class CheckModuleAccess
             return response()->json(['message' => 'Tidak disahkan.'], 401);
         }
 
+        // Pentadbir Sistem (Spatie role) has access to all modules
+        if ($user->hasRole('Pentadbir Sistem', 'sanctum')) {
+            return $next($request);
+        }
+
         $permissions = $user->permissions ?? [];
         $modules = $permissions['modules'] ?? [];
 
-        // system_admin and wildcard '*' bypass all module checks
+        // system_admin (legacy) and wildcard '*' bypass all module checks
         if ($user->role === 'system_admin' || in_array('*', $modules)) {
             return $next($request);
         }
@@ -41,4 +45,3 @@ class CheckModuleAccess
         return $next($request);
     }
 }
-// Note: Security headers added via bootstrap/app.php

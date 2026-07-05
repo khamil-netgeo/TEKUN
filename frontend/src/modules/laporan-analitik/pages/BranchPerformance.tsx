@@ -118,7 +118,7 @@ export default function BranchPerformance() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
             <XAxis type="number" domain={[60, 100]} tick={{ fontSize: 11 }} />
             <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={80} />
-            <Tooltip formatter={(v: number) => [`${v}%`, 'Kadar Kutipan']} />
+            <Tooltip formatter={(v: unknown) => [`${v}%`, 'Kadar Kutipan']} />
             <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
               {chartData.map((entry, i) => (
                 <Cell key={i} fill={entry.rate >= 90 ? GREEN : entry.rate >= 80 ? '#F9A825' : ORANGE} />

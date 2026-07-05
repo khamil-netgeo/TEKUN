@@ -360,9 +360,9 @@ class UserController extends Controller
         $suspended = User::where('is_suspended', true)->count();
         $inactive  = User::where('is_active', false)->count();
 
-        $roles = Role::withCount('users')->get()->map(fn($r) => [
+        $roles = Role::all()->map(fn($r) => [
             'role'  => $r->name,
-            'count' => $r->users_count,
+            'count' => \DB::table('model_has_roles')->where('role_id', $r->id)->count(),
         ]);
 
         $newThisMonth = User::whereMonth('created_at', now()->month)
@@ -393,12 +393,11 @@ class UserController extends Controller
     public function roles(): JsonResponse
     {
         $roles = Role::with('permissions')
-            ->withCount('users')
             ->get()
             ->map(fn($role) => [
                 'id'                => $role->id,
                 'name'              => $role->name,
-                'users_count'       => $role->users_count,
+                'users_count'       => \DB::table('model_has_roles')->where('role_id', $role->id)->count(),
                 'permissions'       => $role->permissions->pluck('name'),
                 'permissions_count' => $role->permissions->count(),
             ]);

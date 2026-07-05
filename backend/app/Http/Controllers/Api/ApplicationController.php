@@ -72,7 +72,7 @@ class ApplicationController extends Controller
                 break;
 
             default:
-                $query->where('applicant_id', $user->id);
+                $query->where('officer_id', $user->id);
         }
 
         // ── Filters ───────────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'Hanya permohonan draf boleh dipadam.'], 422);
         }
 
-        if ($request->user()->role === 'usahawan' && $application->applicant_id !== $request->user()->id) {
+        if ($request->user()->role === 'usahawan' && $application->officer_id !== $request->user()->id) {
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 

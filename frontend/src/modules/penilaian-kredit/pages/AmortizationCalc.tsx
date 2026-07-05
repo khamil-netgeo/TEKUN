@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calculator, FileText, Download, Printer } from 'lucide-react';
-import { DataTable } from '@/components/ui/DataTable';
-import { creditService, AmortizationSchedule } from '../services/creditService';
+import DataTable from '@/components/ui/DataTable';
+import { creditService } from '../services/creditService';
+import type { AmortizationSchedule } from '../services/creditService';
 import toast from 'react-hot-toast';
 
 export default function AmortizationCalc() {

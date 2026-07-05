@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -7,11 +8,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * TEKUN SPPT — Role-Based Access Control Middleware
- * Enforces tender-defined role permissions on API routes.
- *
- * Usage in routes:
- *   Route::middleware(['auth:sanctum', 'role:system_admin,executive'])->group(...)
- *   Route::middleware(['auth:sanctum', 'module:module3'])->group(...)
+ * Checks both the users.role column (legacy) and Spatie roles.
  */
 class CheckRole
 {
@@ -23,19 +20,35 @@ class CheckRole
             return response()->json(['message' => 'Tidak disahkan.'], 401);
         }
 
-        // system_admin bypasses all role checks
+        // Reload user with roles to ensure fresh data (avoid cache issues in tests)
+        $user->load('roles');
+
+        // system_admin (legacy column) bypasses all role checks
         if ($user->role === 'system_admin') {
             return $next($request);
         }
 
-        if (!in_array($user->role, $roles)) {
-            return response()->json([
-                'message'   => 'Akses ditolak. Peranan anda tidak mempunyai kebenaran untuk tindakan ini.',
-                'your_role' => $user->role,
-                'required'  => $roles,
-            ], 403);
+        // Pentadbir Sistem (Spatie role) bypasses all role checks
+        if ($user->hasRole('Pentadbir Sistem', 'sanctum')) {
+            return $next($request);
         }
 
-        return $next($request);
+        // Check legacy role column
+        if (in_array($user->role, $roles)) {
+            return $next($request);
+        }
+
+        // Check Spatie roles with explicit sanctum guard
+        foreach ($roles as $role) {
+            if ($user->hasRole($role, 'sanctum')) {
+                return $next($request);
+            }
+        }
+
+        return response()->json([
+            'message'   => 'Akses ditolak. Peranan anda tidak mempunyai kebenaran untuk tindakan ini.',
+            'your_role' => $user->role,
+            'required'  => $roles,
+        ], 403);
     }
 }

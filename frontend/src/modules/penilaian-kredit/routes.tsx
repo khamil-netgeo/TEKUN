@@ -1,6 +1,7 @@
 import React from 'react';
-import { RouteObject } from 'react-router-dom';
-import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
+import type { RouteObject } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 // Lazy load components
 const CreditDashboard = React.lazy(() => import('./pages/CreditDashboard'));
@@ -13,7 +14,7 @@ const OfferLetter = React.lazy(() => import('./pages/OfferLetter'));
 export const creditRoutes: RouteObject[] = [
   {
     path: 'penilaian-kredit',
-    element: <ProtectedRoute allowedRoles={['Pegawai Kredit', 'Pengurus Cawangan', 'Pentadbir Sistem']} />,
+    element: <ProtectedRoute allowedRoles={['Pegawai Kredit', 'Pengurus Cawangan', 'Pentadbir Sistem']}><Outlet /></ProtectedRoute>,
     children: [
       { index: true, element: <CreditDashboard /> },
       { path: 'pre-assessment/:id', element: <PreAssessment /> },

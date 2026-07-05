@@ -5,9 +5,9 @@ import {
   FileText, CheckCircle, AlertTriangle, Clock, 
   Search, Filter, Eye, Activity
 } from 'lucide-react';
-import { StatCard } from '@/components/ui/StatCard';
-import { DataTable } from '@/components/ui/DataTable';
-import { AiBadge } from '@/components/ui/AiBadge';
+import StatCard from '@/components/ui/StatCard';
+import DataTable from '@/components/ui/DataTable';
+import AiBadge from '@/components/ui/AiBadge';
 import { creditService } from '../services/creditService';
 import toast from 'react-hot-toast';
 
@@ -38,24 +38,24 @@ export default function CreditDashboard() {
   const columns = [
     { 
       header: 'No. Rujukan', 
-      accessor: 'ref_no',
-      cell: (row: any) => <span className="font-medium text-navy-900">{row.ref_no}</span>
+      key: 'ref_no',
+      render: (row: any) => <span className="font-medium text-navy-900">{row.ref_no}</span>
     },
-    { header: 'Nama Pemohon', accessor: 'applicant_name' },
+    { header: 'Nama Pemohon', key: 'applicant_name' },
     { 
       header: 'Amaun (RM)', 
-      accessor: 'amount_requested',
-      cell: (row: any) => new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(row.amount_requested)
+      key: 'amount_requested',
+      render: (row: any) => new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(row.amount_requested)
     },
     { 
       header: 'Tarikh Mohon', 
-      accessor: 'created_at',
-      cell: (row: any) => new Date(row.created_at).toLocaleDateString('ms-MY')
+      key: 'created_at',
+      render: (row: any) => new Date(row.created_at).toLocaleDateString('ms-MY')
     },
     {
       header: 'Tindakan',
-      accessor: 'id',
-      cell: (row: any) => (
+      key: 'id',
+      render: (row: any) => (
         <button 
           onClick={() => navigate(`/penilaian-kredit/pre-assessment/${row.id}`)}
           className="flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-800"
@@ -86,7 +86,7 @@ export default function CreditDashboard() {
           title="Tugasan Baharu" 
           value={applications.length.toString()} 
           icon={<FileText className="w-5 h-5 text-blue-600" />} 
-          trend={{ value: 12, isPositive: true }}
+          trend={12}
         />
         <StatCard 
           title="Sedang Dinilai" 
@@ -101,8 +101,7 @@ export default function CreditDashboard() {
         <StatCard 
           title="Kes Sempadan (Borderline)" 
           value="3" 
-          icon={<AlertTriangle className="w-5 h-5 text-yellow-600" />} 
-          className="border-l-4 border-l-yellow-500"
+          icon={<AlertTriangle className="w-5 h-5 text-yellow-600" />}
         />
       </div>
 
@@ -137,9 +136,9 @@ export default function CreditDashboard() {
             columns={columns} 
             data={filteredApps} 
             pagination={{
-              currentPage: 1,
-              totalPages: 1,
-              totalItems: filteredApps.length,
+              page: 1,
+              perPage: 10,
+              total: filteredApps.length,
               onPageChange: () => {}
             }}
           />
@@ -154,7 +153,7 @@ export default function CreditDashboard() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold text-purple-900">Prioriti AI</h3>
-              <AiBadge>Dikuasakan oleh AI</AiBadge>
+              <AiBadge label="Dikuasakan oleh AI" />
             </div>
             <p className="text-sm text-purple-800 mb-3">
               Sistem AI mencadangkan anda memberi tumpuan kepada 3 permohonan "Borderline" yang memerlukan semakan manual yang teliti hari ini.
