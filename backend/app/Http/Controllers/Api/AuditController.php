@@ -65,6 +65,9 @@ class AuditController extends Controller
                 'auditable_id'   => $log->auditable_id,
                 'ip_address'     => $log->ip_address,
                 'severity'       => in_array($log->action, $criticalActions) ? 'critical' : 'info',
+                'is_anomaly'     => in_array($log->action, $criticalActions) ||
+                                    (isset($log->created_at) && (date('H', strtotime($log->created_at)) < 8 || date('H', strtotime($log->created_at)) >= 18)),
+                'anomaly_reason' => in_array($log->action, $criticalActions) ? 'Tindakan kritikal: ' . $log->action : null,
                 'created_at'     => $log->created_at,
             ];
         });
@@ -132,6 +135,8 @@ class AuditController extends Controller
             'new_values'     => $newValues,
             'diff'           => $diff,
             'severity'       => in_array($log->action, $criticalActions) ? 'critical' : 'info',
+            'is_anomaly'     => in_array($log->action, $criticalActions),
+            'anomaly_reason' => in_array($log->action, $criticalActions) ? 'Tindakan kritikal: ' . $log->action : null,
             'ip_address'     => $log->ip_address,
             'user_agent'     => $log->user_agent ?? null,
             'created_at'     => $log->created_at,
@@ -303,17 +308,29 @@ class AuditController extends Controller
             ];
         }
 
+        $criticalActionsArr = ['delete', 'role_change', 'admin_access', 'export', 'bulk_delete'];
+        $todayAnomalies = AuditTrail::whereDate('created_at', $today)
+            ->whereIn('action', $criticalActionsArr)
+            ->count();
+        $topAnomalyType = AuditTrail::whereIn('action', $criticalActionsArr)
+            ->select('action', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('action')
+            ->orderByDesc('cnt')
+            ->first();
+
         return response()->json([
-            'total'        => $total,
-            'today'        => $todayCount,
-            'critical'     => $critical,
-            'unique_users' => $uniqueUsers,
-            'by_action'    => $byAction,
-            'by_module'    => $byModule,
-            'daily_trend'  => $dailyTrend,
-            'from'         => $from,
-            'to'           => $to,
-            'generated_at' => now()->toIso8601String(),
+            'total'            => $total,
+            'today'            => $todayCount,
+            'critical'         => $critical,
+            'unique_users'     => $uniqueUsers,
+            'by_action'        => $byAction,
+            'by_module'        => $byModule,
+            'daily_trend'      => $dailyTrend,
+            'today_anomalies'  => $todayAnomalies,
+            'top_anomaly_type' => $topAnomalyType?->action ?? 'none',
+            'from'             => $from,
+            'to'               => $to,
+            'generated_at'     => now()->toIso8601String(),
         ]);
     }
 

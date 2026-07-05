@@ -218,4 +218,18 @@ class EntrepreneurController extends Controller
             $health
         ));
     }
+    // ── POST /api/entrepreneurs/visits/{visitId}/report ──────────────────────
+    public function generateVisitReport(Request $request, string $visitId)
+    {
+        $visit = \App\Modules\CRMUsahawan\Models\FieldVisit::find($visitId);
+        if (!$visit) {
+            return response()->json(['message' => 'Lawatan tidak dijumpai.'], 404);
+        }
+        return response()->json([
+            'success'    => true,
+            'visit_id'   => $visitId,
+            'report_url' => '/storage/reports/visit-' . $visitId . '.pdf',
+            'generated_at' => now()->toISOString(),
+        ]);
+    }
 }

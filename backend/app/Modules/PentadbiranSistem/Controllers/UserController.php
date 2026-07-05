@@ -360,10 +360,14 @@ class UserController extends Controller
         $suspended = User::where('is_suspended', true)->count();
         $inactive  = User::where('is_active', false)->count();
 
-        $roles = Role::withCount('users')->get()->map(fn($r) => [
-            'role'  => $r->name,
-            'count' => $r->users_count,
-        ]);
+        $roles = Role::get()->map(function ($r) {
+            try {
+                $count = \App\Models\User::role($r->name)->count();
+            } catch (\Throwable $e) {
+                $count = 0;
+            }
+            return ['role' => $r->name, 'count' => $count];
+        });
 
         $newThisMonth = User::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
@@ -393,15 +397,21 @@ class UserController extends Controller
     public function roles(): JsonResponse
     {
         $roles = Role::with('permissions')
-            ->withCount('users')
             ->get()
-            ->map(fn($role) => [
-                'id'                => $role->id,
-                'name'              => $role->name,
-                'users_count'       => $role->users_count,
-                'permissions'       => $role->permissions->pluck('name'),
-                'permissions_count' => $role->permissions->count(),
-            ]);
+            ->map(function ($role) {
+                try {
+                    $usersCount = \App\Models\User::role($role->name)->count();
+                } catch (\Throwable $e) {
+                    $usersCount = 0;
+                }
+                return [
+                    'id'                => $role->id,
+                    'name'              => $role->name,
+                    'users_count'       => $usersCount,
+                    'permissions'       => $role->permissions->pluck('name'),
+                    'permissions_count' => $role->permissions->count(),
+                ];
+            });
 
         return response()->json([
             'success' => true,

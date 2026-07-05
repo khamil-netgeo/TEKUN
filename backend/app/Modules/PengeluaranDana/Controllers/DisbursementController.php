@@ -172,7 +172,7 @@ class DisbursementController extends Controller
             };
         }
 
-        if (!$canApprove && !app()->runningUnitTests()) {
+        if (!$canApprove) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda tidak mempunyai kuasa yang mencukupi untuk meluluskan amaun ini.',

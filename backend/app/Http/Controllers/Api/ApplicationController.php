@@ -157,8 +157,9 @@ class ApplicationController extends Controller
         }
 
         return response()->json([
-            'message' => 'Permohonan berjaya disimpan sebagai draf.',
-            'data'    => $application->append(['status_label', 'scheme_label']),
+            'message'     => 'Permohonan berjaya disimpan sebagai draf.',
+            'application' => $application->append(['status_label', 'scheme_label']),
+            'data'        => $application,
         ], 201);
     }
 

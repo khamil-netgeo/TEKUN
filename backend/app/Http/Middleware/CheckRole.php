@@ -23,19 +23,36 @@ class CheckRole
             return response()->json(['message' => 'Tidak disahkan.'], 401);
         }
 
-        // system_admin bypasses all role checks
+        // system_admin bypasses all role checks (column-based)
         if ($user->role === 'system_admin') {
             return $next($request);
         }
 
-        if (!in_array($user->role, $roles)) {
-            return response()->json([
-                'message'   => 'Akses ditolak. Peranan anda tidak mempunyai kebenaran untuk tindakan ini.',
-                'your_role' => $user->role,
-                'required'  => $roles,
-            ], 403);
+        // Pentadbir Sistem / system_admin Spatie role bypasses all role checks
+        if (method_exists($user, 'hasRole')) {
+            if ($user->hasRole('system_admin') || $user->hasRole('Pentadbir Sistem')) {
+                return $next($request);
+            }
         }
 
-        return $next($request);
+        // Check column-based role
+        if (in_array($user->role, $roles)) {
+            return $next($request);
+        }
+
+        // Check Spatie roles
+        if (method_exists($user, 'hasRole')) {
+            foreach ($roles as $role) {
+                if ($user->hasRole($role)) {
+                    return $next($request);
+                }
+            }
+        }
+
+        return response()->json([
+            'message'   => 'Akses ditolak. Peranan anda tidak mempunyai kebenaran untuk tindakan ini.',
+            'your_role' => $user->role,
+            'required'  => $roles,
+        ], 403);
     }
 }

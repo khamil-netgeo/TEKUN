@@ -5,33 +5,40 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
-    /**
-     * Track if module migrations have been run in this test process.
-     * We use a static flag so we only run them once per test process.
-     */
-    private static bool $moduleMigrationsApplied = false;
+    private static bool $modulesMigrated = false;
+    private static bool $rolesSeeded = false;
 
     protected function setUp(): void
     {
-        parent::setUp(); // This calls RefreshDatabase which runs migrate:fresh
+        parent::setUp(); // This calls RefreshDatabase which runs migrate:fresh (once)
 
-        // After RefreshDatabase, apply module migrations if not yet done
-        if (!self::$moduleMigrationsApplied) {
-            $this->applyModuleMigrations();
-            self::$moduleMigrationsApplied = true;
+        // Run module migrations once per test process
+        if (!self::$modulesMigrated) {
+            $this->runModuleMigrations();
+            self::$modulesMigrated = true;
+        }
+
+        // Seed roles if not present (inside transaction, so available to test)
+        try {
+            if (\Spatie\Permission\Models\Role::count() === 0) {
+                $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\CoreRolesOnlySeeder']);
+            }
+        } catch (\Throwable $e) {
+            // Ignore
         }
     }
 
     /**
-     * Reset the flag when the database is refreshed (new test class).
+     * Reset flags when the application is refreshed (new test process).
      */
     protected function refreshApplication(): void
     {
-        self::$moduleMigrationsApplied = false;
         parent::refreshApplication();
+        self::$modulesMigrated = false;
+        self::$rolesSeeded = false;
     }
 
-    private function applyModuleMigrations(): void
+    private function runModuleMigrations(): void
     {
         $modulesPath = app_path('Modules');
         if (!is_dir($modulesPath)) return;
@@ -43,7 +50,7 @@ abstract class TestCase extends BaseTestCase
                     '--force' => true,
                 ]);
             } catch (\Throwable $e) {
-                // Ignore errors
+                // Ignore errors (e.g., column already exists)
             }
         }
     }
