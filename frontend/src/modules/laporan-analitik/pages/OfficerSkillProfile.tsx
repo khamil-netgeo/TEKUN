@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { Brain, User, CheckCircle, AlertTriangle, HelpCircle, Save, RefreshCw, Clock, TrendingUp } from 'lucide-react';
 import { AiBadge, PageHeader, StatCard, LoadingSpinner, toast } from '@/components/ui';
@@ -42,6 +43,7 @@ interface AiDecision {
   confidence_score: number;
   reasoning_bm: string;
   factors: Array<{ factor: string; weight: string; impact: string }>;
+  officer_persona_match?: string;
   created_at: string;
 }
 
@@ -52,7 +54,7 @@ const REC_COLOUR: Record<string, string> = {
   KUARI: '#E65100',
 };
 
-const REC_ICON: Record<string, JSX.Element> = {
+const REC_ICON: Record<string, React.ReactElement> = {
   LULUS: <CheckCircle size={14} />,
   TOLAK: <AlertTriangle size={14} />,
   KUARI: <HelpCircle size={14} />,
@@ -76,7 +78,7 @@ export default function OfficerSkillProfile() {
   const [caseRef,     setCaseRef]     = useState('');
   const [contextSumm, setContextSumm] = useState('');
   const [assisting,   setAssisting]   = useState(false);
-  const [lastDecision, setLastDecision] = useState<Record<string, unknown> | null>(null);
+  const [lastDecision, setLastDecision] = useState<AiDecision | null>(null);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -400,26 +402,26 @@ export default function OfficerSkillProfile() {
             {!assisting && lastDecision && (
               <div className="space-y-4">
                 {/* Recommendation Badge */}
-                <div className="rounded-xl p-4 text-white" style={{ background: REC_COLOUR[lastDecision.recommendation as string] ?? '#1B2B5E' }}>
+                <div className="rounded-xl p-4 text-white" style={{ background: REC_COLOUR[lastDecision.ai_recommendation] ?? '#1B2B5E' }}>
                   <div className="flex items-center gap-2 mb-1">
-                    {REC_ICON[lastDecision.recommendation as string]}
-                    <span className="text-lg font-bold">{lastDecision.recommendation as string}</span>
+                    {REC_ICON[lastDecision.ai_recommendation]}
+                    <span className="text-lg font-bold">{lastDecision.ai_recommendation}</span>
                   </div>
-                  <p className="text-sm opacity-90">Keyakinan: {lastDecision.confidence_score as number}%</p>
+                  <p className="text-sm opacity-90">Keyakinan: {lastDecision.confidence_score}%</p>
                 </div>
 
                 {/* Reasoning */}
                 <div>
                   <p className="text-xs font-semibold text-gray-600 mb-1">Penjelasan AI</p>
-                  <p className="text-sm text-gray-700">{lastDecision.reasoning_bm as string}</p>
+                  <p className="text-sm text-gray-700">{lastDecision.reasoning_bm}</p>
                 </div>
 
                 {/* Factors */}
-                {Array.isArray(lastDecision.factors) && (lastDecision.factors as Array<{ factor: string; weight: string; impact: string }>).length > 0 && (
+                {Array.isArray(lastDecision.factors) && (lastDecision.factors).length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-gray-600 mb-2">Faktor Utama</p>
                     <div className="space-y-2">
-                      {(lastDecision.factors as Array<{ factor: string; weight: string; impact: string }>).map((f, i) => (
+                      {(lastDecision.factors).map((f, i) => (
                         <div key={i} className="flex items-center justify-between text-xs p-2 rounded-lg bg-gray-50">
                           <span className="text-gray-700">{f.factor}</span>
                           <div className="flex items-center gap-2">

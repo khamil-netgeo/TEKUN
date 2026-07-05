@@ -168,7 +168,8 @@
     "paymentChannels": "Saluran Pembayaran",
     "moratorium": "Moratorium / Penstrukturan Semula",
     "tawidh": "Pengiraan Ta'widh",
-    "statement": "Penyata Akaun"
+    "statement": "Penyata Akaun",
+    "accountList": "Senarai Akaun"
   },
   "module5": {
     "title": "Modul 5: Pemantauan & Kutipan Hutang",

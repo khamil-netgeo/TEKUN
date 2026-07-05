@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, FileText, Search, AlertCircle, ExternalLink } from 'lucide-react';
-import { AiBadge } from '@/components/ui/AiBadge';
+import AiBadge from '@/components/ui/AiBadge';
 import toast from 'react-hot-toast';
 import api from '@/services/api';
 
@@ -77,7 +77,7 @@ export default function PreAssessment() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold text-purple-900">OCR & Pengecaman Dokumen AI</h3>
-              <AiBadge>Auto-Semak</AiBadge>
+              <AiBadge label="Auto-Semak" />
             </div>
             <p className="text-sm text-purple-800">
               Sistem AI telah mengimbas dokumen yang dimuat naik. Semua dokumen didapati jelas dan boleh dibaca. Sila buat pengesahan visual terakhir.

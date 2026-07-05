@@ -93,7 +93,7 @@ export default function DunningWorkflow() {
     }
   };
 
-  const columns: Column<DunningRecord>[] = [
+  const columns: Column<any>[] = [
     {
       key: 'account_no',
       header: 'No. Akaun',
@@ -202,11 +202,11 @@ export default function DunningWorkflow() {
           </div>
         </div>
       </div>
-      <DataTable<DunningRecord>
+      <DataTable<any>
         columns={columns}
-        data={data}
+        data={data as any[]}
         loading={loading}
-        rowKey={(row) => row.id}
+        rowKey={(row: any) => row.id}
         emptyMessage="Tiada rekod dunning ditemui."
       />
     </div>

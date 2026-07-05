@@ -153,7 +153,7 @@ export default function CreditScoring() {
           </p>
         </div>
         <div className="ml-auto">
-          <AiBadge>Dikuasakan oleh SPPT AI</AiBadge>
+          <AiBadge label="Dikuasakan oleh SPPT AI" />
         </div>
       </div>
 
@@ -258,7 +258,7 @@ export default function CreditScoring() {
                 <Activity className="w-5 h-5 text-purple-600" />
                 <h2 className="text-base font-semibold text-[#1B2B5E]">Jadual Penentu Skor</h2>
               </div>
-              <AiBadge>Analisis SPPT AI</AiBadge>
+              <AiBadge label="Analisis SPPT AI" />
             </div>
             {explainRows.length > 0 ? (
               <div className="overflow-x-auto">
@@ -310,7 +310,7 @@ export default function CreditScoring() {
                 <Shield className="w-5 h-5 text-purple-700" />
                 <h2 className="text-base font-semibold text-purple-900">Ulasan & Naratif SPPT AI</h2>
               </div>
-              <AiBadge>Generatif SPPT AI</AiBadge>
+              <AiBadge label="Generatif SPPT AI" />
             </div>
             <div className="bg-white p-4 rounded-lg border border-purple-100 text-gray-700 leading-relaxed text-sm">
               {assessment.narrative || 'Tiada naratif tersedia.'}

@@ -314,7 +314,7 @@ export default function EntrepreneurProfile() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                       <XAxis dataKey="period" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `RM${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip formatter={(v: number) => `RM ${v.toLocaleString('ms-MY')}`} />
+                      <Tooltip formatter={((v: number) => `RM ${v.toLocaleString('ms-MY')}`) as any} />
                       <Legend />
                       <Area type="monotone" dataKey="revenue"  stroke="#2E7D32" fill="url(#revGradP)" strokeWidth={2} name="Pendapatan" />
                       <Area type="monotone" dataKey="expenses" stroke="#E65100" fill="url(#expGradP)" strokeWidth={2} name="Perbelanjaan" />
@@ -331,7 +331,7 @@ export default function EntrepreneurProfile() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                       <XAxis dataKey="period" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `RM${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip formatter={(v: number) => `RM ${v.toLocaleString('ms-MY')}`} />
+                      <Tooltip formatter={((v: number) => `RM ${v.toLocaleString('ms-MY')}`) as any} />
                       <Line type="monotone" dataKey="profit" stroke="#673AB7" strokeWidth={2} dot={{ fill: '#673AB7', r: 3 }} name="Keuntungan" />
                     </LineChart>
                   </ResponsiveContainer>

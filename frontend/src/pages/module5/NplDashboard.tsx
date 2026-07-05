@@ -83,8 +83,8 @@ export default function NplDashboard() {
               <BarChart data={categories} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip formatter={(val: number, name: string) =>
-                  name === 'count' ? [val, 'Bilangan'] : [fmt(val), 'Nilai (RM)']} />
+                <Tooltip formatter={(value: any, name: any) =>
+                  name === 'count' ? [value, 'Bilangan'] : [fmt(value as number), 'Nilai (RM)']} />
                 <Bar dataKey="count" name="count" radius={[4, 4, 0, 0]}>
                   {categories.map((_: unknown, i: number) => (
                     <Cell key={i} fill={CAT_COLOURS[i % CAT_COLOURS.length]} />

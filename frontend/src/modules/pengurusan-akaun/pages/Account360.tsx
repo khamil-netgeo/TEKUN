@@ -177,7 +177,10 @@ export default function Account360() {
   const [error,   setError]     = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      navigate('/akaun');
+      return;
+    }
     setLoading(true);
     api.get(`/accounts/${id}`)
       .then(r => setAccount(r.data?.data ?? r.data))

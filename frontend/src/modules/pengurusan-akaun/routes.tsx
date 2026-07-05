@@ -10,6 +10,7 @@
 import React, { lazy } from 'react';
 import type { RouteObject } from 'react-router-dom';
 
+const AccountList      = lazy(() => import('./pages/AccountList'));
 const Account360       = lazy(() => import('./pages/Account360'));
 const PaymentChannels  = lazy(() => import('./pages/PaymentChannels'));
 const TawidhCalculator = lazy(() => import('./pages/TawidhCalculator'));
@@ -17,8 +18,9 @@ const Moratorium       = lazy(() => import('./pages/Moratorium'));
 
 const routes: RouteObject[] = [
   {
+    // Index: senarai semua akaun
     path: '/akaun',
-    element: React.createElement(Account360),
+    element: React.createElement(AccountList),
   },
   {
     path: '/akaun/:id',

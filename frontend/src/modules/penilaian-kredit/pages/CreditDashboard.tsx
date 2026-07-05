@@ -5,11 +5,12 @@ import {
   FileText, CheckCircle, AlertTriangle, Clock,
   Search, Filter, Eye, Activity, TrendingUp
 } from 'lucide-react';
-import { StatCard } from '@/components/ui/StatCard';
-import { DataTable } from '@/components/ui/DataTable';
-import { AiBadge } from '@/components/ui/AiBadge';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { creditService, DashboardStats } from '../services/creditService';
+import StatCard from '@/components/ui/StatCard';
+import DataTable from '@/components/ui/DataTable';
+import AiBadge from '@/components/ui/AiBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { creditService } from '../services/creditService';
+import type { DashboardStats } from '../services/creditService';
 import toast from 'react-hot-toast';
 
 export default function CreditDashboard() {
@@ -54,19 +55,19 @@ export default function CreditDashboard() {
   const columns = [
     {
       header: 'No. Rujukan',
-      accessor: 'ref_no',
-      cell: (row: any) => <span className="font-medium text-[#1B2B5E]">{row.ref_no}</span>
+      key: 'ref_no',
+      render: (row: any) => <span className="font-medium text-[#1B2B5E]">{row.ref_no}</span>
     },
-    { header: 'Nama Pemohon', accessor: 'applicant_name' },
+    { header: 'Nama Pemohon', key: 'applicant_name' },
     {
       header: 'Amaun (RM)',
-      accessor: 'amount_requested',
-      cell: (row: any) => new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(row.amount_requested)
+      key: 'amount_requested',
+      render: (row: any) => new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(row.amount_requested)
     },
     {
       header: 'Skim',
-      accessor: 'scheme',
-      cell: (row: any) => (
+      key: 'scheme',
+      render: (row: any) => (
         <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
           {row.scheme || '—'}
         </span>
@@ -74,8 +75,8 @@ export default function CreditDashboard() {
     },
     {
       header: 'Status',
-      accessor: 'status',
-      cell: (row: any) => (
+      key: 'status',
+      render: (row: any) => (
         <span className={`px-2 py-1 rounded text-xs font-medium ${
           row.status === 'pending_assessment' ? 'bg-orange-50 text-orange-700' :
           row.status === 'approved' ? 'bg-green-50 text-green-700' :
@@ -88,8 +89,8 @@ export default function CreditDashboard() {
     },
     {
       header: 'Tindakan',
-      accessor: 'id',
-      cell: (row: any) => (
+      key: 'id',
+      render: (row: any) => (
         <button
           onClick={() => navigate(`/penilaian-kredit/scoring/${row.id}`)}
           className="flex items-center gap-1 px-3 py-1.5 bg-[#1B2B5E] text-white rounded-lg text-xs font-medium hover:bg-blue-900 transition-colors"
@@ -114,7 +115,7 @@ export default function CreditDashboard() {
           <h1 className="text-2xl font-bold text-[#1B2B5E]">Papan Pemuka Penilaian Kredit</h1>
           <p className="text-gray-500 text-sm mt-1">Urus dan nilai permohonan pembiayaan yang ditugaskan</p>
         </div>
-        <AiBadge>Dikuasakan oleh SPPT AI</AiBadge>
+        <AiBadge label="Dikuasakan oleh SPPT AI" />
       </div>
 
       {/* KPI Stats — from real DB */}
@@ -133,7 +134,7 @@ export default function CreditDashboard() {
             title="Menunggu Penilaian"
             value={(stats?.pending_assessment ?? applications.length).toString()}
             icon={<FileText className="w-5 h-5 text-blue-600" />}
-            trend={{ value: 12, isPositive: true }}
+            trend={12}
           />
           <StatCard
             title="Purata Skor Kredit"
@@ -161,7 +162,7 @@ export default function CreditDashboard() {
               <TrendingUp className="w-4 h-4 text-purple-600" />
               Taburan Gred Kredit
             </h2>
-            <AiBadge>Analisis SPPT AI</AiBadge>
+            <AiBadge label="Analisis SPPT AI" />
           </div>
           <div className="flex gap-3 flex-wrap">
             {Object.entries(stats.grade_distribution).map(([grade, count]) => (

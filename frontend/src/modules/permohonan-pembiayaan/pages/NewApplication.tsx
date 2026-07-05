@@ -1,7 +1,8 @@
+import { toast, ToastContainer } from '@/components/ui/Toast';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { PageHeader, LoadingSpinner, Toast } from '@/components/ui';
+import { PageHeader, LoadingSpinner,  } from '@/components/ui';
 import AiBadge from '@/components/ui/AiBadge';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -132,7 +133,7 @@ export default function NewApplication() {
         subtitle={isBM ? 'Isi borang permohonan pembiayaan' : 'Fill in the financing application form'}
         breadcrumbs={[{ label: isBM ? 'Permohonan' : 'Applications', href: '/permohonan' }, { label: isBM ? 'Permohonan Baharu' : 'New Application' }]}
       />
-      {error && <Toast type="error" message={error} onClose={() => setError(null)} />}
+      <ToastContainer />
       {ocrData && !ocrApplied && (
         <div className="mx-6 mt-4 p-4 rounded-lg border-2 border-purple-200 bg-purple-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -150,7 +151,7 @@ export default function NewApplication() {
       )}
       {ocrApplied && (
         <div className="mx-6 mt-4 p-3 rounded-lg bg-green-50 border border-green-200 flex items-center gap-2">
-          <AiBadge label={isBM ? 'Auto-isi berjaya' : 'Auto-fill applied'} variant="success" />
+          <AiBadge label={isBM ? 'Auto-isi berjaya' : 'Auto-fill applied'} variant="filled" />
           <p className="text-sm text-green-700">{isBM ? 'Medan borang telah diisi dari data OCR. Sila semak sebelum menghantar.' : 'Form fields filled from OCR data. Please review before submitting.'}</p>
         </div>
       )}

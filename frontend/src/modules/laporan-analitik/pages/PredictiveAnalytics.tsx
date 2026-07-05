@@ -148,7 +148,7 @@ export default function PredictiveAnalytics() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
             <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Tooltip formatter={(v: number, name: string) => [`RM ${v}J`, name === 'disbursement' ? 'Agihan' : name]} />
+            <Tooltip formatter={((v: number, name: string) => [`RM ${v}`, name === 'disbursement' ? 'Agihan' : name]) as any} />
             <ReferenceLine x="Jul" stroke="#9CA3AF" strokeDasharray="4 4" label={{ value: 'Sekarang', position: 'top', fontSize: 10, fill: '#9CA3AF' }} />
             <Bar dataKey="disbursement" name="Agihan" radius={[4, 4, 0, 0]}>
               {chartData.map((entry, i) => (
@@ -168,7 +168,7 @@ export default function PredictiveAnalytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 4]} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v: number) => [`${v}%`, 'NPL']} />
+              <Tooltip formatter={((v: number) => [`${v}%`, 'NPL']) as any} />
               <ReferenceLine x="Jul" stroke="#9CA3AF" strokeDasharray="4 4" />
               <Line type="monotone" dataKey="npl_forecast" stroke={ORANGE} strokeWidth={2} dot={{ r: 3 }} strokeDasharray="0" />
             </ComposedChart>
@@ -182,7 +182,7 @@ export default function PredictiveAnalytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis domain={[60, 100]} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v: number) => [`${v}%`, 'Kutipan']} />
+              <Tooltip formatter={((v: number) => [`${v}%`, 'Kutipan']) as any} />
               <ReferenceLine x="Jul" stroke="#9CA3AF" strokeDasharray="4 4" />
               <Line type="monotone" dataKey="collection_forecast" stroke={GREEN} strokeWidth={2} dot={{ r: 3 }} />
             </ComposedChart>

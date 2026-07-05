@@ -168,7 +168,8 @@
     "paymentChannels": "Payment Channels",
     "moratorium": "Moratorium / Restructuring",
     "tawidh": "Ta'widh Calculation",
-    "statement": "Account Statement"
+    "statement": "Account Statement",
+    "accountList": "Account List"
   },
   "module5": {
     "title": "Module 5: Monitoring & Debt Collection",

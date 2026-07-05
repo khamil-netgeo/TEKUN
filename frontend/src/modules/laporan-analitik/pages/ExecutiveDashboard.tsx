@@ -6,11 +6,11 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, Brain, ChevronRight } from "lucide-react";
-import { StatCard } from "@/components/ui/StatCard";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { Toast } from "@/components/ui/Toast";
-import { AiBadge } from "@/components/ui/AiBadge";
+import StatCard from "@/components/ui/StatCard";
+import PageHeader from "@/components/ui/PageHeader";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { toast, ToastContainer } from "@/components/ui/Toast";
+import AiBadge from "@/components/ui/AiBadge";
 import api from "@/services/api";
 
 interface KpiData {
@@ -112,7 +112,7 @@ export default function ExecutiveDashboard() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <ToastContainer />}
 
       <div className="flex items-center justify-between">
         <PageHeader
@@ -141,14 +141,10 @@ export default function ExecutiveDashboard() {
 
       {kpi && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard title="Jumlah Portfolio" value={formatRM(kpi.total_portfolio)}
-            change={kpi.total_portfolio_change} icon={<TrendingUp size={20} />} color={NAVY} />
-          <StatCard title="Kadar Kelulusan" value={`${kpi.approval_rate.toFixed(1)}%`}
-            change={kpi.approval_rate_change} icon={<TrendingUp size={20} />} color={GREEN} />
-          <StatCard title="Nisbah NPL" value={`${kpi.npl_ratio.toFixed(2)}%`}
-            change={kpi.npl_ratio_change} changeInverted icon={<TrendingDown size={20} />} color={RED} />
-          <StatCard title="Jumlah Pengeluaran" value={formatRM(kpi.disbursement_volume)}
-            change={kpi.disbursement_change} icon={<TrendingUp size={20} />} color={ORANGE} />
+          <StatCard title="Jumlah Portfolio" value={formatRM(kpi.total_portfolio)} icon={<TrendingUp size={20} />} colour="navy" />
+          <StatCard title="Kadar Kelulusan" value={`${kpi.approval_rate.toFixed(1)}%`} icon={<TrendingUp size={20} />} colour="green" />
+          <StatCard title="Nisbah NPL" value={`${kpi.npl_ratio.toFixed(2)}%`} icon={<TrendingDown size={20} />} colour="orange" />
+          <StatCard title="Jumlah Pengeluaran" value={formatRM(kpi.disbursement_volume)} icon={<TrendingUp size={20} />} colour="orange" />
         </div>
       )}
 
@@ -166,7 +162,7 @@ export default function ExecutiveDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="period" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}K`} />
-              <Tooltip formatter={(v: number) => formatRM(v)} />
+              <Tooltip formatter={(((v: number) => formatRM(v)) as any) as any} />
               <Area type="monotone" dataKey="disbursements" stroke={NAVY} fill="url(#disbGrad)"
                 strokeWidth={2} name="Pengeluaran" />
             </AreaChart>
@@ -194,7 +190,7 @@ export default function ExecutiveDashboard() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="period" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatRM(v)} />
-            <Tooltip formatter={(v: number) => formatRM(v)} />
+            <Tooltip formatter={(((v: number) => formatRM(v)) as any) as any} />
             <Bar dataKey="npl_amount" fill={RED} name="Jumlah NPL" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

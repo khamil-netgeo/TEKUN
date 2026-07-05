@@ -1,8 +1,9 @@
+import { toast, ToastContainer } from '@/components/ui/Toast';
 import React, { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { Upload, CheckCircle, Clock, Eye, FileText, AlertTriangle, Loader2 } from 'lucide-react';
-import { PageHeader, LoadingSpinner, Toast } from '@/components/ui';
+import { PageHeader, LoadingSpinner, } from '@/components/ui';
 import AiBadge from '@/components/ui/AiBadge';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
@@ -129,8 +130,8 @@ export default function DocumentUpload() {
           <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${(uploadedCount / docs.length) * 100}%`, backgroundColor: allRequiredDone ? '#2E7D32' : '#E65100' }} />
         </div>
       </div>
-      {error && <Toast type="error" message={error} onClose={() => setError(null)} />}
-      {success && <Toast type="success" message={success} onClose={() => setSuccess(null)} />}
+      <ToastContainer />
+      <ToastContainer />
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT PANEL 40% */}
         <div className="w-2/5 border-r border-gray-200 overflow-y-auto bg-gray-50">
@@ -201,7 +202,7 @@ export default function DocumentUpload() {
                       ) : ocrResult ? (
                         <>
                           <div className="flex items-center gap-2 mb-3">
-                            <AiBadge label={`${isBM ? 'Keyakinan AI' : 'AI Confidence'}: ${ocrResult.confidence}%`} variant={ocrResult.confidence >= 90 ? 'success' : ocrResult.confidence >= 75 ? 'warning' : 'danger'} />
+                            <AiBadge label={`${isBM ? 'Keyakinan AI' : 'AI Confidence'}: ${ocrResult.confidence}%`} variant={ocrResult.confidence >= 90 ? 'filled' : ocrResult.confidence >= 75 ? 'outline' : 'gradient'} />
                             {ocrResult.confidence < 80 && <div className="flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="w-3 h-3" />{isBM ? 'Sila semak data yang diekstrak' : 'Please verify extracted data'}</div>}
                           </div>
                           <div className="grid grid-cols-2 gap-2">

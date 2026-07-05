@@ -71,8 +71,10 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module4',
     allowedRoles: ['usahawan', 'finance_officer', 'system_admin'],
     subItems: [
-      { path: '/akaun', labelKey: 'module4.account360' },
-      { path: '/akaun', labelKey: 'module4.paymentChannels' },
+      { path: '/akaun', labelKey: 'module4.accountList' },
+      { path: '/akaun/1/bayaran', labelKey: 'module4.paymentChannels' },
+      { path: '/akaun/1/tawidh', labelKey: 'module4.tawidh' },
+      { path: '/akaun/1/moratorium', labelKey: 'module4.moratorium' },
     ],
   },
   {

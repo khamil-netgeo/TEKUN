@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/store/authStore';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AiBadge from '@/components/ui/AiBadge';
@@ -14,8 +15,7 @@ interface AuditLog {
   auditable_type: string;
   auditable_id: number;
   ip_address: string | null;
-  severity: 'critical' | 'high' | 'medium' | 'info';
-  created_at: string;
+  severity: 'critical' | 'high' | 'medium' | 'info';  created_at?: string;
 }
 
 interface AuditStats {
@@ -76,7 +76,7 @@ const SeverityBadge: React.FC<{ severity: string }> = ({ severity }) => {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function AuditTrail() {
-  const { token } = useAuth();
+  const token = useAuthStore(s => s.token);
 
   // State
   const [logs, setLogs]             = useState<AuditLog[]>([]);
@@ -153,7 +153,7 @@ export default function AuditTrail() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: AnomalyResponse = await res.json();
       setAnomalies(data.anomalies);
-      setAnomalyMeta({ total: data.total, critical: data.critical, high: data.high, medium: data.medium, ai_model: data.ai_model, generated_at: (data as any).generated_at });
+      setAnomalyMeta({ total: data.total, critical: data.critical, high: data.high, medium: data.medium, ai_model: data.ai_model});
     } catch {
       // Anomaly fetch failure is non-critical
     } finally {
@@ -357,7 +357,7 @@ export default function AuditTrail() {
                           </td>
                           <td className="py-2 px-3 text-gray-500 font-mono text-xs">{log.ip_address ?? '-'}</td>
                           <td className="py-2 px-3 text-gray-500 text-xs">
-                            {new Date(log.created_at).toLocaleString('ms-MY')}
+                            {new Date(log.created_at ?? Date.now()).toLocaleString('ms-MY')}
                           </td>
                         </tr>
                       ))

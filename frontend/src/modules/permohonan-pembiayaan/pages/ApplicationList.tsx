@@ -1,7 +1,9 @@
+import { toast, ToastContainer } from '@/components/ui/Toast';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, RefreshCw, Search, Eye, FileText, Clock } from 'lucide-react';
-import { PageHeader, StatCard, DataTable, LoadingSpinner, Toast } from '@/components/ui';
+import { PageHeader, StatCard, DataTable, LoadingSpinner } from '@/components/ui';
+import type { Column } from '@/components/ui';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { ms } from 'date-fns/locale';
@@ -87,17 +89,17 @@ export default function ApplicationList() {
   useEffect(() => { loadApplications(); }, [loadApplications]);
 
   const columns = [
-    { key: 'ref_no', label: isBM ? 'No. Rujukan' : 'Reference No.', render: (val: string) => <span className="font-mono text-xs font-semibold text-[#1B2B5E]">{val}</span> },
+    { key: 'ref_no', label: isBM ? 'No. Rujukan' : 'Reference No.', render: (row: any) => <span className="font-mono text-xs font-semibold text-[#1B2B5E]">{row.ref_no}</span> },
     { key: 'applicant_name', label: isBM ? 'Nama Pemohon' : 'Applicant' },
-    { key: 'scheme', label: isBM ? 'Skim' : 'Scheme', render: (val: string) => <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{val}</span> },
-    { key: 'amount_requested', label: isBM ? 'Jumlah (RM)' : 'Amount (RM)', render: (val: number) => <span className="font-semibold">RM {Number(val).toLocaleString()}</span> },
-    { key: 'status', label: 'Status', render: (val: string) => <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[val] || 'bg-gray-100 text-gray-700'}`}>{isBM ? (STATUS_LABELS_BM[val] || val) : val}</span> },
-    { key: 'created_at', label: isBM ? 'Tarikh Mohon' : 'Applied Date', render: (val: string) => val ? format(new Date(val), 'dd MMM yyyy', { locale: isBM ? ms : undefined }) : '-' },
-    { key: 'id', label: isBM ? 'Tindakan' : 'Actions', render: (val: number) => (
+    { key: 'scheme', label: isBM ? 'Skim' : 'Scheme', render: (row: any) => <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{row.scheme}</span> },
+    { key: 'amount_requested', label: isBM ? 'Jumlah (RM)' : 'Amount (RM)', render: (row: any) => <span className="font-semibold">RM {Number(row.amount_requested).toLocaleString()}</span> },
+    { key: 'status', label: 'Status', render: (row: any) => <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[row.status] || 'bg-gray-100 text-gray-700'}`}>{isBM ? (STATUS_LABELS_BM[row.status] || row.status) : row.status}</span> },
+    { key: 'created_at', label: isBM ? 'Tarikh Mohon' : 'Applied Date', render: (row: any) => row.created_at ? format(new Date(row.created_at), 'dd MMM yyyy', { locale: isBM ? ms : undefined }) : '-' },
+    { key: 'id', label: isBM ? 'Tindakan' : 'Actions', render: (row: any) => (
       <div className="flex items-center gap-2">
-        <button onClick={() => navigate(`/permohonan/${val}`)} className="p-1.5 text-gray-500 hover:text-[#1B2B5E] hover:bg-blue-50 rounded" title={isBM ? 'Lihat' : 'View'}><Eye className="w-4 h-4" /></button>
-        <button onClick={() => navigate(`/permohonan/${val}/dokumen`)} className="p-1.5 text-gray-500 hover:text-[#E65100] hover:bg-orange-50 rounded" title={isBM ? 'Dokumen' : 'Documents'}><FileText className="w-4 h-4" /></button>
-        <button onClick={() => navigate(`/permohonan/${val}/timeline`)} className="p-1.5 text-gray-500 hover:text-[#2E7D32] hover:bg-green-50 rounded" title={isBM ? 'Penjejak' : 'Timeline'}><Clock className="w-4 h-4" /></button>
+        <button onClick={() => navigate(`/permohonan/${row.id}`)} className="p-1.5 text-gray-500 hover:text-[#1B2B5E] hover:bg-blue-50 rounded" title={isBM ? 'Lihat' : 'View'}><Eye className="w-4 h-4" /></button>
+        <button onClick={() => navigate(`/permohonan/${row.id}/dokumen`)} className="p-1.5 text-gray-500 hover:text-[#E65100] hover:bg-orange-50 rounded" title={isBM ? 'Dokumen' : 'Documents'}><FileText className="w-4 h-4" /></button>
+        <button onClick={() => navigate(`/permohonan/${row.id}/timeline`)} className="p-1.5 text-gray-500 hover:text-[#2E7D32] hover:bg-green-50 rounded" title={isBM ? 'Penjejak' : 'Timeline'}><Clock className="w-4 h-4" /></button>
       </div>
     )},
   ];
@@ -114,12 +116,12 @@ export default function ApplicationList() {
           </button>
         }
       />
-      {error && <Toast type="error" message={error} onClose={() => setError(null)} />}
+      <ToastContainer />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 py-4">
-        <StatCard title={isBM ? 'Jumlah Permohonan' : 'Total Applications'} value={stats.total} icon={<FileText className="w-5 h-5" />} color="navy" />
-        <StatCard title={isBM ? 'Dalam Proses' : 'In Progress'} value={stats.pending} icon={<Clock className="w-5 h-5" />} color="orange" />
-        <StatCard title={isBM ? 'Diluluskan' : 'Approved'} value={stats.approved} icon={<FileText className="w-5 h-5" />} color="green" />
-        <StatCard title={isBM ? 'Ditolak' : 'Rejected'} value={stats.rejected} icon={<FileText className="w-5 h-5" />} color="red" />
+        <StatCard title={isBM ? 'Jumlah Permohonan' : 'Total Applications'} value={stats.total} icon={<FileText className="w-5 h-5" />} />
+        <StatCard title={isBM ? 'Dalam Proses' : 'In Progress'} value={stats.pending} icon={<Clock className="w-5 h-5" />} />
+        <StatCard title={isBM ? 'Diluluskan' : 'Approved'} value={stats.approved} icon={<FileText className="w-5 h-5" />} />
+        <StatCard title={isBM ? 'Ditolak' : 'Rejected'} value={stats.rejected} icon={<FileText className="w-5 h-5" />} />
       </div>
       <div className="px-6 pb-4 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -135,7 +137,7 @@ export default function ApplicationList() {
         </button>
       </div>
       <div className="px-6 pb-6">
-        {loading ? <LoadingSpinner /> : <DataTable columns={columns} data={applications} emptyMessage={isBM ? 'Tiada permohonan ditemui' : 'No applications found'} page={page} totalPages={totalPages} onPageChange={setPage} />}
+        {loading ? <LoadingSpinner /> : <DataTable columns={columns as unknown as Column<Record<string, unknown>>[]} data={applications as unknown as Record<string, unknown>[]} emptyMessage={isBM ? 'Tiada permohonan ditemui' : 'No applications found'} pagination={{ page, perPage: 10, total: totalPages * 10, onPageChange: setPage }} />}
       </div>
     </div>
   );

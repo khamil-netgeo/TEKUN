@@ -43,7 +43,8 @@ interface OutcomeFormProps {
 }
 
 function OutcomeForm({ task, onClose, onSaved }: OutcomeFormProps) {
-  const { log, loading } = useLogOutcome();
+  const { log } = useLogOutcome();
+  const [loading, setLoading] = useState(false);
   const [outcome, setOutcome] = useState('');
   const [notes, setNotes] = useState('');
   const [followUpDays, setFollowUpDays] = useState(7);
@@ -204,7 +205,7 @@ export default function CollectionTaskQueue() {
                           RM {Number(task.arrears_amount).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
                         </span>
                         <span className="flex items-center gap-1 text-purple-600">
-                          {CHANNEL_ICON[task.ai_suggested_channel] ?? <Phone className="w-3 h-3" />}
+                          {CHANNEL_ICON[task.ai_suggested_channel ?? ""] ?? <Phone className="w-3 h-3" />}
                           AI: {task.ai_suggested_channel?.toUpperCase()}
                         </span>
                         <span className="flex items-center gap-1 text-blue-600">

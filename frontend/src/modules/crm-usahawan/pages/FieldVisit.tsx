@@ -365,7 +365,7 @@ export default function FieldVisitPage() {
           { label: 'Laporan SPPT AI', value: aiReportCount, colour: '#673AB7' },
         ].map(({ label, value, colour }) => (
           <div key={label} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-center">
-            <div className="text-2xl font-bold" style={{ colour }}>{value}</div>
+            <div className="text-2xl font-bold" style={{ color: colour }}>{value}</div>
             <div className="text-xs text-gray-500 mt-1">{label}</div>
           </div>
         ))}
