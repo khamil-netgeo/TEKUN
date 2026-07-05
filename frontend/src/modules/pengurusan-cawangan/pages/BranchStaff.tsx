@@ -1,7 +1,23 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Search, Users } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import DataTable from '@/components/ui/DataTable';
+import type { Column } from '@/components/ui/DataTable';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import toast from '@/components/ui/Toast';
 import branchService from '../services/branchService';
-import type { BranchStaffResponse } from '../services/branchService';
+import type { StaffMember, Branch } from '../services/branchService';
+
+type StaffRow = StaffMember & Record<string, unknown>;
+
+const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  branch_manager: { bg: '#E8EAF6', text: '#3949AB' },
+  branch_officer: { bg: '#E3F2FD', text: '#1565C0' },
+  credit_officer: { bg: '#E8F5E9', text: '#2E7D32' },
+  executive: { bg: '#FFF3E0', text: '#E65100' },
+  system_admin: { bg: '#FCE4EC', text: '#C62828' },
+};
 
 const ROLE_LABELS: Record<string, string> = {
   branch_manager: 'Pengurus Cawangan',
@@ -11,88 +27,103 @@ const ROLE_LABELS: Record<string, string> = {
   system_admin: 'Pentadbir Sistem',
 };
 
-export default function BranchStaff() {
+const BranchStaff: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [data, setData] = useState<BranchStaffResponse | null>(null);
+  const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [branchInfo, setBranchInfo] = useState<Branch | null>(null);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
+  const fetchStaff = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    branchService.staff(Number(id))
-      .then(res => setData(res.data))
-      .catch(() => setError('Gagal memuatkan senarai kakitangan.'))
-      .finally(() => setLoading(false));
+    try {
+      const res = await branchService.getBranchStaff(Number(id));
+      setStaff((res.data ?? []) as StaffRow[]);
+      setBranchInfo(res.branch ?? null);
+      setTotal(res.total ?? 0);
+    } catch { toast.error('Gagal memuatkan senarai kakitangan.'); }
+    finally { setLoading(false); }
   }, [id]);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2B5E]" /></div>;
-  if (error || !data) return <div className="text-center py-12 text-red-600">{error || 'Data tidak dijumpai.'}</div>;
+  useEffect(() => { fetchStaff(); }, [fetchStaff]);
 
-  const filtered = data.staff.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.email.toLowerCase().includes(search.toLowerCase()) ||
-    (ROLE_LABELS[s.role] || s.role).toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = staff.filter(s => {
+    const name = (s.name as string).toLowerCase();
+    const email = (s.email as string).toLowerCase();
+    const role = s.role as string;
+    const roleLabel = (ROLE_LABELS[role] || (s.role_label as string) || role).toLowerCase();
+    const q = search.toLowerCase();
+    return name.includes(q) || email.includes(q) || roleLabel.includes(q);
+  });
+
+  const columns: Column<StaffRow>[] = [
+    {
+      key: 'name',
+      header: 'Nama',
+      render: (row) => (
+        <div>
+          <div className="font-semibold text-[#1B2B5E]">{row.name as string}</div>
+          <div className="text-xs text-gray-400">{row.email as string}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'role',
+      header: 'Jawatan',
+      render: (row) => {
+        const role = row.role as string;
+        const colors = ROLE_COLORS[role] ?? { bg: '#F5F5F5', text: '#616161' };
+        return (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: colors.bg, color: colors.text }}>
+            {ROLE_LABELS[role] || (row.role_label as string) || role}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'branch_code',
+      header: 'Kod Cawangan',
+      render: (row) => <span className="font-mono text-xs text-gray-500">{row.branch_code as string}</span>,
+    },
+    {
+      key: 'created_at',
+      header: 'Tarikh Daftar',
+      render: (row) => (
+        <span className="text-sm text-gray-500">
+          {new Date(row.created_at as string).toLocaleDateString('ms-MY', { year: 'numeric', month: 'short', day: 'numeric' })}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="text-[#1B2B5E] hover:underline text-sm">← Kembali</button>
-        <div>
-          <h1 className="text-2xl font-bold text-[#1B2B5E]">Kakitangan — {data.branch.name}</h1>
-          <p className="text-gray-500 text-sm">{data.branch.code} · {data.branch.state}</p>
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title={branchInfo ? `Kakitangan \u2014 ${branchInfo.name}` : 'Kakitangan Cawangan'}
+        subtitle={branchInfo ? `${branchInfo.code} \u00b7 ${branchInfo.state}` : ''}
+        action={
+          <div className="flex gap-2 items-center">
+            <span className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white" style={{ background: '#1B2B5E' }}>
+              <Users size={14} /> {total} kakitangan
+            </span>
+            <button onClick={() => navigate(-1)} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm transition-colors">
+              <ArrowLeft size={16} /> Kembali
+            </button>
+          </div>
+        }
+      />
+      <div className="bg-white rounded-xl border border-gray-100 p-4">
+        <div className="relative max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input type="text" placeholder="Cari nama, e-mel atau jawatan..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]/20" />
         </div>
-        <span className="ml-auto bg-[#1B2B5E] text-white px-3 py-1 rounded-full text-sm font-semibold">
-          {data.total} kakitangan
-        </span>
       </div>
-
-      {/* Search */}
-      <div className="bg-white rounded-xl shadow p-4 border border-gray-100">
-        <input
-          type="text"
-          placeholder="Cari nama, e-mel atau jawatan..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]"
-        />
-      </div>
-
-      {/* Staff Table */}
-      <div className="bg-white rounded-xl shadow border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-[#1B2B5E] text-white">
-            <tr>
-              <th className="px-4 py-3 text-left">Nama</th>
-              <th className="px-4 py-3 text-left">E-mel</th>
-              <th className="px-4 py-3 text-left">Jawatan</th>
-              <th className="px-4 py-3 text-left">Tarikh Daftar</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={4} className="text-center py-8 text-gray-400">Tiada kakitangan dijumpai.</td></tr>
-            ) : (
-              filtered.map((staff, idx) => (
-                <tr key={staff.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-4 py-3 font-medium text-[#1B2B5E]">{staff.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{staff.email}</td>
-                  <td className="px-4 py-3">
-                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
-                      {ROLE_LABELS[staff.role] || staff.role_label || staff.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{new Date(staff.created_at).toLocaleDateString('ms-MY')}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable columns={columns} data={filtered} loading={loading} emptyMessage="Tiada kakitangan dijumpai." />
     </div>
   );
-}
+};
+
+export default BranchStaff;

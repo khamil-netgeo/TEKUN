@@ -1,135 +1,170 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import { TrendingUp, TrendingDown, Minus, Trophy, RefreshCw, ArrowLeft } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import toast from '@/components/ui/Toast';
+import AiBadge from '@/components/ui/AiBadge';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import branchService from '../services/branchService';
-import type { PerformanceRankingResponse } from '../services/branchService';
+import type { BranchPerformanceItem } from '../services/branchService';
 
-export default function BranchPerformance() {
+const MEDAL: Record<number, string> = { 1: '\ud83e\udd47', 2: '\ud83e\udd48', 3: '\ud83e\udd49' };
+
+const BranchPerformance: React.FC = () => {
   const navigate = useNavigate();
-  const [data, setData] = useState<PerformanceRankingResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [branches, setBranches] = useState<BranchPerformanceItem[]>([]);
+  const [period, setPeriod] = useState('');
+  const [summary, setSummary] = useState({ avg_collection: 0, avg_npl: 0, total: 0 });
 
-  useEffect(() => {
+  const fetchPerformance = useCallback(async () => {
     setLoading(true);
-    branchService.performance(period)
-      .then(res => setData(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [period]);
+    try {
+      const res = await branchService.getPerformance();
+      setBranches(res.data ?? []);
+      setPeriod(res.period ?? '');
+      setSummary({ avg_collection: res.avg_collection_rate ?? 0, avg_npl: res.avg_npl_ratio ?? 0, total: res.total_branches ?? 0 });
+    } catch { toast.error('Ralat memuatkan data prestasi.'); }
+    finally { setLoading(false); }
+  }, []);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2B5E]" /></div>;
-  if (!data) return <div className="text-center py-12 text-red-600">Gagal memuatkan data prestasi.</div>;
+  useEffect(() => { fetchPerformance(); }, [fetchPerformance]);
 
-  const chartData = data.branches.slice(0, 10).map(b => ({
-    name: b.code,
-    kutipan: Number(b.collection_rate.toFixed(1)),
-    npl: Number(b.npl_ratio.toFixed(1)),
-    sasaran: Number(b.target.toFixed(1)),
-  }));
+  const getBarColor = (rank: number) => {
+    if (rank === 1) return '#FFD700';
+    if (rank === 2) return '#C0C0C0';
+    if (rank === 3) return '#CD7F32';
+    if (rank <= 5) return '#2E7D32';
+    if (rank <= 10) return '#1B2B5E';
+    return '#9E9E9E';
+  };
+
+  const getTrendIcon = (trend: string | undefined) => {
+    if (!trend) return <Minus size={14} className="text-gray-400" />;
+    if (trend.startsWith('+')) return <TrendingUp size={14} className="text-[#2E7D32]" />;
+    if (trend.startsWith('-')) return <TrendingDown size={14} className="text-[#C62828]" />;
+    return <Minus size={14} className="text-gray-400" />;
+  };
+
+  const getTrendColor = (trend: string | undefined) => {
+    if (!trend) return 'text-gray-500';
+    if (trend.startsWith('+')) return 'text-[#2E7D32]';
+    if (trend.startsWith('-')) return 'text-[#C62828]';
+    return 'text-gray-500';
+  };
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1B2B5E]">Prestasi Cawangan</h1>
-          <p className="text-gray-500 text-sm">Kedudukan dan perbandingan prestasi semua cawangan</p>
-        </div>
-        <div className="md:ml-auto flex items-center gap-3">
-          <label className="text-sm text-gray-600">Tempoh:</label>
-          <input
-            type="month"
-            value={period}
-            onChange={e => setPeriod(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]"
-          />
-        </div>
-      </div>
-
-      {/* Summary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {[
-          { label: 'Jumlah Cawangan', value: data.total_branches, color: 'text-[#1B2B5E]' },
-          { label: 'Purata Kadar Kutipan', value: `${data.avg_collection}%`, color: 'text-green-600' },
-          { label: 'Purata Nisbah NPL', value: `${data.avg_npl}%`, color: 'text-red-500' },
-        ].map(card => (
-          <div key={card.label} className="bg-white rounded-xl shadow p-4 border border-gray-100">
-            <p className="text-xs text-gray-500 mb-1">{card.label}</p>
-            <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Leaderboard Prestasi Cawangan"
+        subtitle={period ? `Tempoh: ${period}` : 'Ranking prestasi semua cawangan'}
+        action={
+          <div className="flex gap-2">
+            <button onClick={() => navigate('/pengurusan-cawangan')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 hover:bg-gray-50 transition-colors">
+              <ArrowLeft size={16} /> Kembali
+            </button>
+            <button onClick={fetchPerformance} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors" title="Muat Semula">
+              <RefreshCw size={16} className="text-gray-500" />
+            </button>
           </div>
-        ))}
-      </div>
-
-      {/* Bar Chart - Top 10 */}
-      <div className="bg-white rounded-xl shadow p-6 border border-gray-100">
-        <h2 className="text-lg font-semibold text-[#1B2B5E] mb-4">Kadar Kutipan — 10 Cawangan Teratas</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-            <YAxis domain={[80, 100]} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(value) => [`${Number(value)}%`]} />
-            <Legend />
-            <ReferenceLine y={95} stroke="#1B2B5E" strokeDasharray="5 5" label={{ value: 'Sasaran 95%', position: 'right', fontSize: 11 }} />
-            <Bar dataKey="kutipan" fill="#2E7D32" name="Kadar Kutipan %" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Ranking Table */}
-      <div className="bg-white rounded-xl shadow border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-[#1B2B5E]">Kedudukan Semua Cawangan</h2>
+        }
+      />
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
+          <div className="text-xs text-gray-500 mb-1">Jumlah Cawangan</div>
+          <div className="text-2xl font-bold text-[#1B2B5E]">{summary.total}</div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
-              <tr>
-                <th className="px-4 py-3 text-left">#</th>
-                <th className="px-4 py-3 text-left">Cawangan</th>
-                <th className="px-4 py-3 text-left">Negeri</th>
-                <th className="px-4 py-3 text-right">Kadar Kutipan</th>
-                <th className="px-4 py-3 text-right">Nisbah NPL</th>
-                <th className="px-4 py-3 text-right">Kakitangan</th>
-                <th className="px-4 py-3 text-center">Tindakan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.branches.map((branch, idx) => (
-                <tr key={branch.id} className={`border-b border-gray-50 ${idx < 3 ? 'bg-green-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                  <td className="px-4 py-3">
-                    <span className={`font-bold ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-gray-400' : idx === 2 ? 'text-amber-600' : 'text-gray-500'}`}>
-                      #{branch.rank}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-[#1B2B5E]">{branch.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{branch.state}</td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`font-semibold ${branch.collection_rate >= 95 ? 'text-green-600' : branch.collection_rate >= 90 ? 'text-yellow-600' : 'text-red-500'}`}>
-                      {branch.collection_rate.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`font-semibold ${branch.npl_ratio <= 4 ? 'text-green-600' : branch.npl_ratio <= 6 ? 'text-yellow-600' : 'text-red-500'}`}>
-                      {branch.npl_ratio.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-gray-600">{branch.staff_count}</td>
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => navigate(`/pengurusan-cawangan/${branch.id}`)}
-                      className="text-[#1B2B5E] hover:underline text-xs"
-                    >
-                      Butiran
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
+          <div className="text-xs text-gray-500 mb-1">Purata Kadar Kutipan</div>
+          <div className="text-2xl font-bold text-[#2E7D32]">{Number(summary.avg_collection).toFixed(1)}%</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
+          <div className="text-xs text-gray-500 mb-1">Purata Nisbah NPL</div>
+          <div className="text-2xl font-bold" style={{ color: Number(summary.avg_npl) > 5 ? '#C62828' : '#E65100' }}>
+            {Number(summary.avg_npl).toFixed(1)}%
+          </div>
         </div>
       </div>
+      {loading ? <LoadingSpinner /> : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <Trophy size={18} className="text-yellow-500" />
+              <h2 className="font-bold text-[#1B2B5E]">Ranking Cawangan</h2>
+              <AiBadge label="SPPT AI" size="sm" />
+            </div>
+            <div className="overflow-y-auto max-h-[520px]">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 w-12">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Cawangan</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">Skor</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500">Trend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {branches.map((b, idx) => {
+                    const rank = b.leaderboard_rank ?? (idx + 1);
+                    const isTop3 = rank <= 3;
+                    return (
+                      <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${isTop3 ? 'bg-yellow-50/40' : ''}`} onClick={() => navigate(`/pengurusan-cawangan/${b.id}`)}>
+                        <td className="px-4 py-3">
+                          {MEDAL[rank] !== undefined ? <span className="text-lg">{MEDAL[rank]}</span> : <span className="text-sm text-gray-500 font-bold">{rank}</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-[#1B2B5E]">{b.name}</div>
+                          <div className="text-xs text-gray-400">{b.state}</div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="font-bold text-[#1B2B5E]">{Number(b.collection_rate ?? 0).toFixed(1)}%</div>
+                          <div className="text-xs text-gray-400">NPL: {Number(b.npl_ratio ?? 0).toFixed(1)}%</div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className={`flex items-center justify-end gap-1 font-semibold text-xs ${getTrendColor(b.trend_label)}`}>
+                            {getTrendIcon(b.trend_label)}
+                            {b.trend_label ?? '\u2014'}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-100 p-5">
+            <h2 className="font-bold text-[#1B2B5E] mb-4">Perbandingan Kadar Kutipan (%)</h2>
+            <ResponsiveContainer width="100%" height={480}>
+              <BarChart
+                data={branches.slice(0, 16).map((b, idx) => ({ name: b.name.replace('Cawangan ', '').substring(0, 15), value: Number(b.collection_rate ?? 0), rank: b.leaderboard_rank ?? (idx + 1) }))}
+                layout="vertical"
+                margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: unknown) => [`${Number(v).toFixed(1)}%`, 'Kadar Kutipan']} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {branches.slice(0, 16).map((_b, idx) => (
+                    <Cell key={idx} fill={getBarColor(_b.leaderboard_rank ?? (idx + 1))} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-400 inline-block" /> Tempat 1</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-gray-400 inline-block" /> Tempat 2</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-600 inline-block" /> Tempat 3</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#2E7D32] inline-block" /> Tempat 4\u20135</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#1B2B5E] inline-block" /> Tempat 6\u201310</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default BranchPerformance;

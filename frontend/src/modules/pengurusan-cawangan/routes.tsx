@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { RouteObject } from 'react-router-dom';
+import type { RouteObject } from 'react-router-dom';
 
 const BranchManagement = lazy(() => import('./pages/BranchManagement'));
 const BranchDetail = lazy(() => import('./pages/BranchDetail'));
@@ -10,6 +10,7 @@ const routes: RouteObject[] = [
   { path: 'pengurusan-cawangan', element: <BranchManagement /> },
   { path: 'pengurusan-cawangan/prestasi', element: <BranchPerformance /> },
   { path: 'pengurusan-cawangan/:id', element: <BranchDetail /> },
+  { path: 'pengurusan-cawangan/:id/staf', element: <BranchStaff /> },
   { path: 'pengurusan-cawangan/:id/kakitangan', element: <BranchStaff /> },
 ];
 
