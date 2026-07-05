@@ -9,6 +9,39 @@ import PublicHeader from '@/components/PublicHeader';
 import api from '@/services/api';
 
 type Step = 'personal' | 'ekyc' | 'liveness' | 'complete';
+type EkycStatus = 'idle' | 'processing' | 'success' | 'failed';
+
+interface EkycResult {
+  is_mykad: boolean;
+  is_valid: boolean;
+  confidence: number;
+  rejection_reason: string | null;
+  rejection_code: string | null;
+  extracted_fields: {
+    name?: string | null;
+    ic_number?: string | null;
+    address?: string | null;
+    date_of_birth?: string | null;
+    gender?: string | null;
+    nationality?: string | null;
+  };
+  quality_score: number;
+  issues: string[];
+}
+
+interface FormData {
+  fullName: string;
+  ic: string;
+  phone: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  agreeTerms: boolean;
+}
+
+const INTEGRATIONS = ['e-Syariah', 'Muflis', 'SSM', 'CCRIS', 'CTOS', 'JPN/MyKad'];
+const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE_MB = 10;
 
 interface FormData {
   fullName: string;
@@ -67,7 +100,7 @@ export default function RegistrationEkyc() {
 
   const steps: { key: Step; label: string; num: number }[] = [
     { key: 'personal', label: 'Maklumat Peribadi', num: 1 },
-    { key: 'ekyc', label: 'Imbasan MyKad', num: 2 },
+    { key: 'ekyc', label: 'Muat Naik MyKad', num: 2 },
     { key: 'liveness', label: 'Pengesahan Wajah', num: 3 },
     { key: 'complete', label: 'Selesai', num: 4 },
   ];
