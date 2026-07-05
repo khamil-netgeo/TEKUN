@@ -1,274 +1,203 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '@/services/api';
+import PageHeader from '@/components/ui/PageHeader';
+import StatCard from '@/components/ui/StatCard';
+import AiBadge from '@/components/ui/AiBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { toast, ToastContainer } from '@/components/ui/Toast';
+import { useTranslation } from 'react-i18next';
+import {
+  DollarSign, AlertTriangle, Calculator, ArrowLeft, Info
+} from 'lucide-react';
 
-interface TawidhData {
-  account_no: string;
-  borrower_name: string;
-  arrears_amount: number;
+interface TawidhResult {
   arrears_days: number;
-  outstanding_balance: number;
-  tawidh: number;
-  amount: number;
-  formula: string;
-  bnm_rate: number;
-  rate_used: number;
-  max_cap: number;
-  capped: boolean;
-  shariah_compliant: boolean;
-  shariah_note: string;
+  arrears_amount: number;
+  tawidh_rate: number;
+  tawidh_amount: number;
+  total_payable: number;
+  calculation_date: string;
+  breakdown: { label: string; value: string }[];
+  ai_recommendation?: string;
 }
 
 export default function TawidhCalculator() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
-  const [data, setData] = useState<TawidhData | null>(null);
+  const [result,  setResult]  = useState<TawidhResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [generating, setGenerating] = useState(false);
-  const [noticeGenerated, setNoticeGenerated] = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    fetchTawidh(id);
-  }, [id]);
-
-  async function fetchTawidh(accountId: string) {
     setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get(`/accounts/${accountId}/tawidh`);
-      setData(res.data?.data ?? res.data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal memuatkan data Ta\'widh.';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }
+    api.get(`/accounts/${id}/tawidh`)
+      .then(r => setResult(r.data?.data ?? r.data))
+      .catch(() => setError(t('tawidh.load_error', "Gagal mengira Ta'widh")))
+      .finally(() => setLoading(false));
+  }, [id, t]);
 
-  async function handleGenerateNotice() {
-    if (!id) return;
-    setGenerating(true);
-    try {
-      await api.post(`/accounts/${id}/tawidh-notice`, {
-        tawidh: data?.amount ?? 0,
-        arrears_days: data?.arrears_days ?? 0,
-      });
-      setNoticeGenerated(true);
-    } catch {
-      // best-effort
-      setNoticeGenerated(true);
-    } finally {
-      setGenerating(false);
-    }
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <LoadingSpinner />
+    </div>
+  );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2B5E]" />
-        <span className="ml-3 text-gray-600">Mengira Ta&apos;widh...</span>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-700 font-medium">{error ?? 'Data tidak dijumpai.'}</p>
-          <button onClick={() => navigate(-1)} className="mt-3 text-sm text-blue-600 underline">← Kembali</button>
-        </div>
-      </div>
-    );
-  }
-
-  const tawidhAmount = Number(data.amount ?? data.tawidh ?? 0);
-  const arrearsAmount = Number(data.arrears_amount ?? 0);
-  const total = arrearsAmount + tawidhAmount;
-  const ratePercent = Number(data.rate_used ?? data.bnm_rate ?? 1);
-  const days = Number(data.arrears_days ?? 0);
+  if (error || !result) return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <AlertTriangle className="w-12 h-12 text-red-500" />
+      <p className="text-gray-600">{error ?? t('tawidh.no_data', 'Tiada data Ta\'widh')}</p>
+      <button onClick={() => navigate(-1)} className="text-[#1B2B5E] underline text-sm">
+        {t('common.back', 'Kembali')}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="space-y-4 p-4">
-      {/* Header */}
-      <div>
-        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-1">
-          ← Kembali
-        </button>
-        <h1 className="text-xl font-bold text-[#1B2B5E]">Pengiraan Ta&apos;widh & Ganti Rugi</h1>
-        {data.account_no && (
-          <p className="text-sm text-gray-500">{data.account_no} — {data.borrower_name}</p>
-        )}
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <ToastContainer />
+      <PageHeader
+        title={t('tawidh.title', "Kalkulator Ta'widh")}
+        subtitle={`${t('account.account_no', 'No. Akaun')}: ${id}`}
+        breadcrumbs={[
+          { label: t('nav.accounts', 'Akaun'), href: '/accounts' },
+          { label: id ?? '', href: `/accounts/${id}` },
+          { label: t('tawidh.title', "Ta'widh") },
+        ]}
+        action={
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#1B2B5E]"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {t('common.back', 'Kembali')}
+          </button>
+        }
+      />
 
-      {/* Shariah Compliance Badge */}
-      {data.shariah_compliant && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
-          <span className="text-green-600 text-xl">✅</span>
-          <div>
-            <span className="font-bold text-green-800 text-sm">Patuh Syariah</span>
-            <p className="text-xs text-green-700 mt-0.5">{data.shariah_note}</p>
-          </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {/* KPI Summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard
+            title={t('tawidh.arrears_days', 'Hari Tunggakan')}
+            value={String(result.arrears_days)}
+            icon={<AlertTriangle className="w-5 h-5" />}
+            colour={result.arrears_days > 0 ? 'orange' : 'green'}
+          />
+          <StatCard
+            title={t('tawidh.arrears_amount', 'Jumlah Tunggakan')}
+            value={`RM ${Number(result.arrears_amount).toLocaleString('ms-MY')}`}
+            icon={<DollarSign className="w-5 h-5" />}
+            colour="orange"
+          />
+          <StatCard
+            title={t('tawidh.tawidh_rate', "Kadar Ta'widh")}
+            value={`${result.tawidh_rate}%`}
+            icon={<Calculator className="w-5 h-5" />}
+            colour="navy"
+          />
+          <StatCard
+            title={t('tawidh.tawidh_amount', "Amaun Ta'widh")}
+            value={`RM ${Number(result.tawidh_amount).toLocaleString('ms-MY')}`}
+            icon={<DollarSign className="w-5 h-5" />}
+            colour="orange"
+          />
         </div>
-      )}
 
-      {/* BNM Info Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2 text-sm text-blue-700">
-        <span className="mt-0.5">ℹ️</span>
-        <span>Ta&apos;widh dikira berdasarkan kadar sebenar kerugian mengikut prinsip Syariah (BNM Guidelines on Late Payment Charges for Islamic Finance)</span>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border-l-4 border-[#E65100] border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-xl">🕐</div>
-            <div>
-              <p className="text-xs text-gray-500">Hari Tertunggak</p>
-              <p className="text-2xl font-bold text-[#E65100]">{days} hari</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border-l-4 border-red-500 border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-xl">💰</div>
-            <div>
-              <p className="text-xs text-gray-500">Jumlah Tertunggak</p>
-              <p className="text-2xl font-bold text-red-600">
-                RM {arrearsAmount.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border-l-4 border-[#1B2B5E] border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">🧮</div>
-            <div>
-              <p className="text-xs text-gray-500">Ta&apos;widh Dikira</p>
-              <p className="text-2xl font-bold text-[#1B2B5E]">
-                RM {tawidhAmount.toFixed(2)}
-              </p>
-              {data.capped && (
-                <p className="text-xs text-orange-600 font-medium">* Had RM {Number(data.max_cap).toFixed(2)} dipakai</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Formula Explanation */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="font-bold text-base text-[#1B2B5E]">Formula Pengiraan</h2>
-
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <p className="font-semibold text-sm text-orange-800 mb-2">
-              🧮 Ta&apos;widh = Jumlah Tertunggak × Kadar × (Hari / 365)
-            </p>
-            <p className="text-sm text-orange-700 font-mono">
-              RM {arrearsAmount.toFixed(2)} × {ratePercent.toFixed(2)}% × ({days} / 365) = <strong>RM {tawidhAmount.toFixed(2)}</strong>
-            </p>
+        {/* Calculation Breakdown */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <Calculator className="w-5 h-5 text-[#1B2B5E]" />
+            <h3 className="text-sm font-semibold text-gray-700">
+              {t('tawidh.breakdown', "Perincian Pengiraan Ta'widh")}
+            </h3>
           </div>
 
-          {data.formula && (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">Formula dari API:</p>
-              <p className="text-sm font-mono text-gray-700">{data.formula}</p>
-            </div>
-          )}
+          <div className="space-y-3">
+            {(result.breakdown ?? []).map((item, i) => (
+              <div
+                key={i}
+                className={`flex items-center justify-between py-3 px-4 rounded-lg ${
+                  i === (result.breakdown?.length ?? 0) - 1
+                    ? 'bg-[#1B2B5E] text-white'
+                    : 'bg-gray-50'
+                }`}
+              >
+                <span className={`text-sm ${i === (result.breakdown?.length ?? 0) - 1 ? 'font-semibold' : 'text-gray-600'}`}>
+                  {item.label}
+                </span>
+                <span className={`text-sm font-bold ${i === (result.breakdown?.length ?? 0) - 1 ? 'text-white' : 'text-gray-800'}`}>
+                  {item.value}
+                </span>
+              </div>
+            ))}
+          </div>
 
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">Kadar BNM Semasa</span>
-              <span className="font-semibold">{Number(data.bnm_rate ?? 1).toFixed(2)}% setahun</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">Kadar Digunakan</span>
-              <span className="font-semibold">{ratePercent.toFixed(2)}% setahun</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">Had Maksimum Ta&apos;widh</span>
-              <span className="font-semibold">RM {Number(data.max_cap ?? 5000).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-gray-600">Had Dipakai?</span>
-              <span className={`font-semibold ${data.capped ? 'text-orange-600' : 'text-green-600'}`}>
-                {data.capped ? 'Ya' : 'Tidak'}
+          {/* Total Payable */}
+          <div className="mt-5 p-4 bg-[#C62828] rounded-xl text-white">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">
+                {t('tawidh.total_payable', 'Jumlah Perlu Dibayar (Termasuk Ta\'widh)')}
+              </span>
+              <span className="text-xl font-bold">
+                RM {Number(result.total_payable).toLocaleString('ms-MY')}
               </span>
             </div>
+            <p className="text-xs text-red-200 mt-1">
+              {t('tawidh.as_of', 'Sehingga')} {result.calculation_date}
+            </p>
           </div>
-
-          <p className="text-xs text-red-500">* Ta&apos;widh tidak boleh melebihi kerugian sebenar yang ditanggung</p>
         </div>
 
-        {/* Results & Actions */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="font-bold text-base text-[#1B2B5E]">Keputusan & Tindakan</h2>
-
-          <table className="w-full text-sm">
-            <tbody>
-              <tr className="border-b border-gray-100">
-                <td className="py-3 text-gray-600">Jumlah Tertunggak</td>
-                <td className="py-3 text-right font-semibold">RM {arrearsAmount.toFixed(2)}</td>
-              </tr>
-              <tr className="border-b border-gray-100">
-                <td className="py-3 text-gray-600">
-                  Ta&apos;widh ({days} hari @ {ratePercent.toFixed(2)}% p.a.)
-                </td>
-                <td className="py-3 text-right font-semibold text-[#E65100]">RM {tawidhAmount.toFixed(2)}</td>
-              </tr>
-              <tr className="border-b border-gray-100">
-                <td className="py-3 text-gray-600">Denda Pentadbiran</td>
-                <td className="py-3 text-right font-semibold">RM 0.00</td>
-              </tr>
-              <tr className="bg-green-50">
-                <td className="py-3 px-2 font-bold text-green-700 rounded-l">JUMLAH PERLU DIBAYAR</td>
-                <td className="py-3 px-2 text-right font-bold text-green-700 text-lg rounded-r">
-                  RM {total.toFixed(2)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleGenerateNotice}
-              disabled={generating || noticeGenerated}
-              className="flex-1 py-3 rounded-lg bg-[#1B2B5E] text-white font-semibold text-sm hover:bg-blue-900 disabled:opacity-50 transition-colors"
-            >
-              {generating ? '⏳ Menjana...' : noticeGenerated ? '✅ Notis Dijana' : '📄 Jana Notis Bayaran'}
-            </button>
-            <button
-              onClick={() => navigate(`/akaun/${id}/bayar`)}
-              className="flex-1 py-3 rounded-lg bg-[#2E7D32] text-white font-semibold text-sm hover:bg-green-700 transition-colors"
-            >
-              💳 Rekod Bayaran
-            </button>
+        {/* SPPT AI Recommendation */}
+        <div className="bg-white rounded-xl border border-[#673AB7] p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <AiBadge label="SPPT AI" variant="filled" />
+            <span className="text-sm font-semibold text-[#673AB7]">
+              {t('tawidh.ai_recommendation', "Cadangan Enjin AI SPPT")}
+            </span>
           </div>
-
-          <p className="text-xs text-gray-500 text-center">
-            Kelulusan Pengurus diperlukan untuk waiver Ta&apos;widh melebihi RM 50.00
+          <p className="text-sm text-gray-600">
+            {result.ai_recommendation ??
+              t('tawidh.ai_default',
+                "Berdasarkan analisis Enjin AI SPPT, pembayaran segera akan mengurangkan amaun Ta'widh. Pertimbangkan moratorium jika menghadapi kesulitan kewangan."
+              )}
           </p>
         </div>
-      </div>
 
-      {/* AI Recommendation */}
-      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-lg flex-shrink-0">
-          ✨
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="bg-purple-200 text-purple-700 text-xs px-1.5 py-0.5 rounded font-bold">AI</span>
-            <span className="font-bold text-purple-800 text-sm">Cadangan AI</span>
+        {/* Info Box */}
+        <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-blue-700">
+            <p className="font-medium mb-1">{t('tawidh.info_title', "Apa itu Ta'widh?")}</p>
+            <p className="text-xs leading-relaxed">
+              {t('tawidh.info_desc',
+                "Ta'widh adalah pampasan yang dikenakan ke atas pembayaran tertunggak dalam pembiayaan Islam. Ia dikira berdasarkan kadar yang ditetapkan oleh Bank Negara Malaysia ke atas jumlah tunggakan dan bilangan hari tertunggak."
+              )}
+            </p>
           </div>
-          <p className="text-sm text-purple-700">
-            Hubungi peminjam melalui SMS sebelum mengenakan Ta&apos;widh.{' '}
-            <strong>73% peminjam membayar selepas peringatan pertama.</strong>
-          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => navigate(`/accounts/${id}/payment`)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#2E7D32] text-white text-sm font-medium rounded-lg hover:bg-[#1B5E20] transition-colors"
+          >
+            <DollarSign className="w-4 h-4" />
+            {t('account.record_payment', 'Rekod Pembayaran')}
+          </button>
+          <button
+            onClick={() => navigate(`/accounts/${id}/moratorium`)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#E65100] text-white text-sm font-medium rounded-lg hover:bg-[#BF360C] transition-colors"
+          >
+            <AlertTriangle className="w-4 h-4" />
+            {t('account.apply_moratorium', 'Mohon Moratorium')}
+          </button>
         </div>
       </div>
     </div>

@@ -1,295 +1,284 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '@/services/api';
+import PageHeader from '@/components/ui/PageHeader';
+import StatCard from '@/components/ui/StatCard';
+import AiBadge from '@/components/ui/AiBadge';
+import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { ToastContainer } from '@/components/ui/Toast';
+import { useTranslation } from 'react-i18next';
+import {
+  CreditCard, Smartphone, Building2, Globe, CheckCircle,
+  Clock, AlertTriangle, ArrowLeft, ExternalLink
+} from 'lucide-react';
 
-interface AccountInfo {
+interface PaymentChannel {
   id: string;
-  account_no: string;
-  borrower_name: string;
-  monthly_instalment: number;
-  outstanding_balance: number;
+  name: string;
+  type: 'online' | 'mobile' | 'counter' | 'auto_debit';
+  description: string;
+  processing_time: string;
+  fee: string;
+  available: boolean;
+  icon_key?: string;
+  instructions?: string[];
+}
+
+interface PaymentHistory {
+  id: number;
+  receipt_no: string;
+  amount: number;
+  payment_date: string;
+  channel: string;
   status: string;
 }
 
-interface PaymentResult {
-  receipt_no: string;
-  amount: number;
-  channel: string;
-  paid_at: string;
-  new_balance: number;
-}
+const CHANNEL_ICONS: Record<string, React.ReactNode> = {
+  online:     <Globe className="w-6 h-6" />,
+  mobile:     <Smartphone className="w-6 h-6" />,
+  counter:    <Building2 className="w-6 h-6" />,
+  auto_debit: <CreditCard className="w-6 h-6" />,
+};
 
-const CHANNELS = [
-  {
-    id: 'fpx',
-    name: 'FPX (Financial Process Exchange)',
-    desc: 'Bayaran terus dari akaun bank anda',
-    icon: '🏦',
-    badge: 'POPULAR',
-    processing: 'Segera',
-    fee: 'Tiada caj',
-    banks: ['Maybank', 'CIMB', 'RHB', 'Public Bank', 'HongLeong Bank', 'AmBank', 'dan 30+ bank lain'],
-  },
-  {
-    id: 'jompay',
-    name: 'JomPAY',
-    desc: 'Bayaran melalui portal JomPAY',
-    icon: '💻',
-    badge: null,
-    processing: 'Segera',
-    fee: 'Tiada caj',
-    banks: [],
-  },
-  {
-    id: 'duitnow',
-    name: 'DuitNow QR',
-    desc: 'Imbas kod QR menggunakan aplikasi perbankan',
-    icon: '📱',
-    badge: null,
-    processing: 'Segera',
-    fee: 'Tiada caj',
-    banks: [],
-  },
-  {
-    id: 'kaunter',
-    name: 'Bayaran di Kaunter TEKUN',
-    desc: '198 cawangan seluruh Malaysia',
-    icon: '🏛️',
-    badge: null,
-    processing: '1-2 hari bekerja',
-    fee: 'Tiada caj',
-    banks: [],
-  },
-  {
-    id: 'auto_debit',
-    name: 'Auto-Debit Bulanan',
-    desc: 'Bayaran automatik setiap bulan',
-    icon: '📅',
-    badge: 'DISYORKAN',
-    processing: 'Automatik',
-    fee: 'Tiada caj',
-    banks: [],
-  },
-];
+const CHANNEL_COLOURS: Record<string, string> = {
+  online:     '#1B2B5E',
+  mobile:     '#2E7D32',
+  counter:    '#E65100',
+  auto_debit: '#673AB7',
+};
 
 export default function PaymentChannels() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
-  const [account, setAccount] = useState<AccountInfo | null>(null);
-  const [loadingAccount, setLoadingAccount] = useState(true);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [amount, setAmount] = useState<string>('');
-  const [paying, setPaying] = useState(false);
-  const [result, setResult] = useState<PaymentResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [channels, setChannels]         = useState<PaymentChannel[]>([]);
+  const [history,  setHistory]          = useState<PaymentHistory[]>([]);
+  const [loading,  setLoading]          = useState(true);
+  const [error,    setError]            = useState<string | null>(null);
+  const [selected, setSelected]         = useState<PaymentChannel | null>(null);
 
   useEffect(() => {
-    if (!id) return;
-    api.get(`/accounts/${id}`)
-      .then((res) => {
-        const data = res.data?.data ?? res.data;
-        setAccount(data);
-        setAmount(String(data.monthly_instalment ?? ''));
+    setLoading(true);
+    Promise.all([
+      api.get('/accounts/payment-channels'),
+      id ? api.get(`/accounts/${id}/payment-history`) : Promise.resolve({ data: { data: [] } }),
+    ])
+      .then(([chRes, histRes]) => {
+        setChannels(chRes.data?.data ?? chRes.data ?? []);
+        setHistory(histRes.data?.data ?? histRes.data ?? []);
       })
-      .catch(() => setError('Gagal memuatkan maklumat akaun.'))
-      .finally(() => setLoadingAccount(false));
-  }, [id]);
+      .catch(() => setError(t('payment.load_error', 'Gagal memuatkan saluran pembayaran')))
+      .finally(() => setLoading(false));
+  }, [id, t]);
 
-  async function handlePay(channelId: string) {
-    if (!id || !amount) return;
-    setPaying(true);
-    setError(null);
-    try {
-      const res = await api.post(`/accounts/${id}/payment`, {
-        amount: parseFloat(amount),
-        channel: channelId,
-      });
-      setResult(res.data?.data ?? res.data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal merekod pembayaran.';
-      setError(msg);
-    } finally {
-      setPaying(false);
-    }
-  }
+  const activeChannels   = channels.filter(c => c.available);
+  const inactiveChannels = channels.filter(c => !c.available);
 
-  if (loadingAccount) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2B5E]" />
-        <span className="ml-3 text-gray-600">Memuatkan maklumat akaun...</span>
-      </div>
-    );
-  }
-
-  if (result) {
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-xl border border-green-200 p-8 text-center max-w-md mx-auto">
-          <div className="text-6xl mb-4">✅</div>
-          <h2 className="text-2xl font-bold text-green-700 mb-2">Bayaran Berjaya!</h2>
-          <p className="text-gray-600 mb-1">
-            RM {Number(result.amount).toFixed(2)} telah direkodkan.
-          </p>
-          <p className="text-sm text-gray-500 mb-1">No. Resit: <span className="font-mono font-semibold">{result.receipt_no}</span></p>
-          <p className="text-sm text-gray-500 mb-1">Baki Baru: <span className="font-bold text-[#1B2B5E]">RM {Number(result.new_balance).toFixed(2)}</span></p>
-          <p className="text-sm text-gray-500 mb-4">Saluran: <span className="uppercase font-medium">{result.channel}</span></p>
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={() => setResult(null)}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50"
-            >
-              Bayaran Lain
-            </button>
-            <button
-              onClick={() => navigate(`/akaun/${id}`)}
-              className="px-5 py-2 rounded-lg bg-[#1B2B5E] text-white text-sm hover:bg-blue-900"
-            >
-              Kembali ke Akaun 360°
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <LoadingSpinner />
+    </div>
+  );
 
   return (
-    <div className="space-y-4 p-4">
-      {/* Header */}
-      <div>
-        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-1">
-          ← Kembali
-        </button>
-        <h1 className="text-xl font-bold text-[#1B2B5E]">Rekod Pembayaran</h1>
-        {account && (
-          <p className="text-sm text-gray-500">{account.account_no} — {account.borrower_name}</p>
+    <div className="min-h-screen bg-gray-50">
+      <ToastContainer />
+      <PageHeader
+        title={t('payment.channels_title', 'Saluran Pembayaran')}
+        subtitle={id ? `${t('account.account_no', 'No. Akaun')}: ${id}` : undefined}
+        breadcrumbs={[
+          { label: t('nav.accounts', 'Akaun'), href: '/accounts' },
+          { label: t('payment.channels_title', 'Saluran Pembayaran') },
+        ]}
+        action={
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#1B2B5E]"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {t('common.back', 'Kembali')}
+          </button>
+        }
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {error && (
+          <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            {error}
+          </div>
         )}
-      </div>
 
-      {/* Account Summary */}
-      {account && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500">Ansuran Bulanan</p>
-              <p className="text-xl font-bold text-[#1B2B5E]">
-                RM {Number(account.monthly_instalment).toFixed(2)}
-              </p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500">Baki Tertunggak</p>
-              <p className="text-xl font-bold text-[#E65100]">
-                RM {Number(account.outstanding_balance).toFixed(2)}
-              </p>
-            </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500">Status Akaun</p>
-              <p className="text-xl font-bold text-[#2E7D32]">{account.status}</p>
-            </div>
+        {/* KPI Summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard
+            title={t('payment.total_channels', 'Jumlah Saluran')}
+            value={String(channels.length)}
+            icon={<CreditCard className="w-5 h-5" />}
+            colour="navy"
+          />
+          <StatCard
+            title={t('payment.active_channels', 'Saluran Aktif')}
+            value={String(activeChannels.length)}
+            icon={<CheckCircle className="w-5 h-5" />}
+            colour="green"
+          />
+          <StatCard
+            title={t('payment.total_payments', 'Jumlah Pembayaran')}
+            value={String(history.length)}
+            icon={<Clock className="w-5 h-5" />}
+            colour="orange"
+          />
+          <StatCard
+            title={t('payment.total_paid', 'Jumlah Dibayar')}
+            value={`RM ${history.reduce((s, h) => s + Number(h.amount), 0).toLocaleString('ms-MY')}`}
+            icon={<Globe className="w-5 h-5" />}
+            colour="navy"
+          />
+        </div>
+
+        {/* SPPT AI Recommendation */}
+        <div className="bg-white rounded-xl border border-[#673AB7] p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <AiBadge label="SPPT AI" variant="filled" />
+            <span className="text-sm font-semibold text-[#673AB7]">
+              {t('payment.ai_recommendation', 'Cadangan Saluran Terbaik — Enjin AI SPPT')}
+            </span>
           </div>
+          <p className="text-sm text-gray-600">
+            {t('payment.ai_tip',
+              'Berdasarkan rekod pembayaran anda, saluran FPX dan JomPAY disyorkan kerana memproses pembayaran dalam masa nyata dengan yuran terendah. Gunakan Auto Debit untuk mengelakkan tunggakan.'
+            )}
+          </p>
         </div>
-      )}
 
-      {/* Amount Input */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Amaun Bayaran (RM)</label>
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          min="0.01"
-          step="0.01"
-          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-lg font-bold text-[#1B2B5E] focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="0.00"
-        />
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-red-700 text-sm">{error}</p>
-        </div>
-      )}
-
-      {/* Channel Cards */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <h2 className="font-bold text-base mb-4 text-[#1B2B5E]">💳 Pilih Saluran Pembayaran</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {CHANNELS.map((ch) => (
-            <div
-              key={ch.id}
-              onClick={() => setSelected(ch.id)}
-              className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                selected === ch.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-2xl">
-                    {ch.icon}
-                  </div>
-                  <div>
-                    <div className="font-bold text-sm">{ch.name}</div>
-                    <div className="text-xs text-gray-500">{ch.desc}</div>
-                  </div>
-                </div>
-                {ch.badge && (
-                  <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded font-bold">
-                    {ch.badge}
-                  </span>
-                )}
-              </div>
-              {ch.banks.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {ch.banks.map((b) => (
-                    <span key={b} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">{b}</span>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <div className="flex gap-4 text-xs text-gray-500">
-                  <span>⚡ <strong className="text-green-600">{ch.processing}</strong></span>
-                  <span>🏷️ <strong className="text-green-600">{ch.fee}</strong></span>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelected(ch.id);
-                    handlePay(ch.id);
-                  }}
-                  disabled={paying || !amount}
-                  className="px-4 py-2 rounded-lg bg-[#1B2B5E] text-white text-sm font-semibold hover:bg-blue-900 disabled:opacity-50 transition-colors"
-                >
-                  {paying && selected === ch.id ? '⏳ Memproses...' : 'Bayar'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* AI Recommendation */}
-      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-lg flex-shrink-0">
-          ✨
-        </div>
+        {/* Active Channels Grid */}
         <div>
-          <div className="font-bold text-purple-800 text-sm flex items-center gap-1">
-            <span className="bg-purple-200 text-purple-700 text-xs px-1.5 py-0.5 rounded font-bold">AI</span>
-            Cadangan AI
-          </div>
-          <div className="text-sm text-purple-700 mt-1">
-            Daftar <strong>Auto-Debit</strong> untuk memastikan bayaran tepat masa dan elakkan penalti Ta&apos;widh.
-            87% pelanggan TEKUN menggunakan Auto-Debit.
-          </div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            {t('payment.available_channels', 'Saluran Tersedia')}
+          </h3>
+          {activeChannels.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">
+              {t('payment.no_channels', 'Tiada saluran pembayaran tersedia')}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {activeChannels.map(ch => (
+                <button
+                  key={ch.id}
+                  onClick={() => setSelected(selected?.id === ch.id ? null : ch)}
+                  className={`bg-white rounded-xl border-2 p-5 text-left transition-all hover:shadow-md ${
+                    selected?.id === ch.id
+                      ? 'border-[#1B2B5E] shadow-md'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 text-white"
+                    style={{ background: CHANNEL_COLOURS[ch.type] ?? '#1B2B5E' }}
+                  >
+                    {CHANNEL_ICONS[ch.type] ?? <CreditCard className="w-5 h-5" />}
+                  </div>
+                  <h4 className="text-sm font-semibold text-gray-800 mb-1">{ch.name}</h4>
+                  <p className="text-xs text-gray-500 mb-3 line-clamp-2">{ch.description}</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">{ch.processing_time}</span>
+                    <span className="font-medium text-[#1B2B5E]">{ch.fee}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Security Notice */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center gap-2 text-sm text-gray-600">
-        <span>🔒</span>
-        <span>Semua transaksi dilindungi dengan enkripsi AES-256 dan TLS 1.3.</span>
+        {/* Selected Channel Instructions */}
+        {selected && selected.instructions && selected.instructions.length > 0 && (
+          <div className="bg-[#1B2B5E] rounded-xl p-6 text-white">
+            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <ExternalLink className="w-4 h-4" />
+              {t('payment.how_to_pay', 'Cara Membayar via')} {selected.name}
+            </h3>
+            <ol className="space-y-2">
+              {selected.instructions.map((step, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {/* Payment History */}
+        {history.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              {t('payment.history', 'Sejarah Pembayaran')}
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {[
+                      t('payment.receipt_no', 'No. Resit'),
+                      t('payment.amount', 'Jumlah'),
+                      t('payment.date', 'Tarikh'),
+                      t('payment.channel', 'Saluran'),
+                      t('common.status', 'Status'),
+                    ].map(h => (
+                      <th key={h} className="text-left py-2 px-3 text-xs text-gray-500 font-medium">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.slice(0, 10).map(p => (
+                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 px-3 font-mono text-xs">{p.receipt_no}</td>
+                      <td className="py-2 px-3 font-semibold text-[#2E7D32]">
+                        RM {Number(p.amount).toLocaleString('ms-MY')}
+                      </td>
+                      <td className="py-2 px-3 text-xs">{p.payment_date}</td>
+                      <td className="py-2 px-3 text-xs capitalize">{p.channel}</td>
+                      <td className="py-2 px-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          p.status === 'success' ? 'bg-green-100 text-green-700' :
+                          p.status === 'pending' ? 'bg-orange-100 text-orange-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Inactive Channels */}
+        {inactiveChannels.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-3">
+              {t('payment.unavailable_channels', 'Saluran Tidak Tersedia')}
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {inactiveChannels.map(ch => (
+                <div
+                  key={ch.id}
+                  className="bg-gray-50 rounded-xl border border-gray-200 p-4 opacity-60"
+                >
+                  <h4 className="text-sm font-medium text-gray-500">{ch.name}</h4>
+                  <p className="text-xs text-gray-400 mt-1">{t('payment.unavailable', 'Tidak tersedia')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
