@@ -28,6 +28,15 @@ const STATUS_COLORS: Record<string, string> = {
   NPL: 'bg-red-100 text-red-800',
 };
 
+const DISTRESS_COLOR: Record<string, string> = {
+  'Rendah':    '#2E7D32',
+  'Sederhana': '#F59E0B',
+  'Tinggi':    '#E65100',
+  'Kritikal':  '#DC2626',
+};
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
 export default function EntrepreneurProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
