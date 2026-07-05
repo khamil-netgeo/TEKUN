@@ -133,6 +133,20 @@ class CoreRbacSeeder extends Seeder
 
         $this->command->info('✅ 5 core roles seeded with permissions.');
 
+        // ── English role aliases (for test compatibility) ──────────────────
+        $englishRoles = [
+            'branch_officer'  => $pegawaiCawangan,
+            'branch_manager'  => $pengurusCawangan,
+            'credit_officer'  => $pegawaiKredit,
+            'executive'       => $eksekutif,
+            'system_admin'    => $pentadbirSistem,
+        ];
+        foreach ($englishRoles as $alias => $role) {
+            Role::firstOrCreate(['name' => $alias, 'guard_name' => $guard])
+                ->syncPermissions($role->permissions);
+        }
+        $this->command->info('✅ English role aliases seeded.');
+
         // ── Seed Demo Users and Assign Spatie Roles ───────────────────────────
         $now = Carbon::now();
 
@@ -226,7 +240,7 @@ class CoreRbacSeeder extends Seeder
             $user = User::updateOrCreate(
                 ['email' => $userData['email']],
                 array_merge($userData, [
-                    'password'            => Hash::make('Demo@TEKUN2026!'),
+                    'password'            => Hash::make('demo1234'),
                     'is_active'           => true,
                     'is_suspended'        => false,
                     'password_changed_at' => $now,
