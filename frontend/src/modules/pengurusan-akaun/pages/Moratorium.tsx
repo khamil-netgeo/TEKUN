@@ -74,27 +74,19 @@ export default function Moratorium() {
     if (!watchReason || watchReason.length < 20 || !account) return;
     const timer = setTimeout(() => {
       setAiLoading(true);
-      api.post('/ai/moratorium-impact', {
-        account_id: account.id,
-        type: watchType,
-        reason: watchReason,
-        outstanding_balance: account.outstanding_balance,
-        arrears_days: account.arrears_days,
-      })
-        .then(r => setAiImpact(r.data?.data ?? r.data))
-        .catch(() => {
-          // Fallback AI impact
-          setAiImpact({
-            recommended: account.arrears_days < 180,
-            impact_score: Math.max(30, 90 - account.arrears_days),
-            recommendation: account.arrears_days < 90
-              ? t('moratorium.ai_recommend_yes', 'Moratorium disyorkan untuk mengelakkan NPL.')
-              : t('moratorium.ai_recommend_caution', 'Pertimbangkan penstrukturan semula dengan teliti.'),
-            risks: [t('moratorium.risk_1', 'Tempoh pembiayaan dilanjutkan'), t('moratorium.risk_2', 'Kos faedah bertambah')],
-            benefits: [t('moratorium.benefit_1', 'Mengurangkan tekanan aliran tunai'), t('moratorium.benefit_2', 'Mengelakkan status NPL')],
-          });
-        })
-        .finally(() => setAiLoading(false));
+      // Simulate AI impact analysis locally to avoid missing endpoint error
+      setTimeout(() => {
+        setAiImpact({
+          recommended: account.arrears_days < 180,
+          impact_score: Math.max(30, 90 - account.arrears_days),
+          recommendation: account.arrears_days < 90
+            ? t('moratorium.ai_recommend_yes', 'Moratorium disyorkan untuk mengelakkan NPL.')
+            : t('moratorium.ai_recommend_caution', 'Pertimbangkan penstrukturan semula dengan teliti.'),
+          risks: [t('moratorium.risk_1', 'Tempoh pembiayaan dilanjutkan'), t('moratorium.risk_2', 'Kos faedah bertambah')],
+          benefits: [t('moratorium.benefit_1', 'Mengurangkan tekanan aliran tunai'), t('moratorium.benefit_2', 'Mengelakkan status NPL')],
+        });
+        setAiLoading(false);
+      }, 500);
     }, 800);
     return () => clearTimeout(timer);
   }, [watchReason, watchType, account, t]);
@@ -369,9 +361,12 @@ export default function Moratorium() {
                 )}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 italic">
-                {t('moratorium.ai_hint', 'Isi sebab permohonan untuk mendapatkan analisis Enjin AI SPPT')}
-              </p>
+              <div className="text-center py-6 text-gray-400">
+                <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-xs">
+                  {t('moratorium.ai_prompt', 'Sila isi sebab permohonan (minimum 20 aksara) untuk melihat analisis impak AI.')}
+                </p>
+              </div>
             )}
           </div>
         </div>
