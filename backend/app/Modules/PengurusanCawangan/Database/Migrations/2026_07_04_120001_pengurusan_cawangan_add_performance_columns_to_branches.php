@@ -8,6 +8,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('branches', function (Blueprint $table) {
+            if (!Schema::hasColumn('branches', 'npl_ratio')) {
+                $table->decimal('npl_ratio', 5, 2)->default(0);
+            }
             if (!Schema::hasColumn('branches', 'collection_rate')) {
                 $table->decimal('collection_rate', 5, 2)->default(0)->after('npl_ratio');
             }
@@ -29,6 +32,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('branches', function (Blueprint $table) {
+            $table->dropColumnIfExists('npl_ratio');
             $table->dropColumnIfExists('collection_rate');
             $table->dropColumnIfExists('performance_rank');
             $table->dropColumnIfExists('target_collection_rate');

@@ -27,10 +27,10 @@ const BranchDetail: React.FC = () => {
     setLoading(true);
     try {
       const res = await branchService.getBranchById(Number(id));
-      const b = res.data;
-      setBranch(b);
-      setPerformanceHistory(b.performance_history ?? []);
-      setEditForm({ name: b.name, address: b.address, phone: b.phone, email: b.email, target_collection_rate: b.target_collection_rate, monthly_target: b.monthly_target });
+      const { branch, performance } = res.data as any;
+      setBranch(branch);
+      setPerformanceHistory(performance ?? []);
+      setEditForm({ name: branch.name, address: branch.address, phone: branch.phone, email: branch.email, target_collection_rate: branch.target_collection_rate, monthly_target: branch.monthly_target });
     } catch { toast.error('Gagal memuatkan maklumat cawangan.'); }
     finally { setLoading(false); }
   }, [id]);

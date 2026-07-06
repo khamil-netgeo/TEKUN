@@ -9,7 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import branchService from '../services/branchService';
 import type { BranchPerformanceItem } from '../services/branchService';
 
-const MEDAL: Record<number, string> = { 1: '\ud83e\udd47', 2: '\ud83e\udd48', 3: '\ud83e\udd49' };
+const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
 const BranchPerformance: React.FC = () => {
   const navigate = useNavigate();
@@ -21,8 +21,8 @@ const BranchPerformance: React.FC = () => {
   const fetchPerformance = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await branchService.getPerformance();
-      setBranches(res.data ?? []);
+      const res = await branchService.getPerformance() as any;
+      setBranches(res.branches ?? []);
       setPeriod(res.period ?? '');
       setSummary({ avg_collection: res.avg_collection_rate ?? 0, avg_npl: res.avg_npl_ratio ?? 0, total: res.total_branches ?? 0 });
     } catch { toast.error('Ralat memuatkan data prestasi.'); }
@@ -124,7 +124,7 @@ const BranchPerformance: React.FC = () => {
                         <td className="px-4 py-3 text-right">
                           <div className={`flex items-center justify-end gap-1 font-semibold text-xs ${getTrendColor(b.trend_label)}`}>
                             {getTrendIcon(b.trend_label)}
-                            {b.trend_label ?? '\u2014'}
+                            {b.trend_label ?? '—'}
                           </div>
                         </td>
                       </tr>
@@ -157,8 +157,8 @@ const BranchPerformance: React.FC = () => {
               <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-yellow-400 inline-block" /> Tempat 1</span>
               <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-gray-400 inline-block" /> Tempat 2</span>
               <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-600 inline-block" /> Tempat 3</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#2E7D32] inline-block" /> Tempat 4\u20135</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#1B2B5E] inline-block" /> Tempat 6\u201310</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#2E7D32] inline-block" /> Tempat 4–5</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#1B2B5E] inline-block" /> Tempat 6–10</span>
             </div>
           </div>
         </div>
