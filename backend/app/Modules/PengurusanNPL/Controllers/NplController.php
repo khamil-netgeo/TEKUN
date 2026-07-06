@@ -14,6 +14,35 @@ use Illuminate\Support\Facades\Log;
  */
 class NplController extends Controller
 {
+    private function getCategoryRanges(): array
+    {
+        return config('npl.category_ranges', [
+            ['label' => 'Lancar (0 hari)',        'min' => 0,   'max' => 0],
+            ['label' => 'Dalam Perhatian (1-30)', 'min' => 1,   'max' => 30],
+            ['label' => 'Substandard (31-90)',    'min' => 31,  'max' => 90],
+            ['label' => 'Doubtful (91-180)',      'min' => 91,  'max' => 180],
+            ['label' => 'Loss (>180 hari)',       'min' => 181, 'max' => 99999],
+        ]);
+    }
+
+    private function getPriorityThresholds(): array
+    {
+        return config('npl.priority_thresholds', [
+            'Kritikal'  => 80,
+            'Tinggi'    => 60,
+            'Sederhana' => 40,
+        ]);
+    }
+
+    private function getDunningStages(): array
+    {
+        return config('npl.dunning_stages', [
+            'stage1' => [30, 60],
+            'stage2' => [61, 90],
+            'stage3' => [91, 99999],
+        ]);
+    }
+
     // NPL Dashboard
     public function dashboard(Request $request)
     {
@@ -28,13 +57,7 @@ class NplController extends Controller
         $collectionRate = $totalOutstanding > 0
             ? round(($collectedMtd / $totalOutstanding) * 100, 1) : 0;
 
-        $categoryRanges = [
-            ['label' => 'Lancar (0 hari)',        'min' => 0,   'max' => 0],
-            ['label' => 'Dalam Perhatian (1-30)', 'min' => 1,   'max' => 30],
-            ['label' => 'Substandard (31-90)',    'min' => 31,  'max' => 90],
-            ['label' => 'Doubtful (91-180)',      'min' => 91,  'max' => 180],
-            ['label' => 'Loss (>180 hari)',       'min' => 181, 'max' => 99999],
-        ];
+        $categoryRanges = $this->getCategoryRanges();
         $categories = [];
         foreach ($categoryRanges as $cat) {
             $q = DB::table('npl_records')->whereBetween('days_overdue', [$cat['min'], $cat['max']]);
@@ -71,23 +94,28 @@ class NplController extends Controller
     public function dunningList(Request $request)
     {
         $stage = $request->query('dunning_stage');
+        $stages = $this->getDunningStages();
+        
+        $stage1Min = (int) $stages['stage1'][0];
+        $stage1Max = (int) $stages['stage1'][1];
+        $stage2Min = (int) $stages['stage2'][0];
+        $stage2Max = (int) $stages['stage2'][1];
+        
+        $stageSql = "CASE WHEN npl_records.days_overdue BETWEEN {$stage1Min} AND {$stage1Max} THEN 'stage1'
+                    WHEN npl_records.days_overdue BETWEEN {$stage2Min} AND {$stage2Max} THEN 'stage2'
+                    WHEN npl_records.days_overdue > {$stage2Max} THEN 'stage3'
+                    ELSE 'none' END as dunning_stage";
+
         $query = DB::table('npl_records')
             ->join('accounts', 'npl_records.account_id', '=', 'accounts.id')
             ->select('npl_records.id', 'accounts.account_no', 'accounts.borrower_name',
                 'npl_records.days_overdue', 'npl_records.outstanding', 'npl_records.classification',
                 'npl_records.ai_risk_level',
-                DB::raw("CASE WHEN npl_records.days_overdue BETWEEN 30 AND 60 THEN 'stage1'
-                    WHEN npl_records.days_overdue BETWEEN 61 AND 90 THEN 'stage2'
-                    WHEN npl_records.days_overdue > 90 THEN 'stage3'
-                    ELSE 'none' END as dunning_stage"))
-            ->where('npl_records.days_overdue', '>=', 30);
+                DB::raw($stageSql))
+            ->where('npl_records.days_overdue', '>=', $stage1Min);
+            
         if ($stage) {
-            $stageRange = match($stage) {
-                'stage1' => [30, 60],
-                'stage2' => [61, 90],
-                'stage3' => [91, 99999],
-                default  => null,
-            };
+            $stageRange = $stages[$stage] ?? null;
             if ($stageRange) {
                 $query->whereBetween('npl_records.days_overdue', $stageRange);
             }
@@ -154,6 +182,16 @@ class NplController extends Controller
     // Collection Tasks
     public function collectionTasks(Request $request)
     {
+        $thresholds = $this->getPriorityThresholds();
+        $kritikal = (int) $thresholds['Kritikal'];
+        $tinggi = (int) $thresholds['Tinggi'];
+        $sederhana = (int) $thresholds['Sederhana'];
+
+        $prioritySql = "CASE WHEN collection_tasks.priority_score >= {$kritikal} THEN 'Kritikal'
+                    WHEN collection_tasks.priority_score >= {$tinggi} THEN 'Tinggi'
+                    WHEN collection_tasks.priority_score >= {$sederhana} THEN 'Sederhana'
+                    ELSE 'Rendah' END as priority_label";
+
         $tasks = DB::table('collection_tasks')
             ->join('accounts', 'collection_tasks.account_id', '=', 'accounts.id')
             ->select('collection_tasks.id', 'collection_tasks.account_id', 'accounts.account_no',
@@ -164,10 +202,7 @@ class NplController extends Controller
                 'collection_tasks.last_outcome', 'collection_tasks.outcome_notes',
                 'collection_tasks.attempt_count', 'collection_tasks.follow_up_at',
                 'collection_tasks.last_contacted_at',
-                DB::raw("CASE WHEN collection_tasks.priority_score >= 80 THEN 'Kritikal'
-                    WHEN collection_tasks.priority_score >= 60 THEN 'Tinggi'
-                    WHEN collection_tasks.priority_score >= 40 THEN 'Sederhana'
-                    ELSE 'Rendah' END as priority_label"))
+                DB::raw($prioritySql))
             ->where('collection_tasks.status', '!=', 'completed')
             ->orderByDesc('collection_tasks.priority_score')
             ->paginate(20);

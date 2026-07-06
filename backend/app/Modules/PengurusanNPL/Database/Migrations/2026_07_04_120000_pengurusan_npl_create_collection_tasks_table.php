@@ -28,6 +28,9 @@ return new class extends Migration
             $table->timestamp('follow_up_at')->nullable();
             $table->integer('attempt_count')->default(0);
             $table->timestamps();
+
+            $table->index('status');
+            $table->index('priority_score');
         }); }
     }
 

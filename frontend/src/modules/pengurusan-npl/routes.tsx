@@ -5,6 +5,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 
 const DunningWorkflow = lazy(() => import('./pages/DunningWorkflow'));
 const NplDashboard    = lazy(() => import('./pages/NplDashboard'));
+const CollectionTaskQueue = lazy(() => import('./pages/CollectionTaskQueue'));
 
 const routes: RouteObject[] = [
   { 
@@ -20,6 +21,14 @@ const routes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={['credit_officer', 'admin']}>
         <DunningWorkflow />
+      </ProtectedRoute>
+    ) 
+  },
+  { 
+    path: 'tasks', 
+    element: (
+      <ProtectedRoute allowedRoles={['credit_officer', 'admin']}>
+        <CollectionTaskQueue />
       </ProtectedRoute>
     ) 
   },

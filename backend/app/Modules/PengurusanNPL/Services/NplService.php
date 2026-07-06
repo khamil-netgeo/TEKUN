@@ -4,6 +4,7 @@ namespace App\Modules\PengurusanNPL\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use App\Models\Account;
 use App\Models\NplRecord;
 use App\Models\DunningAction;
@@ -355,52 +356,49 @@ class NplService
                 'outcome_notes'     => $data['notes'] ?? null,
                 'last_contacted_at' => now(),
                 'attempt_count'     => DB::raw('attempt_count + 1'),
-                'follow_up_at'      => isset($data['follow_up_days'])
-                    ? now()->addDays((int)$data['follow_up_days'])
-                    : null,
+                'follow_up_at'      => $data['follow_up_at'] ?? null,
                 'updated_at'        => now(),
             ]);
 
         return [
-            'success'    => true,
-            'task_id'    => $taskId,
-            'new_status' => $newStatus,
-            'updated_at' => now()->toISOString(),
+            'success' => true,
+            'message' => 'Log panggilan berjaya direkodkan.',
         ];
     }
 
     /**
-     * Use SPPT AI to generate a personalized dunning message.
+     * Generate an AI-personalized dunning message using Gemini API.
      */
-    public function generateAiDunningMessage(array $accountData): string
+    public function generateAiDunningMessage(int $accountId): string
     {
-        $geminiKey  = config('services.gemini.api_key', env('GEMINI_API_KEY'));
-        $geminiBase = rtrim(config('services.gemini.base_url', env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta')), '/');
-        $model      = config('services.gemini.default_model', env('GEMINI_DEFAULT_MODEL', 'gemini-3.5-flash'));
-
-        if (!$geminiKey) {
-            return "Sila hubungi kami segera untuk menyelesaikan tunggakan anda sebanyak RM" . number_format($accountData['arrears_amount'] ?? 0, 2) . ".";
+        $account = DB::table('accounts')->find($accountId);
+        if (!$account) {
+            return 'Sila jelaskan tunggakan anda dengan segera.';
         }
 
         try {
-            $prompt = "Hasilkan mesej peringatan mesra (dunning) dalam Bahasa Melayu untuk akaun {$accountData['account_no']} dengan tunggakan RM{$accountData['arrears_amount']}. Maksimum 150 patah perkataan.";
-            
+            $prompt = "Hasilkan mesej peringatan (dunning) yang profesional, tegas tetapi sopan dalam Bahasa Melayu untuk pelanggan bernama {$account->borrower_name} (Akaun: {$account->account_no}) yang mempunyai tunggakan sebanyak RM" . round($account->arrears_amount, 2) . " selama {$account->arrears_days} hari. Minta mereka membuat pembayaran segera untuk mengelakkan tindakan lanjut.";
+
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post("{$geminiBase}/models/{$model}:generateContent?key={$geminiKey}", [
+            ])->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . config('services.gemini.api_key'), [
                 'contents' => [
-                    ['parts' => [['text' => $prompt]]]
+                    [
+                        'parts' => [
+                            ['text' => $prompt]
+                        ]
+                    ]
                 ]
             ]);
-            
+
             if ($response->successful()) {
-                $result = $response->json();
-                return $result['candidates'][0]['content']['parts'][0]['text'] ?? "Sila jelaskan tunggakan anda.";
+                $data = $response->json();
+                return $data['candidates'][0]['content']['parts'][0]['text'] ?? 'Sila jelaskan tunggakan anda dengan segera.';
             }
         } catch (\Exception $e) {
-            // Fallback
+            Log::error('Gemini API Error: ' . $e->getMessage());
         }
-        
-        return "Sila hubungi kami segera untuk menyelesaikan tunggakan anda sebanyak RM" . number_format($accountData['arrears_amount'] ?? 0, 2) . ".";
+
+        return 'Sila jelaskan tunggakan anda dengan segera.';
     }
 }
