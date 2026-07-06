@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Download, Printer, CheckCircle, Mail } from 'lucide-react';
 import { creditService } from '../services/creditService';
 import toast from 'react-hot-toast';
+import api from '@/services/api';
 
 export default function OfferLetter() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -29,8 +31,18 @@ export default function OfferLetter() {
     }
   };
 
-  const handleSendEmail = () => {
-    toast.success('Surat tawaran telah dihantar ke e-mel pemohon');
+  const handleSendEmail = async () => {
+    if (!id) return;
+    try {
+      setSendingEmail(true);
+      await api.post(`/penilaian-kredit/${id}/send-offer-letter`);
+      toast.success('Surat tawaran telah dihantar ke e-mel pemohon');
+    } catch (error) {
+      console.error('Error sending email:', error);
+      toast.error('Gagal menghantar e-mel surat tawaran');
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   return (
@@ -83,10 +95,11 @@ export default function OfferLetter() {
 
               <button 
                 onClick={handleSendEmail}
-                className="w-full py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
+                disabled={sendingEmail}
+                className="w-full py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Mail className="w-4 h-4" />
-                Hantar E-mel
+                {sendingEmail ? 'Menghantar...' : 'Hantar E-mel'}
               </button>
             </div>
           </div>

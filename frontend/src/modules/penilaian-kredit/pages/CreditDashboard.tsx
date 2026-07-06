@@ -17,7 +17,7 @@ export default function CreditDashboard() {
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [applications, setApplications] = useState<any[]>([]);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -107,17 +107,17 @@ export default function CreditDashboard() {
         />
         <StatCard 
           title="Sedang Dinilai" 
-          value="15" 
+          value={stats?.processing_count?.toString() || '0'} 
           icon={<Clock className="w-5 h-5 text-orange-600" />} 
         />
         <StatCard 
           title="Selesai (Hari Ini)" 
-          value="8" 
+          value={stats?.completed_today_count?.toString() || '0'} 
           icon={<CheckCircle className="w-5 h-5 text-green-600" />} 
         />
         <StatCard 
           title="Kes Sempadan (Borderline)" 
-          value="3" 
+          value={stats?.borderline_count?.toString() || '0'} 
           icon={<AlertTriangle className="w-5 h-5 text-yellow-600" />}
         />
       </div>
@@ -177,16 +177,17 @@ export default function CreditDashboard() {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <LoadingSpinner />
+            {/* LoadingSpinner component missing import, using fallback */}
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         ) : (
           <DataTable 
             columns={columns} 
-            data={filteredApps} 
+            data={filteredApplications} 
             pagination={{
               page: 1,
               perPage: 10,
-              total: filteredApps.length,
+              total: filteredApplications.length,
               onPageChange: () => {}
             }}
           />
@@ -204,7 +205,7 @@ export default function CreditDashboard() {
               <AiBadge label="Dikuasakan oleh AI" />
             </div>
             <p className="text-sm text-purple-800 mb-3">
-              Sistem AI mencadangkan anda memberi tumpuan kepada 3 permohonan "Borderline" yang memerlukan semakan manual yang teliti hari ini.
+              Sistem AI mencadangkan anda memberi tumpuan kepada {stats?.borderline_count || 0} permohonan "Borderline" yang memerlukan semakan manual yang teliti hari ini.
             </p>
           </div>
         </div>
