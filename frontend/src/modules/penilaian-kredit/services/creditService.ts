@@ -109,9 +109,16 @@ export const creditService = {
     return response.data;
   },
 
-  // Generate AI narrative
+  // Generate AI narrative (legacy endpoint)
   generateNarrative: async (applicationId: number | string) => {
     const response = await api.post('/credit/narrative', { application_id: applicationId });
+    return response.data;
+  },
+
+  // FIX: Generate comprehensive AI Laporan Lengkap via Gemini 3.1 Pro
+  // Replaces the fake setTimeout in CreditScoring.tsx
+  generateAiReport: async (applicationId: number | string) => {
+    const response = await api.post(`/applications/${applicationId}/ai-report`);
     return response.data;
   },
 };

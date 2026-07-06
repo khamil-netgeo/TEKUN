@@ -18,4 +18,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/applications/{id}/kuari', [CreditAssessmentController::class, 'kuari']);
 
     Route::get('/applications/{id}/offer-letter', [CreditAssessmentController::class, 'offerLetter']);
+
+    // FIX: New AI Report endpoint — generates comprehensive AI narrative via Gemini 3.1 Pro
+    Route::post('/applications/{id}/ai-report', [CreditAssessmentController::class, 'aiReport']);
 });
