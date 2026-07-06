@@ -18,7 +18,7 @@ class AiDashboardApiTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create([
-            'role'        => 'system_admin',
+            'role'        => 'Pentadbir Sistem',
             'permissions' => json_encode(['module6']),
         ]);
 

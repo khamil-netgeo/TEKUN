@@ -53,7 +53,7 @@ class CreditAssessmentTest extends TestCase
             'name'        => 'Pegawai Kredit Test',
             'email'       => 'kredit.test.' . $uniqueSuffix . '@tekun.gov.my',
             'password'    => Hash::make('demo1234'),
-            'role'        => 'credit_officer',
+            'role'        => 'Pegawai Kredit',
             'role_label'  => 'Pegawai Kredit',
             'branch'      => 'Cawangan KL Sentral',
             'branch_code' => 'KL01',

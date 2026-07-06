@@ -114,7 +114,8 @@ export default function CreditDashboard() {
       setLoading(true);
       const data = await creditService.getPendingApplications(page, perPage);
       const items: AppRow[] = (data.data ?? []).map((app: Record<string, unknown>) => {
-        const score = typeof app.ai_score === 'number' ? app.ai_score : Math.floor(Math.random() * 45) + 45;
+        // FIX: Use real ai_score from API (returned via LEFT JOIN with credit_assessments). No more Math.random().
+        const score = typeof app.ai_score === 'number' ? app.ai_score : 0;
         const wd    = waitingDays(app.created_at as string);
         return {
           id:               app.id as number,
@@ -263,7 +264,7 @@ export default function CreditDashboard() {
                           </td>
                           <td className="px-3 py-3">
                             <button
-                              onClick={() => navigate(`/module2/scoring/${encodeURIComponent(row.ref_no)}`, { state: { applicant: row } })}
+                              onClick={() => navigate(`/module2/scoring/${row.id}`, { state: { applicant: row } })}
                               className="px-3 py-1.5 rounded text-xs font-bold text-white transition-opacity hover:opacity-80 flex items-center gap-1"
                               style={{ background: '#1B2B5E' }}
                             >

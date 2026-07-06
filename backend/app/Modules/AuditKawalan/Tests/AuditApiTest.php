@@ -29,7 +29,7 @@ class AuditApiTest extends TestCase
         parent::setUp();
 
         $this->admin = User::factory()->create([
-            'role'        => 'system_admin',
+            'role'        => 'Pentadbir Sistem',
             'permissions' => ['module11' => true, 'all' => true],
         ]);
 

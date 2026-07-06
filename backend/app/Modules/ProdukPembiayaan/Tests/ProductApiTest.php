@@ -31,7 +31,7 @@ class ProductApiTest extends TestCase
 
         $this->adminUser = User::factory()->create([
             'email'       => "admin_m9_{$uid}@tekun.gov.my",
-            'role'        => 'system_admin',
+            'role'        => 'Pentadbir Sistem',
             'permissions' => [
                 'modules'        => ['*'],
                 'actions'        => ['*'],
@@ -42,7 +42,7 @@ class ProductApiTest extends TestCase
 
         $this->pegawaiUser = User::factory()->create([
             'email'       => "pegawai_m9_{$uid}@tekun.gov.my",
-            'role'        => 'branch_officer',
+            'role'        => 'Pegawai Cawangan',
             'permissions' => [
                 'modules'        => ['module9'],
                 'actions'        => ['read'],

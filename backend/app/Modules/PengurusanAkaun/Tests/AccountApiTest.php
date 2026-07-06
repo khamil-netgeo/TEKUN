@@ -29,14 +29,14 @@ class AccountApiTest extends TestCase
             [
                 'name'        => 'Test M4 Admin',
                 'password'    => bcrypt('password'),
-                'role'        => 'system_admin',
+                'role'        => 'Pentadbir Sistem',
                 'role_label'  => 'Pentadbir Sistem',
                 'permissions' => ['modules' => ['*'], 'approval_limit' => 999999],
             ]
         );
         // Ensure role is system_admin (in case user already exists with different role)
         $user->update([
-            'role'        => 'system_admin',
+            'role'        => 'Pentadbir Sistem',
             'permissions' => ['modules' => ['*'], 'approval_limit' => 999999],
         ]);
         $this->token = $user->createToken('test-m4-admin')->plainTextToken;

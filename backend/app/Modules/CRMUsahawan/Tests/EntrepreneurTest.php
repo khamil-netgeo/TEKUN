@@ -17,7 +17,7 @@ class EntrepreneurTest extends TestCase
     private function getAuthToken(): string
     {
         $user = User::factory()->create();
-        $user->assignRole('system_admin');
+        $user->assignRole('Pentadbir Sistem');
         return $user->createToken('test')->plainTextToken;
     }
 
