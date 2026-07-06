@@ -87,6 +87,11 @@ const DunningWorkflow      = lazy(() => import('@/pages/module5/DunningWorkflow'
 // Module 6 — Dashboard & Analitik
 const ExecutiveDashboard   = lazy(() => import('@/pages/module6/ExecutiveDashboard'));
 const ReportBuilder        = lazy(() => import('@/pages/module6/ReportBuilder'));
+// Module 6 extended pages (from modules/laporan-analitik)
+const BranchPerformance    = lazy(() => import('@/modules/laporan-analitik/pages/BranchPerformance'));
+const PredictiveAnalytics  = lazy(() => import('@/modules/laporan-analitik/pages/PredictiveAnalytics'));
+const AiDashboardBuilder   = lazy(() => import('@/modules/laporan-analitik/pages/AiDashboardBuilder'));
+const OfficerSkillProfile  = lazy(() => import('@/modules/laporan-analitik/pages/OfficerSkillProfile'));
 
 // Module 7 — CRM & Usahawan
 const EntrepreneurProfile  = lazy(() => import('@/pages/module7/EntrepreneurProfile'));
@@ -97,6 +102,8 @@ const BranchManagement     = lazy(() => import('@/pages/module8/BranchManagement
 
 // Module 9 — Produk Pembiayaan
 const ProductConfig        = lazy(() => import('@/pages/module9/ProductConfig'));
+// Module 9 extended pages (from modules/produk-pembiayaan)
+const EligibilityChecker   = lazy(() => import('@/modules/produk-pembiayaan/pages/EligibilityChecker'));
 
 // Module 10 — Integrasi API
 const ApiHealth            = lazy(() => import('@/pages/module10/ApiHealth'));
@@ -238,6 +245,10 @@ export default function App() {
             <Route path="module6/dashboard"            element={<ProtectedRoute allowedRoles={M6_ROLES} requiredModule="module6"><ExecutiveDashboard /></ProtectedRoute>} />
             <Route path="module6/executive-dashboard"  element={<ProtectedRoute allowedRoles={M6_ROLES} requiredModule="module6"><ExecutiveDashboard /></ProtectedRoute>} />
             <Route path="module6/reports"              element={<ProtectedRoute allowedRoles={M6_ROLES} requiredModule="module6"><ReportBuilder /></ProtectedRoute>} />
+            <Route path="module6/branch-performance"   element={<ProtectedRoute allowedRoles={M6_ROLES} requiredModule="module6"><BranchPerformance /></ProtectedRoute>} />
+            <Route path="module6/predictive"           element={<ProtectedRoute allowedRoles={M6_ROLES} requiredModule="module6"><PredictiveAnalytics /></ProtectedRoute>} />
+            <Route path="module6/ai-builder"           element={<ProtectedRoute allowedRoles={M6_ROLES} requiredModule="module6"><AiDashboardBuilder /></ProtectedRoute>} />
+            <Route path="module6/officer-skill"        element={<ProtectedRoute allowedRoles={M6_ROLES} requiredModule="module6"><OfficerSkillProfile /></ProtectedRoute>} />
 
             {/* ── MODULE 7 — CRM & Usahawan ─────────────────────────────── */}
             <Route path="module7/entrepreneurs" element={<ProtectedRoute allowedRoles={M7_ROLES} requiredModule="module7"><EntrepreneurProfile /></ProtectedRoute>} />
@@ -247,13 +258,15 @@ export default function App() {
             <Route path="module8/branches" element={<ProtectedRoute allowedRoles={M8_ROLES} requiredModule="module8"><BranchManagement /></ProtectedRoute>} />
 
             {/* ── MODULE 9 — Produk Pembiayaan (admin only) ─────────────── */}
-            <Route path="module9/products" element={<ProtectedRoute allowedRoles={ADMIN_ONLY} requiredModule="module9"><ProductConfig /></ProtectedRoute>} />
+            <Route path="module9/products"     element={<ProtectedRoute allowedRoles={ADMIN_ONLY} requiredModule="module9"><ProductConfig /></ProtectedRoute>} />
+            <Route path="module9/eligibility"  element={<ProtectedRoute allowedRoles={ADMIN_ONLY} requiredModule="module9"><EligibilityChecker /></ProtectedRoute>} />
 
             {/* ── MODULE 10 — Integrasi API (admin only) ────────────────── */}
             <Route path="module10/api-health" element={<ProtectedRoute allowedRoles={ADMIN_ONLY} requiredModule="module10"><ApiHealth /></ProtectedRoute>} />
 
             {/* ── MODULE 11 — Audit & Kawalan ───────────────────────────── */}
-            <Route path="module11/audit" element={<ProtectedRoute allowedRoles={[R.EXECUTIVE, R.SYSTEM_ADMIN]} requiredModule="module11"><AuditTrail /></ProtectedRoute>} />
+            <Route path="module11/audit"       element={<ProtectedRoute allowedRoles={[R.EXECUTIVE, R.SYSTEM_ADMIN]} requiredModule="module11"><AuditTrail /></ProtectedRoute>} />
+            <Route path="module11/audit-trail" element={<ProtectedRoute allowedRoles={[R.EXECUTIVE, R.SYSTEM_ADMIN]} requiredModule="module11"><AuditTrail /></ProtectedRoute>} />
 
             {/* ── MODULE 12 — Pentadbiran Sistem (admin only) ───────────── */}
             <Route path="module12/users" element={<ProtectedRoute allowedRoles={ADMIN_ONLY} requiredModule="module12"><UserManagement /></ProtectedRoute>} />
@@ -261,7 +274,6 @@ export default function App() {
             {/* Admin page */}
             <Route path="admin" element={<ProtectedRoute allowedRoles={ADMIN_ONLY}><AdminPage /></ProtectedRoute>} />
           </Route>
-
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
