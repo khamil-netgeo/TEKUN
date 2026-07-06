@@ -103,10 +103,14 @@ export const creditService = {
     return response.data;
   },
 
-  // Generate offer letter
+  // Generate AI Surat Tawaran via Gemini 3.1 Pro — returns { success, message, html_content, pdf_url }
   generateOfferLetter: async (applicationId: number | string) => {
-    const response = await api.get(`/applications/${applicationId}/offer-letter`);
-    return response.data;
+    try {
+      const response = await api.post(`/applications/${applicationId}/offer-letter`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || { message: 'Ralat rangkaian ketika menghubungi pelayan.' };
+    }
   },
 
   // Generate AI narrative (legacy endpoint)

@@ -387,23 +387,37 @@ class CreditAssessmentController extends Controller
 
     public function offerLetter($id, OfferLetterService $offerLetterService)
     {
-        $app        = DB::table('applications')->where('id', $id)->first();
-        $assessment = DB::table('credit_assessments')->where('application_id', $id)->first();
+        try {
+            $app        = DB::table('applications')->where('id', $id)->first();
+            $assessment = DB::table('credit_assessments')->where('application_id', $id)->first();
 
-        if (!$assessment) {
-            $assessment = (object)[
-                'amount_approved' => $app->amount_requested ?? 50000,
-                'tenure_approved' => 60,
-                'profit_rate'     => 4.0,
-            ];
+            if (!$app) {
+                return response()->json(['success' => false, 'message' => 'Permohonan tidak dijumpai.'], 404);
+            }
+
+            if (!$assessment) {
+                $assessment = (object)[
+                    'amount_approved' => $app->amount_requested ?? 50000,
+                    'tenure_approved' => $app->tenure_months ?? 36,
+                    'profit_rate'     => 4.0,
+                    'total_score'     => 0,
+                ];
+            }
+
+            $result = $offerLetterService->generate((string)$id, $app, $assessment);
+
+            return response()->json([
+                'success'      => true,
+                'message'      => 'Surat tawaran berjaya dijana oleh Enjin AI Gemini 3.1 Pro.',
+                'html_content' => $result['html_content'],
+                'pdf_url'      => $result['pdf_url'],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menjana surat tawaran: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $pdfUrl = $offerLetterService->generate((string)$id, $app ?? (object)[], $assessment);
-
-        return response()->json([
-            'message' => 'Surat tawaran berjaya dijana',
-            'pdf_url' => $pdfUrl,
-        ]);
     }
 
     private function getGradeLabel($grade)
