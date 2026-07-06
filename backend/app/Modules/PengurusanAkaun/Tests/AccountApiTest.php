@@ -4,7 +4,6 @@ namespace App\Modules\PengurusanAkaun\Tests;
 
 use Tests\TestCase;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 /**
  * Module 4 — Pengurusan Akaun API Tests
@@ -15,7 +14,6 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
  */
 class AccountApiTest extends TestCase
 {
-    use DatabaseTransactions;
 
     private string $token;
 

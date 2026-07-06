@@ -5,7 +5,6 @@ namespace App\Modules\ProdukPembiayaan\Tests;
 use Tests\TestCase;
 use App\Models\User;
 use App\Modules\ProdukPembiayaan\Models\FinancingProduct;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
 
 /**
@@ -17,7 +16,6 @@ use Laravel\Sanctum\Sanctum;
  */
 class ProductApiTest extends TestCase
 {
-    use DatabaseTransactions;
 
     private User $adminUser;
     private User $pegawaiUser;
