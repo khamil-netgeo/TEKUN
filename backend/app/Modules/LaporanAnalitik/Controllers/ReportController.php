@@ -5,6 +5,7 @@ namespace App\Modules\LaporanAnalitik\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Modules\LaporanAnalitik\Services\ReportBuilderService;
+use Illuminate\Support\Facades\Http;
 
 class ReportController extends Controller
 {
@@ -64,12 +65,29 @@ class ReportController extends Controller
         ]);
     }
 
-    // POC: GET /api/reports/predictive
     public function predictive(Request $request)
     {
-        return response()->json([
-            'success' => true,
-            'data' => $this->reportBuilderService->getPredictiveData($request->all()),
-        ]);
+        try {
+            $aiEndpoint = config('services.ai.predictive_endpoint', env('AI_PREDICTIVE_ENDPOINT', 'http://localhost:5000/predict'));
+            
+            $response = Http::timeout(30)->post($aiEndpoint, $request->all());
+
+            if ($response->successful()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $response->json(),
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mendapatkan data ramalan dari enjin AI.',
+            ], $response->status());
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ralat penyambungan ke enjin AI: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

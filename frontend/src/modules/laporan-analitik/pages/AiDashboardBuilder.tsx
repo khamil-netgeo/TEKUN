@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -56,6 +57,7 @@ const COLOUR_MAP: Record<string, string> = {
 
 // ── Widget Renderer ────────────────────────────────────────────────────────
 function WidgetRenderer({ widget }: { widget: WidgetConfig }) {
+  const { t } = useTranslation();
   const colour = COLOUR_MAP[widget.config.color ?? 'navy'] ?? '#1B2B5E';
 
   const sizeClass = {
@@ -84,7 +86,7 @@ function WidgetRenderer({ widget }: { widget: WidgetConfig }) {
           <p className="text-xs text-gray-500 mt-1">{widget.config.metric}</p>
           {widget.config.trend && (
             <span className={`text-xs font-semibold ${widget.config.trend === 'up' ? 'text-green-600' : widget.config.trend === 'down' ? 'text-red-600' : 'text-gray-500'}`}>
-              {widget.config.trend === 'up' ? '↑' : widget.config.trend === 'down' ? '↓' : '→'} Trend {widget.config.trend}
+              {widget.config.trend === 'up' ? '↑' : widget.config.trend === 'down' ? '↓' : '→'} {t('ai_dashboard.trend', 'Trend')} {widget.config.trend}
             </span>
           )}
         </div>
@@ -158,7 +160,7 @@ function WidgetRenderer({ widget }: { widget: WidgetConfig }) {
       {/* alert_panel */}
       {widget.type === 'alert_panel' && (
         <div className="rounded-lg p-3" style={{ background: colour + '15', borderLeft: `3px solid ${colour}` }}>
-          <p className="text-sm font-semibold" style={{ color: colour }}>{widget.config.metric ?? 'Amaran'}</p>
+          <p className="text-sm font-semibold" style={{ color: colour }}>{widget.config.metric ?? t('ai_dashboard.alert', 'Amaran')}</p>
           <p className="text-xs text-gray-600 mt-1">{String(widget.config.value ?? '')}</p>
         </div>
       )}
@@ -175,6 +177,7 @@ function WidgetRenderer({ widget }: { widget: WidgetConfig }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function AiDashboardBuilder() {
+  const { t } = useTranslation();
   const [prompt,       setPrompt]       = useState('');
   const [generating,   setGenerating]   = useState(false);
   const [config,       setConfig]       = useState<DashboardConfig | null>(null);
@@ -184,10 +187,10 @@ export default function AiDashboardBuilder() {
   const [loadingList,  setLoadingList]  = useState(true);
 
   const SAMPLE_PROMPTS = [
-    'Tunjukkan prestasi cawangan Kelantan bulan ini',
-    'Analisis NPL mengikut negeri dan cadangan tindakan',
-    'Ringkasan KPI eksekutif dengan trend 6 bulan',
-    'Perbandingan kadar kelulusan antara produk pembiayaan',
+    t('ai_dashboard.sample_1', 'Tunjukkan prestasi cawangan Kelantan bulan ini'),
+    t('ai_dashboard.sample_2', 'Analisis NPL mengikut negeri dan cadangan tindakan'),
+    t('ai_dashboard.sample_3', 'Ringkasan KPI eksekutif dengan trend 6 bulan'),
+    t('ai_dashboard.sample_4', 'Perbandingan kadar kelulusan antara produk pembiayaan'),
   ];
 
   useEffect(() => {
@@ -198,16 +201,16 @@ export default function AiDashboardBuilder() {
   }, []);
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) { toast.error('Sila masukkan arahan untuk papan pemuka'); return; }
+    if (!prompt.trim()) { toast.error(t('ai_dashboard.enter_prompt', 'Sila masukkan arahan untuk papan pemuka')); return; }
     setGenerating(true);
     setConfig(null);
     try {
       const res = await api.post('/ai/dashboard/generate', { prompt });
       setConfig(res.data.data);
-      setSaveName(res.data.data?.dashboard_title ?? 'Papan Pemuka AI');
-      toast.success('Papan pemuka AI berjaya dijana');
+      setSaveName(res.data.data?.dashboard_title ?? t('ai_dashboard.default_title', 'Papan Pemuka AI'));
+      toast.success(t('ai_dashboard.generate_success', 'Papan pemuka AI berjaya dijana'));
     } catch {
-      toast.error('Gagal menjana papan pemuka. Sila cuba lagi.');
+      toast.error(t('ai_dashboard.generate_error', 'Gagal menjana papan pemuka. Sila cuba lagi.'));
     } finally {
       setGenerating(false);
     }
@@ -220,11 +223,11 @@ export default function AiDashboardBuilder() {
       const saved = res.data.saved_config;
       if (saved) {
         setSavedConfigs(prev => [{ id: saved.id, name: saved.name, prompt, use_count: 0, last_used_at: null, created_at: new Date().toISOString() }, ...prev]);
-        toast.success('Konfigurasi papan pemuka disimpan');
+        toast.success(t('ai_dashboard.save_success', 'Konfigurasi papan pemuka disimpan'));
         setShowSave(false);
       }
     } catch {
-      toast.error('Gagal menyimpan konfigurasi');
+      toast.error(t('ai_dashboard.save_error', 'Gagal menyimpan konfigurasi'));
     }
   };
 
@@ -234,9 +237,9 @@ export default function AiDashboardBuilder() {
       const cfg = res.data.data;
       setConfig(cfg.widget_config);
       setPrompt(cfg.prompt);
-      toast.success('Konfigurasi dimuatkan');
+      toast.success(t('ai_dashboard.load_success', 'Konfigurasi dimuatkan'));
     } catch {
-      toast.error('Gagal memuatkan konfigurasi');
+      toast.error(t('ai_dashboard.load_error', 'Gagal memuatkan konfigurasi'));
     }
   };
 
@@ -244,17 +247,17 @@ export default function AiDashboardBuilder() {
     try {
       await api.delete(`/ai/dashboard/configs/${id}`);
       setSavedConfigs(prev => prev.filter(c => c.id !== id));
-      toast.success('Konfigurasi dipadam');
+      toast.success(t('ai_dashboard.delete_success', 'Konfigurasi dipadam'));
     } catch {
-      toast.error('Gagal memadam konfigurasi');
+      toast.error(t('ai_dashboard.delete_error', 'Gagal memadam konfigurasi'));
     }
   };
 
   return (
     <div className="space-y-6 p-6">
       <PageHeader
-        title="Pembina Papan Pemuka AI"
-        subtitle="Jana papan pemuka dinamik menggunakan arahan bahasa semula jadi"
+        title={t('ai_dashboard.page_title', 'Pembina Papan Pemuka AI')}
+        subtitle={t('ai_dashboard.page_subtitle', 'Jana papan pemuka dinamik menggunakan arahan bahasa semula jadi')}
         icon={<LayoutDashboard size={20} />}
         action={<AiBadge label="SPPT AI" variant="gradient" />}
       />
@@ -266,13 +269,13 @@ export default function AiDashboardBuilder() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
             <div className="flex items-center gap-2 mb-3">
               <Brain size={16} style={{ color: '#673AB7' }} />
-              <h3 className="text-sm font-bold" style={{ color: '#1B2B5E' }}>Arahan Papan Pemuka</h3>
+              <h3 className="text-sm font-bold" style={{ color: '#1B2B5E' }}>{t('ai_dashboard.prompt_label', 'Arahan Papan Pemuka')}</h3>
             </div>
 
             <textarea
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
-              placeholder="Contoh: Tunjukkan prestasi cawangan Kelantan dengan trend NPL..."
+              placeholder={t('ai_dashboard.prompt_placeholder', 'Contoh: Tunjukkan prestasi cawangan Kelantan dengan trend NPL...')}
               className="w-full text-sm border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2"
               style={{ minHeight: 100, focusRingColor: '#673AB7' } as React.CSSProperties}
               rows={4}
@@ -287,19 +290,19 @@ export default function AiDashboardBuilder() {
               {generating ? (
                 <>
                   <RefreshCw size={14} className="animate-spin" />
-                  Menjana Papan Pemuka...
+                  {t('ai_dashboard.generating', 'Menjana Papan Pemuka...')}
                 </>
               ) : (
                 <>
                   <Sparkles size={14} />
-                  Jana Papan Pemuka
+                  {t('ai_dashboard.generate_btn', 'Jana Papan Pemuka')}
                 </>
               )}
             </button>
 
             {/* Sample Prompts */}
             <div className="mt-3">
-              <p className="text-xs text-gray-400 mb-2">Contoh arahan:</p>
+              <p className="text-xs text-gray-400 mb-2">{t('ai_dashboard.sample_prompts', 'Contoh arahan:')}</p>
               <div className="space-y-1">
                 {SAMPLE_PROMPTS.map((p, i) => (
                   <button
@@ -318,20 +321,20 @@ export default function AiDashboardBuilder() {
 
           {/* Saved Configs */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <h3 className="text-sm font-bold mb-3" style={{ color: '#1B2B5E' }}>Konfigurasi Tersimpan</h3>
+            <h3 className="text-sm font-bold mb-3" style={{ color: '#1B2B5E' }}>{t('ai_dashboard.saved_configs', 'Konfigurasi Tersimpan')}</h3>
             {loadingList ? (
-              <p className="text-xs text-gray-400 text-center py-2">Memuatkan...</p>
+              <p className="text-xs text-gray-400 text-center py-2">{t('common.loading', 'Memuatkan...')}</p>
             ) : savedConfigs.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-2">Tiada konfigurasi tersimpan</p>
+              <p className="text-xs text-gray-400 text-center py-2">{t('ai_dashboard.no_saved_configs', 'Tiada konfigurasi tersimpan')}</p>
             ) : (
               <div className="space-y-2">
                 {savedConfigs.map(cfg => (
                   <div key={cfg.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 group">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-800 truncate">{cfg.name}</p>
-                      <p className="text-xs text-gray-400">Digunakan {cfg.use_count}x</p>
+                      <p className="text-xs text-gray-400">{t('ai_dashboard.used_count', 'Digunakan {{count}}x', { count: cfg.use_count })}</p>
                     </div>
-                    <button onClick={() => handleLoadConfig(cfg.id)} className="text-xs px-2 py-1 rounded text-white" style={{ background: '#1B2B5E' }}>Muat</button>
+                    <button onClick={() => handleLoadConfig(cfg.id)} className="text-xs px-2 py-1 rounded text-white" style={{ background: '#1B2B5E' }}>{t('common.load', 'Muat')}</button>
                     <button onClick={() => handleDeleteConfig(cfg.id)} className="opacity-0 group-hover:opacity-100 transition">
                       <Trash2 size={13} className="text-red-400" />
                     </button>
@@ -349,8 +352,8 @@ export default function AiDashboardBuilder() {
               <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 animate-pulse" style={{ background: '#EDE9FE' }}>
                 <Brain size={32} style={{ color: '#673AB7' }} />
               </div>
-              <p className="text-sm font-bold mb-2" style={{ color: '#673AB7' }}>SPPT AI sedang menjana papan pemuka...</p>
-              <p className="text-xs text-gray-400 text-center max-w-xs">Menganalisis data sistem dan membina widget yang relevan berdasarkan arahan anda</p>
+              <p className="text-sm font-bold mb-2" style={{ color: '#673AB7' }}>{t('ai_dashboard.ai_generating_title', 'SPPT AI sedang menjana papan pemuka...')}</p>
+              <p className="text-xs text-gray-400 text-center max-w-xs">{t('ai_dashboard.ai_generating_desc', 'Menganalisis data sistem dan membina widget yang relevan berdasarkan arahan anda')}</p>
               <div className="mt-4 flex gap-1">
                 {[0, 1, 2].map(i => (
                   <div key={i} className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#673AB7', animationDelay: `${i * 0.2}s` }} />
@@ -361,76 +364,73 @@ export default function AiDashboardBuilder() {
 
           {!generating && !config && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 flex flex-col items-center justify-center" style={{ minHeight: 400 }}>
-              <LayoutDashboard size={48} className="mb-4 opacity-20" style={{ color: '#673AB7' }} />
-              <p className="text-sm font-bold text-gray-500 mb-2">Papan Pemuka Belum Dijana</p>
-              <p className="text-xs text-gray-400 text-center max-w-xs">Masukkan arahan di sebelah kiri dan klik "Jana Papan Pemuka" untuk menjana papan pemuka dinamik menggunakan SPPT AI</p>
+              <LayoutDashboard size={48} className="text-gray-200 mb-4" />
+              <p className="text-sm font-bold text-gray-400">{t('ai_dashboard.empty_state_title', 'Tiada papan pemuka dijana')}</p>
+              <p className="text-xs text-gray-400 mt-1">{t('ai_dashboard.empty_state_desc', 'Sila masukkan arahan di sebelah kiri untuk menjana papan pemuka')}</p>
             </div>
           )}
 
           {!generating && config && (
             <div className="space-y-4">
-              {/* Dashboard Header */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h2 className="text-base font-bold" style={{ color: '#1B2B5E' }}>{config.dashboard_title}</h2>
-                      <AiBadge label="SPPT AI" variant="gradient" />
-                    </div>
-                    <p className="text-xs text-gray-500">{config.summary}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-gray-400">Keyakinan: {Math.round((config.confidence ?? 0) * 100)}%</span>
-                    <button
-                      onClick={() => setShowSave(!showSave)}
-                      className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg text-white"
-                      style={{ background: '#673AB7' }}
-                    >
-                      <Save size={12} /> Simpan
-                    </button>
-                  </div>
+              <div className="flex items-center justify-between bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: '#1B2B5E' }}>{config.dashboard_title}</h2>
+                  <p className="text-xs text-gray-500 mt-1">{config.summary}</p>
                 </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowSave(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold text-white transition"
+                    style={{ background: '#1B2B5E' }}
+                  >
+                    <Save size={14} />
+                    {t('ai_dashboard.save_config', 'Simpan')}
+                  </button>
+                </div>
+              </div>
 
-                {/* Save Form */}
-                {showSave && (
-                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+              {showSave && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-end gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">{t('ai_dashboard.config_name', 'Nama Konfigurasi')}</label>
                     <input
                       type="text"
                       value={saveName}
                       onChange={e => setSaveName(e.target.value)}
-                      placeholder="Nama konfigurasi..."
-                      className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none"
+                      className="w-full text-sm border border-gray-200 rounded p-2 focus:outline-none focus:border-purple-500"
                     />
-                    <button onClick={handleSave} className="text-xs px-3 py-1.5 rounded-lg text-white font-semibold" style={{ background: '#2E7D32' }}>
-                      Simpan
-                    </button>
-                    <button onClick={() => setShowSave(false)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600">
-                      Batal
-                    </button>
                   </div>
-                )}
-              </div>
+                  <button
+                    onClick={handleSave}
+                    className="px-4 py-2 rounded text-sm font-bold text-white transition"
+                    style={{ background: '#673AB7' }}
+                  >
+                    {t('ai_dashboard.confirm_save', 'Simpan Sekarang')}
+                  </button>
+                  <button
+                    onClick={() => setShowSave(false)}
+                    className="px-4 py-2 rounded text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    {t('common.cancel', 'Batal')}
+                  </button>
+                </div>
+              )}
 
-              {/* Dynamic Widgets Grid */}
+              {config.ai_narrative && (
+                <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles size={16} style={{ color: '#673AB7' }} />
+                    <h3 className="text-sm font-bold" style={{ color: '#673AB7' }}>{t('ai_dashboard.ai_analysis', 'Analisis AI')}</h3>
+                  </div>
+                  <p className="text-sm text-gray-700 leading-relaxed">{config.ai_narrative}</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(config.widgets ?? []).map(widget => (
+                {config.widgets.map(widget => (
                   <WidgetRenderer key={widget.id} widget={widget} />
                 ))}
               </div>
-
-              {/* AI Narrative */}
-              {config.ai_narrative && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4" style={{ borderLeft: '4px solid #673AB7' }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain size={14} style={{ color: '#673AB7' }} />
-                    <span className="text-xs font-bold" style={{ color: '#673AB7' }}>Naratif Eksekutif SPPT AI</span>
-                  </div>
-                  <p className="text-sm text-gray-700">{config.ai_narrative}</p>
-                  <p className="text-xs text-gray-400 mt-2">
-                    Dijana pada {new Date(config.generated_at).toLocaleString('ms-MY')}
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>

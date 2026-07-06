@@ -270,6 +270,21 @@ Berdasarkan profil kemahiran pegawai dan konteks kes di atas, berikan cadangan k
      */
     private function extractSkillTags(string $description): array
     {
+        try {
+            $prompt = "Anda adalah pembantu AI. Ekstrak kata kunci kemahiran (skill tags) yang relevan daripada deskripsi berikut. Kembalikan HANYA array JSON yang mengandungi string kata kunci (maksimum 10 kata kunci), contohnya: [\"kredit\", \"pertanian\"]. Jangan sertakan teks lain.\n\nDeskripsi: {$description}";
+
+            $response    = $this->ai->callAiEngine($prompt);
+            $cleanedText = preg_replace('/```json\s*|\s*```/', '', trim($response));
+            $tags        = json_decode($cleanedText, true);
+
+            if (is_array($tags) && !empty($tags)) {
+                return array_values(array_unique(array_filter($tags, 'is_string')));
+            }
+        } catch (\Exception $e) {
+            Log::warning('OfficerSkillController::extractSkillTags AI extraction failed, using fallback: ' . $e->getMessage());
+        }
+
+        // Fallback to basic extraction if AI fails
         $keywords = [
             'pertanian', 'agrikultur', 'mikro', 'perniagaan', 'perdagangan',
             'pembuatan', 'perkhidmatan', 'teknologi', 'makanan', 'tekstil',
