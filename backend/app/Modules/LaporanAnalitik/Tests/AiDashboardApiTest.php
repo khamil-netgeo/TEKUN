@@ -4,11 +4,9 @@ namespace App\Modules\LaporanAnalitik\Tests;
 
 use Tests\TestCase;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 class AiDashboardApiTest extends TestCase
 {
-    use DatabaseTransactions;
 
     private User $user;
     private string $token;

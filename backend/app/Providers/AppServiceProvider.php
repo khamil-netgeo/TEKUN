@@ -32,7 +32,7 @@ class AppServiceProvider extends ServiceProvider
 
     private function bindModuleServices(): void
     {
-        $services = [
+        $serviceClasses = [
             \App\Modules\AuditKawalan\Services\AnomalyDetectionService::class,
             \App\Modules\AuditKawalan\Services\ComplianceReportService::class,
             \App\Modules\CRMUsahawan\Services\EntrepreneurService::class,
@@ -51,9 +51,9 @@ class AppServiceProvider extends ServiceProvider
             \App\Modules\ProdukPembiayaan\Services\EligibilityCheckerService::class,
             \App\Modules\ProdukPembiayaan\Services\ProductService::class,
         ];
-        foreach ($services as $service) {
-            if (class_exists($service)) {
-                $this->app->singleton($service, $service);
+        foreach ($serviceClasses as $serviceClass) {
+            if (class_exists($serviceClass)) {
+                $this->app->singleton($serviceClass, $serviceClass);
             }
         }
     }

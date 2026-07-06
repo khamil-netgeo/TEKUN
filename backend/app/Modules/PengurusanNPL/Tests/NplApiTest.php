@@ -2,7 +2,6 @@
 
 namespace App\Modules\PengurusanNPL\Tests;
 
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 use Tests\TestCase;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +14,6 @@ use App\Models\User;
  */
 class NplApiTest extends TestCase
 {
-    use DatabaseTransactions;
 
     private string $token = '';
     private ?User $testUser = null;

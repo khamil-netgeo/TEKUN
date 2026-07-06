@@ -22,6 +22,7 @@ class CoreRolesOnlySeeder extends Seeder
             'Pegawai Kredit',
             'Eksekutif',
             'Pentadbir Sistem',
+            'usahawan',
             // English aliases for test compatibility
             'system_admin',
             'executive',
