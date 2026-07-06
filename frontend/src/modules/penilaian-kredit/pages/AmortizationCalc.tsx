@@ -5,10 +5,12 @@ import DataTable from '@/components/ui/DataTable';
 import { creditService } from '../services/creditService';
 import type { AmortizationSchedule } from '../services/creditService';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 export default function AmortizationCalc() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [scheduleData, setScheduleData] = useState<AmortizationSchedule | null>(null);
   
@@ -31,7 +33,7 @@ export default function AmortizationCalc() {
       setScheduleData(data);
     } catch (error) {
       console.error('Error calculating amortization:', error);
-      toast.error('Gagal mengira jadual amortisasi');
+      toast.error(t('amortization.calculate_error', 'Gagal mengira jadual amortisasi'));
     } finally {
       setLoading(false);
     }
@@ -43,24 +45,24 @@ export default function AmortizationCalc() {
   };
 
   const columns = [
-    { header: 'Bulan', accessor: 'month' },
+    { header: t('amortization.month', 'Bulan'), accessor: 'month' },
     { 
-      header: 'Prinsipal (RM)', 
+      header: t('amortization.principal_rm', 'Prinsipal (RM)'), 
       accessor: 'principal',
       cell: (row: any) => new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.principal)
     },
     { 
-      header: 'Keuntungan (RM)', 
+      header: t('amortization.profit_rm', 'Keuntungan (RM)'), 
       accessor: 'interest',
       cell: (row: any) => new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.interest)
     },
     { 
-      header: 'Ansuran (RM)', 
+      header: t('amortization.installment_rm', 'Ansuran (RM)'), 
       accessor: 'total',
       cell: (row: any) => <span className="font-medium text-navy-900">{new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.total)}</span>
     },
     { 
-      header: 'Baki (RM)', 
+      header: t('amortization.balance_rm', 'Baki (RM)'), 
       accessor: 'balance',
       cell: (row: any) => new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(row.balance)
     }
@@ -76,8 +78,8 @@ export default function AmortizationCalc() {
           <ArrowLeft className="w-5 h-5 text-gray-600" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-navy-900">Kalkulator Jadual Amortisasi</h1>
-          <p className="text-gray-500">Kira jadual pembayaran balik untuk Permohonan #{id}</p>
+          <h1 className="text-2xl font-bold text-navy-900">{t('amortization.title', 'Kalkulator Jadual Amortisasi')}</h1>
+          <p className="text-gray-500">{t('amortization.subtitle', 'Kira jadual pembayaran balik untuk Permohonan #{{id}}', { id })}</p>
         </div>
       </div>
 
@@ -87,12 +89,12 @@ export default function AmortizationCalc() {
           <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm sticky top-6">
             <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-100">
               <Calculator className="w-5 h-5 text-primary-600" />
-              <h2 className="text-lg font-semibold text-navy-900">Parameter Kiraan</h2>
+              <h2 className="text-lg font-semibold text-navy-900">{t('amortization.calculation_parameters', 'Parameter Kiraan')}</h2>
             </div>
             
             <form onSubmit={handleCalculate} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amaun Pembiayaan (RM)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('amortization.financing_amount_rm', 'Amaun Pembiayaan (RM)')}</label>
                 <input 
                   type="number" 
                   value={amount}
@@ -104,24 +106,24 @@ export default function AmortizationCalc() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tempoh (Bulan)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('amortization.tenure_months', 'Tempoh (Bulan)')}</label>
                 <select 
                   value={tenure}
                   onChange={(e) => setTenure(Number(e.target.value))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 >
-                  <option value="12">12 Bulan (1 Tahun)</option>
-                  <option value="24">24 Bulan (2 Tahun)</option>
-                  <option value="36">36 Bulan (3 Tahun)</option>
-                  <option value="48">48 Bulan (4 Tahun)</option>
-                  <option value="60">60 Bulan (5 Tahun)</option>
-                  <option value="84">84 Bulan (7 Tahun)</option>
-                  <option value="120">120 Bulan (10 Tahun)</option>
+                  <option value="12">{t('amortization.tenure_12', '12 Bulan (1 Tahun)')}</option>
+                  <option value="24">{t('amortization.tenure_24', '24 Bulan (2 Tahun)')}</option>
+                  <option value="36">{t('amortization.tenure_36', '36 Bulan (3 Tahun)')}</option>
+                  <option value="48">{t('amortization.tenure_48', '48 Bulan (4 Tahun)')}</option>
+                  <option value="60">{t('amortization.tenure_60', '60 Bulan (5 Tahun)')}</option>
+                  <option value="84">{t('amortization.tenure_84', '84 Bulan (7 Tahun)')}</option>
+                  <option value="120">{t('amortization.tenure_120', '120 Bulan (10 Tahun)')}</option>
                 </select>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Kadar Keuntungan (%)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('amortization.profit_rate_percent', 'Kadar Keuntungan (%)')}</label>
                 <input 
                   type="number" 
                   value={rate}
@@ -133,7 +135,7 @@ export default function AmortizationCalc() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Kaedah Kiraan</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('amortization.calculation_method', 'Kaedah Kiraan')}</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -144,7 +146,7 @@ export default function AmortizationCalc() {
                         : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    Kadar Rata (Flat)
+                    {t('amortization.flat_rate', 'Kadar Rata (Flat)')}
                   </button>
                   <button
                     type="button"
@@ -155,7 +157,7 @@ export default function AmortizationCalc() {
                         : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    Baki Berkurangan
+                    {t('amortization.reducing_balance', 'Baki Berkurangan')}
                   </button>
                 </div>
               </div>
@@ -165,27 +167,27 @@ export default function AmortizationCalc() {
                 disabled={loading}
                 className="w-full py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed mt-2"
               >
-                {loading ? 'Mengira...' : 'Kira Semula'}
+                {loading ? t('amortization.calculating', 'Mengira...') : t('amortization.recalculate', 'Kira Semula')}
               </button>
             </form>
 
             {scheduleData && (
               <div className="mt-8 pt-6 border-t border-gray-100 space-y-4">
-                <h3 className="text-sm font-semibold text-navy-900 mb-3">Ringkasan</h3>
+                <h3 className="text-sm font-semibold text-navy-900 mb-3">{t('amortization.summary', 'Ringkasan')}</h3>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Ansuran Bulanan:</span>
+                  <span className="text-gray-500">{t('amortization.monthly_installment', 'Ansuran Bulanan:')}</span>
                   <span className="font-bold text-lg text-primary-700">
                     RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(scheduleData.monthly_payment)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Jumlah Keuntungan:</span>
+                  <span className="text-gray-500">{t('amortization.total_profit', 'Jumlah Keuntungan:')}</span>
                   <span className="font-medium text-gray-900">
                     RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format((scheduleData as any).total_profit ?? 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Jumlah Keseluruhan:</span>
+                  <span className="text-gray-500">{t('amortization.total_amount', 'Jumlah Keseluruhan:')}</span>
                   <span className="font-medium text-gray-900">
                     RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(scheduleData.total_payment)}
                   </span>
@@ -199,15 +201,15 @@ export default function AmortizationCalc() {
         <div className="lg:col-span-2">
           <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-semibold text-navy-900">Jadual Pembayaran</h2>
+              <h2 className="text-lg font-semibold text-navy-900">{t('amortization.payment_schedule', 'Jadual Pembayaran')}</h2>
               
               <div className="flex gap-2">
-                <button className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 tooltip-trigger" title="Cetak">
+                <button className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 tooltip-trigger" title={t('amortization.print', 'Cetak')}>
                   <Printer className="w-4 h-4" />
                 </button>
                 <button className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
                   <Download className="w-4 h-4" />
-                  Eksport PDF
+                  {t('amortization.export_pdf', 'Eksport PDF')}
                 </button>
               </div>
             </div>
@@ -241,7 +243,7 @@ export default function AmortizationCalc() {
               </div>
             ) : (
               <div className="text-center py-20 text-gray-500">
-                Sila tekan butang Kira untuk menjana jadual amortisasi.
+                {t('amortization.empty_state_message', 'Sila tekan butang Kira untuk menjana jadual amortisasi.')}
               </div>
             )}
           </div>

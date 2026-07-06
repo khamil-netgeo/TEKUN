@@ -45,6 +45,7 @@ export default function CreditDashboard() {
       setStats(data);
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
+      toast.error('Gagal memuatkan statistik papan pemuka');
     } finally {
       setStatsLoading(false);
     }

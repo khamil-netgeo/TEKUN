@@ -45,6 +45,7 @@ return new class extends Migration
                 $table->id();
                 $table->unsignedBigInteger('application_id');
                 $table->unsignedBigInteger('queried_by')->nullable();
+                $table->foreign('queried_by')->references('id')->on('users')->nullOnDelete();
                 $table->text('flagged_fields')->nullable()->comment('JSON array of flagged field names');
                 $table->text('notes')->nullable()->comment('Officer notes for the query');
                 $table->text('ai_suggestions')->nullable()->comment('JSON array of AI-generated suggestions');
