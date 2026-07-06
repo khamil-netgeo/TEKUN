@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { FileText, Clock, CheckCircle, AlertTriangle, ChevronRight, Brain } from 'lucide-react';
 
@@ -35,6 +36,7 @@ const aiNotifications = [
 
 export default function CreditDashboard() {
   const [filter, setFilter] = useState("Hari Ini");
+  const navigate = useNavigate();
   const today = new Date().toLocaleDateString("ms-MY", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 
   return (
@@ -103,7 +105,7 @@ export default function CreditDashboard() {
                       <td className="px-3 py-3 font-semibold">RM {row.amount.toLocaleString()}</td>
                       <td className="px-3 py-3" style={{ color: "#9CA3AF" }}>{row.received}</td>
                       <td className="px-3 py-3"><span className="px-2 py-0.5 rounded text-xs font-semibold text-white" style={{ background: scoreColor }}>Skor AI: {row.aiScore}/100</span></td>
-                      <td className="px-3 py-3"><button className="px-3 py-1.5 rounded text-xs font-bold text-white" style={{ background: "#1B2B5E" }}>Nilai</button></td>
+                      <td className="px-3 py-3"><button className="px-3 py-1.5 rounded text-xs font-bold text-white" style={{ background: "#1B2B5E" }} onClick={() => navigate(`/module2/scoring`)}>Nilai</button></td>
                     </tr>
                   );
                 })}
