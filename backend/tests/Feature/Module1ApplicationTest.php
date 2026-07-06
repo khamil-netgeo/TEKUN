@@ -42,31 +42,28 @@ class Module1ApplicationTest extends TestCase
             $this->branchId = $branch->id;
         }
 
-        $this->officer = User::where('email', 'pegawai@tekun.gov.my')->first();
-        if (!$this->officer) {
-            $this->officer = User::firstOrCreate(
-                ['email' => 'pegawai@tekun.gov.my'],
-                [
-                    'name' => 'Ahmad Faizal Test',
-                    'password' => bcrypt('Demo@TEKUN2026!'),
-                    'role' => 'branch_officer',
-                    'role_label' => 'Pegawai Cawangan',
-                    'branch' => 'Cawangan Test KL',
-                    'branch_code' => 'TST01',
-                    'state' => 'WP Kuala Lumpur',
-                    'is_active' => true,
-                    'is_suspended' => false,
-                    'permissions' => json_encode([
-                        'modules' => ['module1', 'module2', 'module4', 'module5', 'module7'],
-                        'actions' => ['application.view_branch', 'application.create', 'credit.view'],
-                        'data_scope' => 'branch',
-                        'approval_limit' => 0,
-                    ]),
-                    'password_changed_at' => now(),
-                    'password_expires_at' => now()->addDays(90),
-                ]
-            );
-        }
+        $this->officer = User::firstOrCreate(
+            ['email' => 'pegawai@tekun.gov.my'],
+            [
+                'name' => 'Ahmad Faizal Test',
+                'password' => bcrypt('Demo@TEKUN2026!'),
+                'role' => 'branch_officer',
+                'role_label' => 'Pegawai Cawangan',
+                'branch' => 'Cawangan Test KL',
+                'branch_code' => 'TST01',
+                'state' => 'WP Kuala Lumpur',
+                'is_active' => true,
+                'is_suspended' => false,
+                'permissions' => json_encode([
+                    'modules' => ['module1', 'module2', 'module4', 'module5', 'module7'],
+                    'actions' => ['application.view_branch', 'application.create', 'credit.view'],
+                    'data_scope' => 'branch',
+                    'approval_limit' => 0,
+                ]),
+                'password_changed_at' => now(),
+                'password_expires_at' => now()->addDays(90),
+            ]
+        );
 
         $loginResponse = $this->postJson('/api/auth/login', [
             'email' => 'pegawai@tekun.gov.my',
