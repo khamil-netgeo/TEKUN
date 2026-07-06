@@ -351,3 +351,4 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     // GET /api/applications/{id}/timeline
     // ─────────────────────────────────────────────────
+}
