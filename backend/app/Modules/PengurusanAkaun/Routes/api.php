@@ -18,7 +18,7 @@ use App\Modules\PengurusanAkaun\Controllers\AiAccountController;
  *   POST /api/accounts/{id}/moratorium      → new_schedule
  *   POST /api/ai/default-prediction         → {probability, risk_level, factors}
  */
-Route::middleware(['auth:sanctum', 'permission:view_accounts'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:Pegawai Cawangan|Pengurus Cawangan|Pegawai Kredit|Eksekutif|Pentadbir Sistem'])->group(function () {
 
     // ─── Account 360 & Listing ────────────────────────────────────────────────
     Route::get('/accounts',                        [AccountController::class, 'index']);
