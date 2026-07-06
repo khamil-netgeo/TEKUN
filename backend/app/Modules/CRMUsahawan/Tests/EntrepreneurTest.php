@@ -3,7 +3,6 @@
 namespace App\Modules\CRMUsahawan\Tests;
 
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Models\User;
 
 /**
@@ -12,7 +11,6 @@ use App\Models\User;
  */
 class EntrepreneurTest extends TestCase
 {
-    use RefreshDatabase;
 
     private function getAuthToken(): string
     {

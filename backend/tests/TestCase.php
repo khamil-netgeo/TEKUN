@@ -2,52 +2,32 @@
 
 namespace Tests;
 
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 abstract class TestCase extends BaseTestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
-    /**
-     * Track whether module migrations have been run in this process.
-     * Static so it persists across all test classes in one run.
-     */
-    private static bool $moduleMigrationsRun = false;
+    private static bool $modulesMigrated = false;
 
-    /**
-     * Run before each test. We run module migrations before the transaction
-     * wraps the test, so they persist across tests.
-     */
     protected function setUp(): void
     {
         parent::setUp();
-        $this->ensureModuleMigrations();
+        $this->runModuleMigrationsOnce();
+        $this->seedCoreRoles();
     }
 
-    /**
-     * Run module migrations once per test process, outside of any transaction.
-     * This ensures tables exist for all tests.
-     */
-    private function ensureModuleMigrations(): void
+    private function runModuleMigrationsOnce(): void
     {
-        if (self::$moduleMigrationsRun) {
+        if (self::$modulesMigrated) {
             return;
-        }
-
-        // Commit any open transaction first
-        try {
-            DB::commit();
-        } catch (\Throwable $e) {
-            // No open transaction
         }
 
         $modulesPath = app_path('Modules');
         if (!is_dir($modulesPath)) {
-            self::$moduleMigrationsRun = true;
+            self::$modulesMigrated = true;
             return;
         }
 
@@ -58,11 +38,15 @@ abstract class TestCase extends BaseTestCase
                     '--force' => true,
                 ]);
             } catch (\Throwable $e) {
-                // Ignore errors (table already exists, etc.)
+                // Ignore already-exists errors
             }
         }
 
-        // Seed core roles if not present
+        self::$modulesMigrated = true;
+    }
+
+    private function seedCoreRoles(): void
+    {
         try {
             if (\Spatie\Permission\Models\Role::count() === 0) {
                 Artisan::call('db:seed', [
@@ -73,7 +57,15 @@ abstract class TestCase extends BaseTestCase
         } catch (\Throwable $e) {
             // Ignore
         }
+    }
 
-        self::$moduleMigrationsRun = true;
+    /**
+     * Reset the static flag when the database is refreshed.
+     * This ensures module migrations re-run after a migrate:fresh.
+     */
+    protected function refreshDatabase(): void
+    {
+        self::$modulesMigrated = false;
+        parent::refreshDatabase();
     }
 }

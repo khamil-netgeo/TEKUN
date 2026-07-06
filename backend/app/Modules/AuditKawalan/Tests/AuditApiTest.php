@@ -4,7 +4,6 @@ namespace App\Modules\AuditKawalan\Tests;
 
 use App\Models\AuditTrail;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
@@ -19,7 +18,6 @@ use Tests\TestCase;
  */
 class AuditApiTest extends TestCase
 {
-    use RefreshDatabase;
 
     private User $admin;
     private User $regularUser;

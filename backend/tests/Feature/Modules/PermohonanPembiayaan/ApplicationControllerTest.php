@@ -4,7 +4,6 @@ namespace Tests\Feature\Modules\PermohonanPembiayaan;
 
 use App\Models\Branch;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -14,7 +13,6 @@ use Tests\TestCase;
  */
 class ApplicationControllerTest extends TestCase
 {
-    use RefreshDatabase;
 
     private User $user;
     private string $token;

@@ -6,7 +6,6 @@ use Tests\TestCase;
 use App\Models\User;
 use App\Models\Application;
 use App\Models\Disbursement;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
  * DisbursementTest — Module 3 (Pengeluaran Dana)
@@ -14,7 +13,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  */
 class DisbursementTest extends TestCase
 {
-    use RefreshDatabase;
 
     private User        $adminUser;
     private User        $officerUser;
