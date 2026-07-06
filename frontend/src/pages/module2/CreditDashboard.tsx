@@ -103,8 +103,11 @@ export default function CreditDashboard() {
   const [loading, setLoading] = useState(true);
   const [page, setPage]       = useState(1);
   const [total, setTotal]     = useState(0);
-  const [perPage]             = useState(10);
+  const [perPage]             = useState(5);
   const [filter, setFilter]   = useState('Hari Ini');
+  const [search, setSearch]     = useState('');
+  const [filterPriority, setFilterPriority] = useState('Semua');
+  const [filterScheme, setFilterScheme]     = useState('Semua');
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -143,7 +146,17 @@ export default function CreditDashboard() {
   const kpiAssessing = rows.filter(r => r.status === 'in_assessment').length;
   const kpiDoneToday = 5;
   const kpiOverdue   = rows.filter(r => r.waiting_days > 2).length;
-  const totalPages   = Math.ceil(total / perPage);
+  // Client-side filtering
+  const filteredRows = rows.filter(row => {
+    const matchSearch = search === '' ||
+      row.applicant_name.toLowerCase().includes(search.toLowerCase()) ||
+      row.ref_no.toLowerCase().includes(search.toLowerCase());
+    const matchPriority = filterPriority === 'Semua' || row.priority === filterPriority.toLowerCase();
+    const matchScheme = filterScheme === 'Semua' || row.scheme === filterScheme;
+    return matchSearch && matchPriority && matchScheme;
+  });
+  const pagedRows    = filteredRows.slice((page - 1) * perPage, page * perPage);
+  const totalPages   = Math.ceil(filteredRows.length / perPage);
 
   return (
     <div className="space-y-6">
@@ -187,7 +200,31 @@ export default function CreditDashboard() {
               </h2>
               <AiBadge label="AI-Prioritized" size="xs" variant="gradient" />
             </div>
-            <span className="text-xs text-gray-400">{total} permohonan</span>
+            <span className="text-xs text-gray-400">{filteredRows.length} permohonan</span>
+          </div>
+          {/* Search & Filter Bar */}
+          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap gap-2">
+            <input
+              type="text"
+              placeholder="Cari nama pemohon atau no. rujukan..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="flex-1 min-w-[180px] text-xs border border-gray-200 rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            />
+            <select
+              value={filterPriority}
+              onChange={e => { setFilterPriority(e.target.value); setPage(1); }}
+              className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none"
+            >
+              {['Semua','Kritikal','Tinggi','Sederhana','Normal','Rendah'].map(o => <option key={o}>{o}</option>)}
+            </select>
+            <select
+              value={filterScheme}
+              onChange={e => { setFilterScheme(e.target.value); setPage(1); }}
+              className="text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none"
+            >
+              {['Semua','TEKUN Usahawan','TEKUN Micro','TEKUN Wanita'].map(o => <option key={o}>{o}</option>)}
+            </select>
           </div>
 
           {loading ? (
@@ -206,7 +243,7 @@ export default function CreditDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => {
+                    {pagedRows.map((row) => {
                       const p  = PRIORITY_CONFIG[row.priority];
                       const sc = getAiScoreStyle(row.ai_score);
                       return (
@@ -226,7 +263,7 @@ export default function CreditDashboard() {
                           </td>
                           <td className="px-3 py-3">
                             <button
-                              onClick={() => navigate(`/module2/pre-assessment/${row.id}`)}
+                              onClick={() => navigate(`/module2/scoring/${encodeURIComponent(row.ref_no)}`, { state: { applicant: row } })}
                               className="px-3 py-1.5 rounded text-xs font-bold text-white transition-opacity hover:opacity-80 flex items-center gap-1"
                               style={{ background: '#1B2B5E' }}
                             >
@@ -236,7 +273,7 @@ export default function CreditDashboard() {
                         </tr>
                       );
                     })}
-                    {rows.length === 0 && (
+                    {pagedRows.length === 0 && (
                       <tr>
                         <td colSpan={8} className="px-3 py-12 text-center text-sm text-gray-400">Tiada permohonan dalam peti masuk.</td>
                       </tr>

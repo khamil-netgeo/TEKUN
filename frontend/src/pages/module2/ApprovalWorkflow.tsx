@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import { CheckCircle, Clock, AlertCircle, ChevronRight, Sparkles, User, FileText, Send } from 'lucide-react';
 
 type ApprovalLevel = 'pegawai' | 'pengurus' | 'kredit' | 'eksekutif';
@@ -31,6 +32,10 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 export default function ApprovalWorkflow() {
+  const { ref } = useParams<{ ref?: string }>();
+  const location = useLocation();
+  const applicant = location.state?.applicant;
+  const appRef = ref ? decodeURIComponent(ref) : '';
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -46,7 +51,27 @@ export default function ApprovalWorkflow() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-[#1B2B5E]" style={{ fontFamily: 'Inter, sans-serif' }}>Aliran Kerja Kelulusan</h1>
-        <p className="text-gray-500 text-sm mt-1">SPPT-2026-07-00089 | Siti Nurhaliza | RM 25,000</p>
+        {/* Applicant Info Banner */}
+        {(applicant || appRef) && (
+          <div className="mt-3 bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-wrap gap-6 items-center">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">No. Permohonan</p>
+              <p className="font-mono font-bold text-sm" style={{ color: '#1B2B5E' }}>{appRef || 'SPPT-2026-07-00089'}</p>
+            </div>
+            {applicant && (
+              <>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Nama Pemohon</p>
+                  <p className="font-semibold text-sm text-gray-900">{applicant.applicant_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Jumlah Dipohon</p>
+                  <p className="font-semibold text-sm text-gray-900">RM {applicant.amount_requested?.toLocaleString('ms-MY') ?? '—'}</p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
       <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
         <Sparkles size={18} className="text-purple-600 mt-0.5 flex-shrink-0" />

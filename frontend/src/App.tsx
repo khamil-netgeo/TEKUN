@@ -214,8 +214,10 @@ export default function App() {
             <Route path="module2/scoring"        element={<ProtectedRoute allowedRoles={M2_ROLES} requiredModule="module2"><CreditScoring /></ProtectedRoute>} />
             <Route path="module2/credit-scoring" element={<ProtectedRoute allowedRoles={M2_ROLES} requiredModule="module2"><CreditScoring /></ProtectedRoute>} />
             <Route path="module2/assessment/:refNo" element={<ProtectedRoute allowedRoles={M2_ROLES} requiredModule="module2"><CreditScoring /></ProtectedRoute>} />
+            <Route path="module2/scoring/:ref" element={<ProtectedRoute allowedRoles={M2_ROLES} requiredModule="module2"><CreditScoring /></ProtectedRoute>} />
             <Route path="module2/amortization"element={<ProtectedRoute allowedRoles={M2_ROLES} requiredModule="module2"><AmortizationCalc /></ProtectedRoute>} />
             <Route path="module2/approval"    element={<ProtectedRoute allowedRoles={[R.BRANCH_MANAGER, R.CREDIT_OFFICER]} requiredModule="module2"><ApprovalWorkflow /></ProtectedRoute>} />
+            <Route path="module2/approval/:ref"  element={<ProtectedRoute allowedRoles={[R.BRANCH_MANAGER, R.CREDIT_OFFICER]} requiredModule="module2"><ApprovalWorkflow /></ProtectedRoute>} />
             <Route path="module2/offer-letter"element={<ProtectedRoute allowedRoles={M2_ROLES} requiredModule="module2"><OfferLetter /></ProtectedRoute>} />
 
             {/* ── MODULE 3 — Pengeluaran Dana ────────────────────────────── */}

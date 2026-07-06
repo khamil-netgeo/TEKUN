@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight, Download, Sparkles, TrendingUp, Shield, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
 interface ScoringFactor {
@@ -77,11 +77,13 @@ function GaugeMeter({ score }: { score: number }) {
 }
 
 export default function CreditScoring() {
-  const { refNo } = useParams<{ refNo: string }>();
+  const { ref, refNo } = useParams<{ ref?: string; refNo?: string }>();
+  const location = useLocation();
+  const applicant = location.state?.applicant;
   const navigate = useNavigate();
   const [generating, setGenerating] = useState(false);
   const [aiNarrative, setAiNarrative] = useState<string | null>(null);
-  const displayRef = refNo ?? 'SPPT-2026-07-00089';
+  const appRef = ref ? decodeURIComponent(ref) : (refNo ?? 'SPPT-2026-07-00089');
 
   const generateNarrative = async () => {
     setGenerating(true);
@@ -111,7 +113,7 @@ export default function CreditScoring() {
         <div className="flex items-center gap-2 text-sm text-gray-400" style={{ fontFamily: 'Inter, sans-serif' }}>
           <button onClick={() => navigate('/module2/dashboard')} className="hover:text-[#1B2B5E] transition-colors">Penilaian</button>
           <ChevronRight size={14} />
-          <span>{displayRef}</span>
+          <span>{appRef}</span>
           <ChevronRight size={14} />
           <span className="text-gray-700 font-semibold">Skor Kredit</span>
         </div>
@@ -125,7 +127,7 @@ export default function CreditScoring() {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Inter, sans-serif' }}>Siti Nurhaliza</h2>
-            <p className="text-sm text-gray-500">No. IC: 850412-14-5678 | {displayRef}</p>
+            <p className="text-sm text-gray-500">No. IC: 850412-14-5678 | {appRef}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Jumlah Dipohon</p>
@@ -222,7 +224,7 @@ export default function CreditScoring() {
             </div>
 
             <button
-              onClick={() => navigate('/module3/disbursement')}
+              onClick={() => navigate(`/module2/approval/${encodeURIComponent(appRef)}`, { state: { applicant } })}
               className="w-full py-3 bg-[#2E7D32] text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#1B5E20] transition-colors"
               style={{ fontFamily: 'Inter, sans-serif' }}
             >
