@@ -7,6 +7,7 @@ use App\Models\Application;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Carbon\Carbon;
 
 /**
@@ -99,8 +100,63 @@ class DisbursementService
      */
     public static function detectAnomalies(Disbursement $disbursement): array
     {
-        $anomalies = [];
         $amount = (float) $disbursement->amount;
+        $scheme = $disbursement->application->scheme ?? '';
+        
+        $duplicateCount = Disbursement::where('bank_account_no', $disbursement->bank_account_no)
+            ->where('id', '!=', $disbursement->id)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->count();
+
+        $prompt = "Analyze the following disbursement for anomalies:
+Amount: RM {$amount}
+Scheme: {$scheme}
+Recent disbursements to same bank account (last 30 days): {$duplicateCount}
+Authority thresholds are RM 10000, RM 30000, RM 100000. Micro scheme limit is usually RM 10000.
+Return a JSON object with the following structure:
+{
+  \"has_anomaly\": boolean,
+  \"score\": number (0-100),
+  \"anomalies\": [
+    {
+      \"type\": string,
+      \"severity\": \"low\"|\"medium\"|\"high\",
+      \"description\": string (in Malay)
+    }
+  ],
+  \"summary\": string (in Malay)
+}";
+
+        try {
+            $apiKey = config('services.openai.api_key');
+            if ($apiKey) {
+                $response = Http::withToken($apiKey)
+                    ->timeout(15)
+                    ->post('https://api.openai.com/v1/chat/completions', [
+                        'model' => 'gpt-4',
+                        'messages' => [
+                            ['role' => 'system', 'content' => 'You are an AI anomaly detector for a financial system. Respond ONLY in valid JSON.'],
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                        'temperature' => 0.1,
+                    ]);
+
+                if ($response->successful()) {
+                    $content = $response->json('choices.0.message.content');
+                    $content = preg_replace('/```json\s*(.*?)\s*```/s', '$1', $content);
+                    $result = json_decode($content, true);
+                    
+                    if (json_last_error() === JSON_ERROR_NONE && isset($result['has_anomaly'])) {
+                        return $result;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('AI Anomaly Detection failed: ' . $e->getMessage());
+        }
+
+        // Fallback to static rules if API call fails
+        $anomalies = [];
 
         // Check 1: Amount near authority threshold (potential splitting)
         $thresholds = [10000, 30000, 100000];
@@ -115,11 +171,6 @@ class DisbursementService
         }
 
         // Check 2: Duplicate bank account in recent disbursements
-        $duplicateCount = Disbursement::where('bank_account_no', $disbursement->bank_account_no)
-            ->where('id', '!=', $disbursement->id)
-            ->where('created_at', '>=', now()->subDays(30))
-            ->count();
-
         if ($duplicateCount > 0) {
             $anomalies[] = [
                 'type'        => 'duplicate_bank_account',
@@ -129,15 +180,12 @@ class DisbursementService
         }
 
         // Check 3: High amount for micro scheme
-        if ($disbursement->application) {
-            $scheme = $disbursement->application->scheme ?? '';
-            if (str_contains($scheme, 'micro') && $amount > 10000) {
-                $anomalies[] = [
-                    'type'        => 'scheme_amount_mismatch',
-                    'severity'    => 'medium',
-                    'description' => "Amaun RM" . number_format($amount, 2) . " melebihi had biasa skim Mikro (RM10,000).",
-                ];
-            }
+        if (str_contains($scheme, 'micro') && $amount > 10000) {
+            $anomalies[] = [
+                'type'        => 'scheme_amount_mismatch',
+                'severity'    => 'medium',
+                'description' => "Amaun RM" . number_format($amount, 2) . " melebihi had biasa skim Mikro (RM10,000).",
+            ];
         }
 
         $hasAnomaly = count($anomalies) > 0;
@@ -185,9 +233,8 @@ class DisbursementService
             Storage::disk('s3')->put($fileName, $fileContent, 'private');
             $fileUrl = Storage::disk('s3')->temporaryUrl($fileName, now()->addHours(24));
         } catch (\Exception $e) {
-            // Fallback: return a mock URL if MinIO is unavailable
-            Log::warning("MinIO unavailable for batch file: " . $e->getMessage());
-            $fileUrl = "/api/disbursements/batch/{$batchRef}/download";
+            Log::error("MinIO unavailable for batch file: " . $e->getMessage());
+            throw new \Exception('Gagal memuat naik fail batch ke storan awan (MinIO/S3). Sila cuba sebentar lagi.');
         }
 
         // Update disbursements with batch reference
@@ -313,64 +360,12 @@ class DisbursementService
                     'sla_breach'        => true,
                     'sla_breach_at'     => now(),
                     'aging_days'        => $agingDays,
-                    'escalation_reason' => "Fail telah menunggu {$agingDays} hari kerja melebihi SLA 2 hari. Dieskalasi secara automatik.",
+                    'escalation_reason' => "Fail to process within SLA",
                 ]);
                 $count++;
             }
         }
 
         return $count;
-    }
-
-    /**
-     * Confirm bank payment and update status + notify usahawan.
-     */
-    public static function confirmPayment(Disbursement $disbursement, string $bankRef, int $confirmedBy): array
-    {
-        $disbursement->update([
-            'status'                => 'completed',
-            'payment_ref'           => $bankRef,
-            'bank_confirmation_ref' => $bankRef,
-            'bank_confirmed_at'     => now(),
-            'disbursed_at'          => now(),
-            'notify_sent'           => true,
-            'notify_sent_at'        => now(),
-            'notify_channel'        => 'sms_email',
-        ]);
-
-        // Update application status to disbursed
-        if ($disbursement->application_id) {
-            Application::where('id', $disbursement->application_id)
-                ->update(['status' => 'disbursed']);
-        }
-
-        return [
-            'id'             => $disbursement->id,
-            'ref_no'         => $disbursement->ref_no,
-            'status'         => 'completed',
-            'disbursed_at'   => now()->toISOString(),
-            'bank_ref'       => $bankRef,
-            'notify_sent'    => true,
-            'notify_channel' => 'SMS + E-mel',
-            'message'        => "Pengeluaran {$disbursement->ref_no} berjaya dikonfirmasi. Notifikasi dihantar kepada usahawan.",
-        ];
-    }
-
-    /**
-     * Send e-sign reminder for a disbursement.
-     */
-    public static function sendEsignReminder(Disbursement $disbursement): array
-    {
-        $disbursement->update([
-            'esign_reminder_sent' => true,
-        ]);
-
-        return [
-            'id'                => $disbursement->id,
-            'ref_no'            => $disbursement->ref_no,
-            'reminder_sent'     => true,
-            'reminder_sent_at'  => now()->toISOString(),
-            'message'           => "Peringatan e-sign telah dihantar untuk pengeluaran {$disbursement->ref_no}.",
-        ];
     }
 }

@@ -168,12 +168,11 @@ class DisbursementController extends Controller
         // Authority check
         $requiredAuthority = Disbursement::determineAuthority((float) $disbursement->amount);
         
-        $role = optional($user->roles->first())->name ?? $user->role ?? '';
         $canApprove = match ($requiredAuthority) {
-            'branch_officer'   => in_array($role, ['branch_officer', 'branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'branch_manager'   => in_array($role, ['branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'credit_committee' => in_array($role, ['credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'executive'        => in_array($role, ['executive', 'system_admin']),
+            'branch_officer'   => $user->hasAnyRole(['branch_officer', 'branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
+            'branch_manager'   => $user->hasAnyRole(['branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
+            'credit_committee' => $user->hasAnyRole(['credit_officer', 'finance_officer', 'executive', 'system_admin']),
+            'executive'        => $user->hasAnyRole(['executive', 'system_admin']),
             default            => false,
         };
 
@@ -300,7 +299,7 @@ class DisbursementController extends Controller
     {
         $amount = (float) $request->input('amount', 0);
 
-        $matrix = [
+        $matrixConfig = config('disbursement.authority_matrix', [
             [
                 'level'       => 'branch_officer',
                 'label'       => 'Pegawai Cawangan',
@@ -308,7 +307,6 @@ class DisbursementController extends Controller
                 'min'         => 0,
                 'max'         => 10000,
                 'description' => 'Kelulusan peringkat cawangan (≤ RM 10,000)',
-                'applicable'  => $amount > 0 && $amount <= 10000,
             ],
             [
                 'level'       => 'branch_manager',
@@ -317,7 +315,6 @@ class DisbursementController extends Controller
                 'min'         => 10001,
                 'max'         => 30000,
                 'description' => 'Kelulusan pengurus cawangan (RM 10,001 – RM 30,000)',
-                'applicable'  => $amount > 10000 && $amount <= 30000,
             ],
             [
                 'level'       => 'credit_committee',
@@ -326,7 +323,6 @@ class DisbursementController extends Controller
                 'min'         => 30001,
                 'max'         => 100000,
                 'description' => 'Kelulusan jawatankuasa kredit ibu pejabat (RM 30,001 – RM 100,000)',
-                'applicable'  => $amount > 30000 && $amount <= 100000,
             ],
             [
                 'level'       => 'executive',
@@ -335,9 +331,21 @@ class DisbursementController extends Controller
                 'min'         => 100001,
                 'max'         => null,
                 'description' => 'Kelulusan tertinggi lembaga pengarah (> RM 100,000)',
-                'applicable'  => $amount > 100000,
             ],
-        ];
+        ]);
+
+        $matrix = array_map(function ($tier) use ($amount) {
+            $min = $tier['min'];
+            $max = $tier['max'];
+            
+            if ($max === null) {
+                $tier['applicable'] = $amount >= $min;
+            } else {
+                $tier['applicable'] = $amount >= $min && $amount <= $max;
+            }
+            
+            return $tier;
+        }, $matrixConfig);
 
         $applicable = collect($matrix)->firstWhere('applicable', true);
 
@@ -362,14 +370,16 @@ class DisbursementController extends Controller
             return response()->json(['success' => false, 'message' => 'Permohonan tidak ditemui.'], 404);
         }
 
-        $amount       = (float) ($app->amount_approved ?? $disbursement->amount);
-        $tenure       = (int) ($app->tenure ?? 0);
+        $amount = (float) ($app->approved_amount ?? $disbursement->amount);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'amount' => $amount,
-                'tenure' => $tenure,
+                'id'             => $app->id,
+                'applicant_name' => $app->applicant_name,
+                'scheme'         => $app->scheme,
+                'amount'         => $amount,
+                'ref_no'         => $disbursement->ref_no,
             ],
         ]);
     }
