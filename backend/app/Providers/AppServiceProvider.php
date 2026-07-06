@@ -36,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Bootstrap any application services.
-     * Dynamically loads all module routes from app/Modules/*/Routes/api.php
+     * Dynamically loads all module routes from app/Modules/{ModuleName}/Routes/api.php
      */
     public function boot(): void
     {
