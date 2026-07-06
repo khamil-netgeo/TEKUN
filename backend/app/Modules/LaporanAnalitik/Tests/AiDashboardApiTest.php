@@ -22,6 +22,21 @@ class AiDashboardApiTest extends TestCase
             'permissions' => json_encode(['module6']),
         ]);
 
+        // Assign Spatie role so role:Pentadbir Sistem middleware passes
+        try {
+            $this->user->assignRole('Pentadbir Sistem');
+        } catch (\Exception $e) {
+            try {
+                $role = \Spatie\Permission\Models\Role::firstOrCreate(
+                    ['name' => 'Pentadbir Sistem', 'guard_name' => 'sanctum']
+                );
+                $this->user->assignRole($role);
+            } catch (\Exception $e2) {
+                // Role assignment failed — tests may still pass if middleware
+                // falls back to 'role' column check
+            }
+        }
+
         $response    = $this->postJson('/api/auth/login', [
             'email'    => $this->user->email,
             'password' => 'password',
