@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '@/services/api';
 
 export function useProductList() {
@@ -47,6 +48,7 @@ export function useProductActions() {
 }
 
 export default function ProductConfig() {
+  const { t } = useTranslation();
   const { data: SCHEMES, loading, refetch } = useProductList();
   const { createProduct, updateProduct, loading: actionLoading } = useProductActions();
   const [selected, setSelected] = useState<any>(null);
@@ -105,21 +107,21 @@ export default function ProductConfig() {
   };
 
   if (loading && SCHEMES.length === 0) {
-    return <div className="p-4">Memuatkan...</div>;
+    return <div className="p-4">{t('Memuatkan...')}</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="sppt-card flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: '#1B2B5E' }}>Konfigurasi Produk Pembiayaan</h1>
-          <p className="text-sm text-gray-500 mt-1">Urus skim pembiayaan, kadar keuntungan dan syarat kelayakan</p>
+          <h1 className="text-xl font-bold" style={{ color: '#1B2B5E' }}>{t('Konfigurasi Produk Pembiayaan')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('Urus skim pembiayaan, kadar keuntungan dan syarat kelayakan')}</p>
         </div>
         <button 
           onClick={handleCreateNew}
           className="px-4 py-2 rounded-lg text-white font-semibold text-sm" 
           style={{ background: '#1B2B5E' }}>
-          + Tambah Skim Baharu
+          {t('+ Tambah Skim Baharu')}
         </button>
       </div>
       <div className="grid grid-cols-12 gap-4">
@@ -132,7 +134,7 @@ export default function ProductConfig() {
                   style={{ background: s.color || '#1B2B5E' }}>T</div>
                 <div>
                   <div className="font-bold text-sm">{s.name}</div>
-                  <div className="text-xs text-gray-500">Maks: RM {(s.max || 0).toLocaleString()} • {s.rate}% p.a.</div>
+                  <div className="text-xs text-gray-500">{t('Maks')}: RM {(s.max || 0).toLocaleString()} • {s.rate}% p.a.</div>
                 </div>
                 <span className="ml-auto px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">{s.status}</span>
               </div>
@@ -147,7 +149,7 @@ export default function ProductConfig() {
                   <input
                     value={formData.name || ''}
                     onChange={(e) => handleChange('name', e.target.value)}
-                    placeholder="Nama Produk"
+                    placeholder={t('Nama Produk')}
                     className="w-1/2 p-2 border border-gray-300 rounded text-base font-bold"
                   />
                 ) : (
@@ -156,16 +158,16 @@ export default function ProductConfig() {
                 {!isCreating && (
                   <button onClick={() => { if (!editing) handleEdit(); else setEditing(false); }}
                     className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-blue-500 text-blue-600 hover:bg-blue-50">
-                    {editing ? 'Batal' : '✏️ Edit'}
+                    {editing ? t('Batal') : `✏️ ${t('Edit')}`}
                   </button>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: 'Had Pembiayaan Maksimum', value: selected?.max || 0, key: 'max', display: `RM ${(selected?.max || 0).toLocaleString()}` },
-                  { label: 'Kadar Keuntungan (% p.a.)', value: selected?.rate || 0, key: 'rate', display: `${selected?.rate || 0}%` },
-                  { label: 'Tempoh Maksimum (bulan)', value: selected?.tenure || 0, key: 'tenure', display: `${selected?.tenure || 0} bulan` },
-                  { label: 'Status', value: selected?.status || 'Aktif', key: 'status', display: selected?.status || 'Aktif' },
+                  { label: t('Had Pembiayaan Maksimum'), value: selected?.max || 0, key: 'max', display: `RM ${(selected?.max || 0).toLocaleString()}` },
+                  { label: t('Kadar Keuntungan (% p.a.)'), value: selected?.rate || 0, key: 'rate', display: `${selected?.rate || 0}%` },
+                  { label: t('Tempoh Maksimum (bulan)'), value: selected?.tenure || 0, key: 'tenure', display: `${selected?.tenure || 0} ${t('bulan')}` },
+                  { label: t('Status'), value: selected?.status || 'Aktif', key: 'status', display: selected?.status || 'Aktif' },
                 ].map(field => (
                   <div key={field.key} className="p-3 bg-gray-50 rounded-lg">
                     <div className="text-xs text-gray-500 mb-1">{field.label}</div>
@@ -182,7 +184,7 @@ export default function ProductConfig() {
                 ))}
               </div>
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                <div className="text-xs text-gray-500 mb-1">Syarat Kelayakan</div>
+                <div className="text-xs text-gray-500 mb-1">{t('Syarat Kelayakan')}</div>
                 {editing ? (
                   <textarea 
                     value={formData.eligible || ''} 
@@ -201,10 +203,10 @@ export default function ProductConfig() {
                     disabled={actionLoading}
                     className="px-4 py-2 rounded-lg text-white font-semibold text-sm disabled:opacity-50" 
                     style={{ background: '#16A34A' }}>
-                    {actionLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                    {actionLoading ? t('Menyimpan...') : t('Simpan Perubahan')}
                   </button>
                   <button onClick={() => { setEditing(false); setIsCreating(false); }} className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold hover:bg-gray-50">
-                    Batal
+                    {t('Batal')}
                   </button>
                 </div>
               )}

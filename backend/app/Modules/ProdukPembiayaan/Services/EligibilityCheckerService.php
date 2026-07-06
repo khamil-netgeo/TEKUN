@@ -40,17 +40,17 @@ class EligibilityCheckerService
             if ($age < $product->min_age) {
                 $failed[] = [
                     'rule'    => 'AGE_MIN',
-                    'message' => "Umur minimum ialah {$product->min_age} tahun. Umur pemohon: {$age} tahun.",
+                    'message' => __('messages.age_minimum', ['min_age' => $product->min_age, 'age' => $age]),
                     'hard'    => true,
                 ];
             } elseif ($age > $product->max_age) {
                 $failed[] = [
                     'rule'    => 'AGE_MAX',
-                    'message' => "Umur maksimum ialah {$product->max_age} tahun. Umur pemohon: {$age} tahun.",
+                    'message' => __('messages.age_maximum', ['max_age' => $product->max_age, 'age' => $age]),
                     'hard'    => true,
                 ];
             } else {
-                $passed[] = ['rule' => 'AGE', 'message' => "Umur {$age} tahun memenuhi syarat ({$product->min_age}–{$product->max_age} tahun)."];
+                $passed[] = ['rule' => 'AGE', 'message' => __('messages.age_passed', ['age' => $age, 'min_age' => $product->min_age, 'max_age' => $product->max_age])];
             }
         }
 
@@ -60,11 +60,11 @@ class EligibilityCheckerService
             if ($gender && !in_array($gender, array_map('strtoupper', $product->eligible_genders))) {
                 $failed[] = [
                     'rule'    => 'GENDER',
-                    'message' => 'Skim ini terhad kepada ' . implode(' atau ', $product->eligible_genders) . ' sahaja.',
+                    'message' => __('messages.gender_restricted', ['genders' => implode(' atau ', $product->eligible_genders)]),
                     'hard'    => true,
                 ];
             } elseif ($gender) {
-                $passed[] = ['rule' => 'GENDER', 'message' => 'Jantina memenuhi syarat skim ini.'];
+                $passed[] = ['rule' => 'GENDER', 'message' => __('messages.gender_passed')];
             }
         }
 
@@ -74,11 +74,11 @@ class EligibilityCheckerService
             if ($sector && !in_array($sector, array_map('strtolower', $product->eligible_sectors))) {
                 $failed[] = [
                     'rule'    => 'SECTOR',
-                    'message' => 'Sektor perniagaan tidak layak untuk skim ini.',
+                    'message' => __('messages.sector_failed'),
                     'hard'    => false,
                 ];
             } elseif ($sector) {
-                $passed[] = ['rule' => 'SECTOR', 'message' => 'Sektor perniagaan layak.'];
+                $passed[] = ['rule' => 'SECTOR', 'message' => __('messages.sector_passed')];
             }
         }
 
@@ -88,11 +88,11 @@ class EligibilityCheckerService
             if ($businessAgeMonths < $product->min_business_age_months) {
                 $failed[] = [
                     'rule'    => 'BUSINESS_AGE',
-                    'message' => "Perniagaan mesti beroperasi sekurang-kurangnya {$product->min_business_age_months} bulan.",
+                    'message' => __('messages.business_age_minimum', ['months' => $product->min_business_age_months]),
                     'hard'    => true,
                 ];
             } else {
-                $passed[] = ['rule' => 'BUSINESS_AGE', 'message' => 'Tempoh operasi perniagaan memenuhi syarat.'];
+                $passed[] = ['rule' => 'BUSINESS_AGE', 'message' => __('messages.business_age_passed')];
             }
         }
 
@@ -102,11 +102,11 @@ class EligibilityCheckerService
             if ($isBlacklisted) {
                 $failed[] = [
                     'rule'    => 'BLACKLIST',
-                    'message' => 'Pemohon disenaraihitam dan tidak layak untuk sebarang skim pembiayaan.',
+                    'message' => __('messages.blacklist_failed'),
                     'hard'    => true,
                 ];
             } else {
-                $passed[] = ['rule' => 'BLACKLIST', 'message' => 'Tiada rekod senarai hitam.'];
+                $passed[] = ['rule' => 'BLACKLIST', 'message' => __('messages.blacklist_passed')];
             }
         }
 
@@ -114,9 +114,9 @@ class EligibilityCheckerService
         if ($product->ccris_check_required) {
             $ccrisClear = isset($applicantData['ccris_clear']) ? (bool) $applicantData['ccris_clear'] : null;
             if ($ccrisClear === false) {
-                $warnings[] = ['rule' => 'CCRIS', 'message' => 'Rekod CCRIS menunjukkan komitmen semasa. Penilaian lanjut diperlukan.'];
+                $warnings[] = ['rule' => 'CCRIS', 'message' => __('messages.ccris_warning')];
             } elseif ($ccrisClear === true) {
-                $passed[] = ['rule' => 'CCRIS', 'message' => 'Rekod CCRIS bersih.'];
+                $passed[] = ['rule' => 'CCRIS', 'message' => __('messages.ccris_passed')];
             }
         }
 
@@ -126,11 +126,11 @@ class EligibilityCheckerService
             if ($muflisClear === false) {
                 $failed[] = [
                     'rule'    => 'MUFLIS',
-                    'message' => 'Pemohon diisytiharkan muflis. Tidak layak untuk pembiayaan.',
+                    'message' => __('messages.muflis_failed'),
                     'hard'    => true,
                 ];
             } elseif ($muflisClear === true) {
-                $passed[] = ['rule' => 'MUFLIS', 'message' => 'Tiada rekod muflis.'];
+                $passed[] = ['rule' => 'MUFLIS', 'message' => __('messages.muflis_passed')];
             }
         }
 
@@ -164,8 +164,8 @@ class EligibilityCheckerService
             'failed'     => $failed,
             'warnings'   => $warnings,
             'summary'    => $eligible
-                ? 'Pemohon layak untuk skim ' . $product->name . '.'
-                : 'Pemohon tidak layak. ' . count($hardFailed) . ' syarat tidak dipenuhi.',
+                ? __('messages.eligible_summary', ['product' => $product->name])
+                : __('messages.not_eligible_summary', ['count' => count($hardFailed)]),
         ];
     }
 
