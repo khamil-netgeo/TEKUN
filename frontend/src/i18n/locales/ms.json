@@ -20,7 +20,15 @@
     "module9": "Produk Pembiayaan",
     "module10": "Integrasi API",
     "module11": "Audit & Kawalan",
-    "module12": "Pentadbiran Sistem"
+    "module12": "Pentadbiran Sistem",
+    "usahawanPortal": "Portal Usahawan"
+  },
+  "usahawan": {
+    "dashboard": "Papan Pemuka Saya",
+    "myApplications": "Permohonan Saya",
+    "myAccount": "Akaun Pembiayaan",
+    "makePayment": "Buat Bayaran",
+    "moratoriumRequest": "Permohonan Moratorium"
   },
   "auth": {
     "login": "Log Masuk",

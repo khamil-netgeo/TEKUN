@@ -19,7 +19,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Activity, BarChart3, Banknote, Building2, ChevronDown, ChevronRight,
-  ClipboardCheck, ClipboardList, CreditCard, FileText, Globe, LayoutDashboard,
+  ClipboardCheck, ClipboardList, CreditCard, FileText, Globe, Home, LayoutDashboard,
   LogOut, Package, Settings, Shield, TrendingUp, UserCog, Users
 } from 'lucide-react';
 import { useState } from 'react';
@@ -48,17 +48,32 @@ interface ModuleItem {
 }
 
 const MODULES: ModuleItem[] = [
+  // ── Usahawan Portal (visible only to usahawan role) ──────────────────────
+  {
+    key: 'usahawan-portal',
+    icon: Home,
+    labelKey: 'nav.usahawanPortal',
+    allowedRoles: ['usahawan'],
+    subItems: [
+      { path: '/usahawan/dashboard',    labelKey: 'usahawan.dashboard' },
+      { path: '/usahawan/applications', labelKey: 'usahawan.myApplications' },
+      { path: '/usahawan/account',      labelKey: 'usahawan.myAccount' },
+      { path: '/usahawan/payment',      labelKey: 'usahawan.makePayment' },
+      { path: '/usahawan/moratorium',   labelKey: 'usahawan.moratoriumRequest' },
+    ],
+  },
+  // ── Module 1 — Permohonan (staff only) ───────────────────────────────────
   {
     key: 'module1',
     icon: FileText,
     labelKey: 'nav.module1',
-    allowedRoles: ['usahawan', 'branch_officer', 'branch_manager', 'system_admin'],
+    allowedRoles: ['branch_officer', 'branch_manager', 'system_admin'],
     subItems: [
-      { path: '/applications', labelKey: 'module1.applicationList' },
+      { path: '/module1/applications', labelKey: 'module1.applicationList' },
       {
-        path: '/applications/new',
+        path: '/module1/new',
         labelKey: 'module1.newApplication',
-        allowedRoles: ['usahawan', 'branch_officer', 'system_admin'],
+        allowedRoles: ['branch_officer', 'system_admin'],
       },
     ],
   },
@@ -86,17 +101,18 @@ const MODULES: ModuleItem[] = [
     key: 'module4',
     icon: CreditCard,
     labelKey: 'nav.module4',
-    allowedRoles: ['usahawan', 'finance_officer', 'system_admin'],
+    allowedRoles: ['finance_officer', 'system_admin'],
     subItems: [
       { path: '/module4/accounts',  labelKey: 'module4.account360' },
       { path: '/module4/payments',  labelKey: 'module4.paymentChannels' },
+      { path: '/module4/moratorium', labelKey: 'module4.moratorium' },
     ],
   },
   {
     key: 'module5',
     icon: TrendingUp,
     labelKey: 'nav.module5',
-    allowedRoles: ['usahawan', 'credit_officer', 'finance_officer', 'system_admin'],
+    allowedRoles: ['credit_officer', 'finance_officer', 'system_admin'],
     subItems: [
       { path: '/module5/npl',     labelKey: 'module5.nplDashboard' },
       { path: '/module5/dunning', labelKey: 'module5.dunning' },

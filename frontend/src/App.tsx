@@ -134,6 +134,13 @@ const UserManagement       = lazy(() => import('@/pages/module12/UserManagement'
 // Admin
 const AdminPage            = lazy(() => import('@/pages/admin/AdminPage'));
 
+// Usahawan Portal — centralised borrower experience
+const UsahawanDashboard    = lazy(() => import('@/pages/usahawan/UsahawanDashboard'));
+const UsahawanApplications = lazy(() => import('@/pages/usahawan/UsahawanApplications'));
+const UsahawanAccount      = lazy(() => import('@/pages/usahawan/UsahawanAccount'));
+const UsahawanPayment      = lazy(() => import('@/pages/usahawan/UsahawanPayment'));
+const UsahawanMoratorium   = lazy(() => import('@/pages/usahawan/UsahawanMoratorium'));
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Role constants (from tender document)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -290,6 +297,13 @@ export default function App() {
 
             {/* ── MODULE 12 — Pentadbiran Sistem (admin only) ───────────── */}
             <Route path="module12/users" element={<ProtectedRoute allowedRoles={ADMIN_ONLY} requiredModule="module12"><UserManagement /></ProtectedRoute>} />
+
+            {/* ── USAHAWAN PORTAL — Centralised Borrower Experience ─────── */}
+            <Route path="usahawan/dashboard"    element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanDashboard /></ProtectedRoute>} />
+            <Route path="usahawan/applications" element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanApplications /></ProtectedRoute>} />
+            <Route path="usahawan/account"      element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanAccount /></ProtectedRoute>} />
+            <Route path="usahawan/payment"      element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanPayment /></ProtectedRoute>} />
+            <Route path="usahawan/moratorium"   element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanMoratorium /></ProtectedRoute>} />
 
             {/* Admin page */}
             <Route path="admin" element={<ProtectedRoute allowedRoles={ADMIN_ONLY}><AdminPage /></ProtectedRoute>} />
