@@ -18,8 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(\App\Http\Middleware\AddContentLength::class);
         $middleware->statefulApi();
         $middleware->alias([
-            'role'   => \App\Http\Middleware\CheckRole::class,
-            'module' => \App\Http\Middleware\CheckModuleAccess::class,
+            'role'               => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission'         => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'module'             => \App\Http\Middleware\CheckModuleAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
