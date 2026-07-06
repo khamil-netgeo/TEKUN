@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { AlertCircle } from 'lucide-react';
 import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
@@ -11,36 +12,9 @@ const NAVY   = '#1B2B5E';
 const GREEN  = '#2E7D32';
 const ORANGE = '#E65100';
 
-const SEED: PredictiveData = {
-  forecast_period: '3 bulan (Ogos–Oktober 2026)',
-  forecast: [
-    { month: 'Ogos 2026',      disbursement: 445, npl_forecast: 1.75, collection_forecast: 90.1, confidence: 88.2 },
-    { month: 'September 2026', disbursement: 468, npl_forecast: 1.71, collection_forecast: 90.8, confidence: 85.6 },
-    { month: 'Oktober 2026',   disbursement: 490, npl_forecast: 1.68, collection_forecast: 91.3, confidence: 82.1 },
-  ],
-  risk_alerts: [
-    { region: 'Kelantan', risk_level: 'high',   npl_trend: '+0.8%', current_npl: 2.1, action: 'Tingkatkan aktiviti kutipan segera', ai_score: 82 },
-    { region: 'Sabah',    risk_level: 'medium', npl_trend: '+0.3%', current_npl: 3.5, action: 'Pantau bulanan dan hantar notis',    ai_score: 65 },
-    { region: 'Pahang',   risk_level: 'medium', npl_trend: '+0.2%', current_npl: 3.2, action: 'Semak semula profil peminjam berisiko', ai_score: 61 },
-  ],
-  predicted_npl_q3: 1.71,
-  predicted_collection_q3: 90.8,
-  predicted_disbursement_q3: 1_403_000_000,
-  ai_confidence: 85.3,
-  model: 'SPPT Predictive Analytics v1.0',
-  generated_at: new Date().toISOString(),
-};
+// AUDIT FIX: SEED constant removed — component now requires real API data.
 
-// Historical + forecast combined for chart
-const HISTORICAL = [
-  { month: 'Jan', disbursement: 280, npl_forecast: 2.8, collection_forecast: 74.0, type: 'actual' },
-  { month: 'Feb', disbursement: 320, npl_forecast: 2.6, collection_forecast: 75.6, type: 'actual' },
-  { month: 'Mac', disbursement: 310, npl_forecast: 2.4, collection_forecast: 77.2, type: 'actual' },
-  { month: 'Apr', disbursement: 350, npl_forecast: 2.2, collection_forecast: 79.3, type: 'actual' },
-  { month: 'Mei', disbursement: 370, npl_forecast: 2.0, collection_forecast: 81.2, type: 'actual' },
-  { month: 'Jun', disbursement: 390, npl_forecast: 1.9, collection_forecast: 87.3, type: 'actual' },
-  { month: 'Jul', disbursement: 420, npl_forecast: 1.8, collection_forecast: 89.4, type: 'actual' },
-];
+// AUDIT FIX: HISTORICAL constant removed — historical data now comes from API response.
 
 function RiskCard({ alert }: { alert: RiskAlert }) {
   const cfg = {
@@ -77,16 +51,19 @@ function RiskCard({ alert }: { alert: RiskAlert }) {
 }
 
 export default function PredictiveAnalytics() {
-  const [data, setData]   = useState<PredictiveData>(SEED);
+  const [data, setData]   = useState<PredictiveData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await dashboardService.getPredictive();
       setData(result);
-    } catch {
-      // keep seed
+    } catch (err) {
+      console.error('PredictiveAnalytics: failed to load data', err);
+      setError('Gagal memuatkan data analitik ramalan. Sila cuba lagi.');
     } finally {
       setLoading(false);
     }
@@ -94,11 +71,19 @@ export default function PredictiveAnalytics() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Combine historical + forecast for chart
+  // Combine historical (from API) + forecast for chart
+  // AUDIT FIX: historical data now sourced from API response, not hardcoded HISTORICAL array
+  const apiHistorical = (data as (PredictiveData & { historical?: ForecastPoint[] }) | null)?.historical ?? [];
   const chartData = [
-    ...HISTORICAL,
-    ...data.forecast.map((f: ForecastPoint) => ({
-      month: f.month.replace(' 2026', ''),
+    ...apiHistorical.map((h: ForecastPoint) => ({
+      month: h.month?.replace(' 2026', '') ?? '',
+      disbursement: h.disbursement,
+      npl_forecast: h.npl_forecast,
+      collection_forecast: h.collection_forecast,
+      type: 'actual',
+    })),
+    ...(data?.forecast ?? []).map((f: ForecastPoint) => ({
+      month: f.month?.replace(' 2026', '') ?? '',
       disbursement: f.disbursement,
       npl_forecast: f.npl_forecast,
       collection_forecast: f.collection_forecast,
@@ -106,6 +91,30 @@ export default function PredictiveAnalytics() {
       confidence: f.confidence,
     })),
   ];
+
+  // AUDIT FIX: show loading/error/empty states instead of crashing on null data
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 mx-auto mb-3" style={{ borderColor: '#7C3AED' }} />
+          <p className="text-sm text-gray-500">Memuatkan analitik ramalan AI...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <AlertCircle size={40} className="text-red-400" />
+        <p className="text-sm text-red-600 font-medium">{error}</p>
+        <button onClick={loadData} className="px-4 py-2 rounded text-white text-sm font-bold" style={{ background: '#7C3AED' }}>Cuba Semula</button>
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   return (
     <div className="space-y-5 pb-8">

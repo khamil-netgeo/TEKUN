@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import api from '@/services/api';
+import { useState, useEffect, useRef } from 'react';
+import { dashboardService } from '@/services/dashboardService';
 
 const FIELD_GROUPS = [
   {
@@ -42,6 +42,36 @@ export default function ReportBuilder() {
   const [generated, setGenerated] = useState(false);
   const [scheduled, setScheduled] = useState(true);
   const [searchField, setSearchField] = useState('');
+  // AUDIT FIX: dynamic preview state
+  const [previewData, setPreviewData] = useState(PREVIEW_DATA as Record<string, unknown>[]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTotal, setPreviewTotal] = useState(PREVIEW_DATA.length);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AUDIT FIX: fetch real preview data from API with debounce
+  const fetchPreview = async (cols: string[]) => {
+    setPreviewLoading(true);
+    try {
+      const result = await dashboardService.buildReport({
+        columns: cols.map(c => c.toLowerCase().replace(/ \(rm\)/g, '').replace(/ /g, '_')),
+      });
+      setPreviewData(result.data);
+      setPreviewTotal(result.total_records);
+    } catch (err) {
+      console.error('ReportBuilder: preview fetch failed', err);
+      // keep existing preview data on error
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // Debounce preview fetch when columns change
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchPreview(columns), 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns]);
 
   const addFilter = () => {
     setFilters(f => [...f, { id: Date.now(), field: 'Negeri', op: '=', value: '' }]);
@@ -55,11 +85,17 @@ export default function ReportBuilder() {
     setColumns(c => c.filter(x => x !== col));
   };
 
+  // AUDIT FIX: use dashboardService.exportReport instead of wrong endpoint
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      await api.post('/reports/generate', { filters, columns, groupBy, sortBy, sortDir });
-    } catch {}
+      await dashboardService.exportReport({
+        columns: columns.map(c => c.toLowerCase().replace(/ \(rm\)/g, '').replace(/ /g, '_')),
+        report_name: 'Laporan Ad-hoc ' + new Date().toLocaleDateString('ms-MY'),
+      });
+    } catch (err) {
+      console.error('ReportBuilder: export failed', err);
+    }
     setGenerating(false);
     setGenerated(true);
     setTimeout(() => setGenerated(false), 3000);
@@ -216,35 +252,40 @@ export default function ReportBuilder() {
         <div className="col-span-4 space-y-4">
           <div className="sppt-card">
             <h2 className="font-bold text-sm mb-1" style={{ color: '#1B2B5E' }}>👁 Pratonton Laporan</h2>
-            <p className="text-xs text-gray-500 mb-3">Memaparkan 5 rekod teratas.</p>
-            <div className="overflow-x-auto">
+            <p className="text-xs text-gray-500 mb-3">Memaparkan 5 rekod teratas daripada data sebenar.</p>
+            {/* AUDIT FIX: dynamic preview data from API */}
+            <div className="overflow-x-auto relative">
+              {previewLoading && (
+                <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-10 rounded">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2" style={{ borderColor: '#1B2B5E' }} />
+                </div>
+              )}
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-800 text-white">
-                    {['Nama', 'No IC', 'Skim', 'Jumlah (RM)', 'Status Bayaran', 'Kaum'].map(h => (
+                    {columns.map(h => (
                       <th key={h} className="p-2 text-left whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {PREVIEW_DATA.map((row, i) => (
-                    <tr key={i} className="border-b hover:bg-gray-50">
-                      <td className="p-2 whitespace-nowrap">{row.nama}</td>
-                      <td className="p-2 font-mono">{row.no_ic}</td>
-                      <td className="p-2">{row.skim}</td>
-                      <td className="p-2 text-right">{row.jumlah.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-2">
-                        <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                          row.status === 'Tepat' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>{row.status}</span>
-                      </td>
-                      <td className="p-2">{row.kaum}</td>
-                    </tr>
-                  ))}
+                  {previewData.length === 0 ? (
+                    <tr><td colSpan={columns.length} className="p-4 text-center text-gray-400">Tiada data untuk kriteria yang dipilih.</td></tr>
+                  ) : (
+                    previewData.slice(0, 5).map((row, i) => (
+                      <tr key={i} className="border-b hover:bg-gray-50">
+                        {columns.map(col => {
+                          const key = col.toLowerCase().replace(/ \(rm\)/g, '').replace(/ /g, '_');
+                          const val = row[key] ?? row[col] ?? '-';
+                          return <td key={col} className="p-2 whitespace-nowrap">{String(val)}</td>;
+                        })}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-            <div className="text-xs text-gray-500 mt-2">Jumlah rekod: 1,248</div>
+            <div className="text-xs text-gray-500 mt-2">Jumlah rekod: {previewTotal.toLocaleString('ms-MY')}</div>
           </div>
 
           <div className="sppt-card">
