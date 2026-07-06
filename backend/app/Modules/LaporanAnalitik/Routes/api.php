@@ -11,7 +11,7 @@ use App\Modules\LaporanAnalitik\Controllers\OfficerSkillController;
  * All routes registered via AppServiceProvider dynamic loader.
  * DO NOT add these routes to routes/api.php directly.
  */
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'permission:view_analytics'])->group(function () {
 
     // ── KPI Dashboard ──────────────────────────────────────────────────────
     // GET /api/dashboard/kpi

@@ -9,7 +9,6 @@ use App\Modules\LaporanAnalitik\Services\AnalyticsService;
 use App\Modules\LaporanAnalitik\Services\ReportExportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 /**
  * Module 6 — Laporan & Analitik
@@ -74,7 +73,7 @@ class ReportBuilderController extends Controller
 
         $reportData = $this->analytics->buildReport($columns, $dateFrom, $dateTo);
 
-        $userId = Auth::id() ?? 1;
+        $userId = $request->user()->id;
         $report = $this->exporter->createExport(
             $userId,
             $columns,
@@ -134,7 +133,7 @@ class ReportBuilderController extends Controller
         ]);
 
         $template = ReportTemplate::create([
-            'created_by'         => Auth::id() ?? 1,
+            'created_by'         => $request->user()->id,
             'name'               => $request->input('name'),
             'report_type'        => 'ad-hoc',
             'columns'            => $request->input('columns', []),
@@ -173,14 +172,22 @@ class ReportBuilderController extends Controller
 
     /**
      * GET /api/reports/{ref}/download
-     * Simulate download — returns CSV content.
+     * Download generated report.
      */
     public function download(Request $request, string $ref): \Illuminate\Http\Response
     {
         $format = $request->query('format', 'csv');
 
-        $reportData = $this->analytics->buildReport([], null, null);
-        $csv = $this->exporter->generateCsvContent($reportData['data'], []);
+        $report = GeneratedReport::where('report_ref', $ref)->firstOrFail();
+
+        $parameters = is_string($report->parameters) ? json_decode($report->parameters, true) : (array) ($report->parameters ?? []);
+        $columns = $parameters['columns'] ?? [];
+        $dateFrom = $parameters['date_from'] ?? $parameters['from'] ?? null;
+        $dateTo = $parameters['date_to'] ?? $parameters['to'] ?? null;
+        $filters = $parameters['filters'] ?? [];
+
+        $reportData = $this->analytics->buildReport($columns, $dateFrom, $dateTo, $filters);
+        $csv = $this->exporter->generateCsvContent($reportData['data'], $columns);
 
         return response($csv, 200, [
             'Content-Type'        => 'text/csv',
