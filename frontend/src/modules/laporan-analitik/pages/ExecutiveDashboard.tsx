@@ -82,13 +82,13 @@ export default function ExecutiveDashboard() {
       setTrends(trendsRes.data.data ?? trendsRes.data);
       setBranches(((branchRes.data.data ?? branchRes.data) as BranchRanking[]).slice(0, 5));
       setAiInsights(((insightRes.data.data ?? insightRes.data) as AiInsight[]).slice(0, 3));
-      if (isRefresh) setToast({ message: "Data dikemas kini.", type: "success" });
+      if (isRefresh) setToast({ message: t("module6.dataUpdated", "Data dikemas kini."), type: "success" });
     } catch {
-      setToast({ message: "Gagal memuatkan data dashboard.", type: "error" });
+      setToast({ message: t("module6.dashboardLoadFailed", "Gagal memuatkan data dashboard."), type: "error" });
     } finally {
       setLoading(false); setRefreshing(false);
     }
-  }, [period]);
+  }, [period, t]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -103,11 +103,11 @@ export default function ExecutiveDashboard() {
 
   if (loading) return <LoadingSpinner fullPage />;
 
-  const totalApproved = trends.reduce((s, t) => s + (t.approvals || 0), 0);
-  const totalRejected = trends.reduce((s, t) => s + (t.rejections || 0), 0);
+  const totalApproved = trends.reduce((s, trend) => s + (trend.approvals || 0), 0);
+  const totalRejected = trends.reduce((s, trend) => s + (trend.rejections || 0), 0);
   const pieData = [
-    { name: "Diluluskan", value: totalApproved },
-    { name: "Ditolak", value: totalRejected },
+    { name: t("module6.approved", "Diluluskan"), value: totalApproved },
+    { name: t("module6.rejected", "Ditolak"), value: totalRejected },
   ];
 
   return (
@@ -117,13 +117,13 @@ export default function ExecutiveDashboard() {
       <div className="flex items-center justify-between">
         <PageHeader
           title={t("module6.executiveDashboard", "Dashboard Eksekutif")}
-          subtitle={kpi ? `Dikemas kini: ${new Date(kpi.as_of).toLocaleString("ms-MY")}` : ""}
+          subtitle={kpi ? `${t("module6.updatedAt", "Dikemas kini")}: ${new Date(kpi.as_of).toLocaleString("ms-MY")}` : ""}
         />
         <button onClick={() => fetchAll(true)} disabled={refreshing}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
           style={{ backgroundColor: NAVY }}>
           <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-          {refreshing ? "Memuatkan..." : "Muat Semula"}
+          {refreshing ? t("module6.loading", "Memuatkan...") : t("module6.refresh", "Muat Semula")}
         </button>
       </div>
 
@@ -134,27 +134,27 @@ export default function ExecutiveDashboard() {
               period === p ? "text-white border-transparent" : "bg-white border-gray-300 text-gray-600"
             }`}
             style={period === p ? { backgroundColor: NAVY } : {}}>
-            {p === "monthly" ? "Bulanan" : p === "quarterly" ? "Suku Tahunan" : "Tahunan"}
+            {p === "monthly" ? t("module6.monthly", "Bulanan") : p === "quarterly" ? t("module6.quarterly", "Suku Tahunan") : t("module6.yearly", "Tahunan")}
           </button>
         ))}
       </div>
 
       {kpi && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard title="Jumlah Portfolio" value={formatRM(kpi.total_portfolio)}
+          <StatCard title={t("module6.totalPortfolio", "Jumlah Portfolio")} value={formatRM(kpi.total_portfolio)}
             change={kpi.total_portfolio_change} icon={<TrendingUp size={20} />} color={NAVY} />
-          <StatCard title="Kadar Kelulusan" value={`${kpi.approval_rate.toFixed(1)}%`}
+          <StatCard title={t("module6.approvalRate", "Kadar Kelulusan")} value={`${kpi.approval_rate.toFixed(1)}%`}
             change={kpi.approval_rate_change} icon={<TrendingUp size={20} />} color={GREEN} />
-          <StatCard title="Nisbah NPL" value={`${kpi.npl_ratio.toFixed(2)}%`}
+          <StatCard title={t("module6.nplRatio", "Nisbah NPL")} value={`${kpi.npl_ratio.toFixed(2)}%`}
             change={kpi.npl_ratio_change} changeInverted icon={<TrendingDown size={20} />} color={RED} />
-          <StatCard title="Jumlah Pengeluaran" value={formatRM(kpi.disbursement_volume)}
+          <StatCard title={t("module6.totalDisbursement", "Jumlah Pengeluaran")} value={formatRM(kpi.disbursement_volume)}
             change={kpi.disbursement_change} icon={<TrendingUp size={20} />} color={ORANGE} />
         </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h3 className="text-sm font-semibold mb-4" style={{ color: NAVY }}>Trend Pengeluaran Dana</h3>
+          <h3 className="text-sm font-semibold mb-4" style={{ color: NAVY }}>{t("module6.fundDisbursementTrend", "Trend Pengeluaran Dana")}</h3>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={trends}>
               <defs>
@@ -168,13 +168,13 @@ export default function ExecutiveDashboard() {
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}K`} />
               <Tooltip formatter={(v: number) => formatRM(v)} />
               <Area type="monotone" dataKey="disbursements" stroke={NAVY} fill="url(#disbGrad)"
-                strokeWidth={2} name="Pengeluaran" />
+                strokeWidth={2} name={t("module6.disbursement", "Pengeluaran")} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h3 className="text-sm font-semibold mb-4" style={{ color: NAVY }}>Kelulusan vs Penolakan</h3>
+          <h3 className="text-sm font-semibold mb-4" style={{ color: NAVY }}>{t("module6.approvalVsRejection", "Kelulusan vs Penolakan")}</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value">
@@ -188,14 +188,14 @@ export default function ExecutiveDashboard() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <h3 className="text-sm font-semibold mb-4" style={{ color: NAVY }}>Trend NPL</h3>
+        <h3 className="text-sm font-semibold mb-4" style={{ color: NAVY }}>{t("module6.nplTrend", "Trend NPL")}</h3>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={trends}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="period" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatRM(v)} />
             <Tooltip formatter={(v: number) => formatRM(v)} />
-            <Bar dataKey="npl_amount" fill={RED} name="Jumlah NPL" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="npl_amount" fill={RED} name={t("module6.totalNpl", "Jumlah NPL")} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -203,10 +203,10 @@ export default function ExecutiveDashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold" style={{ color: NAVY }}>5 Cawangan Teratas</h3>
+            <h3 className="text-sm font-semibold" style={{ color: NAVY }}>{t("module6.top5Branches", "5 Cawangan Teratas")}</h3>
             <a href="/dashboard/branch-performance"
               className="flex items-center gap-1 text-xs font-medium hover:underline" style={{ color: NAVY }}>
-              Lihat Semua <ChevronRight size={12} />
+              {t("module6.seeAll", "Lihat Semua")} <ChevronRight size={12} />
             </a>
           </div>
           <div className="overflow-x-auto">
@@ -214,11 +214,11 @@ export default function ExecutiveDashboard() {
               <thead>
                 <tr className="text-left text-xs text-gray-500 border-b">
                   <th className="pb-2 pr-3">#</th>
-                  <th className="pb-2 pr-3">Cawangan</th>
-                  <th className="pb-2 pr-3">Negeri</th>
-                  <th className="pb-2 pr-3 text-right">Kelulusan</th>
-                  <th className="pb-2 pr-3 text-right">NPL</th>
-                  <th className="pb-2 text-right">Skor</th>
+                  <th className="pb-2 pr-3">{t("module6.branch", "Cawangan")}</th>
+                  <th className="pb-2 pr-3">{t("module6.state", "Negeri")}</th>
+                  <th className="pb-2 pr-3 text-right">{t("module6.approval", "Kelulusan")}</th>
+                  <th className="pb-2 pr-3 text-right">{t("module6.npl", "NPL")}</th>
+                  <th className="pb-2 text-right">{t("module6.score", "Skor")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -253,11 +253,11 @@ export default function ExecutiveDashboard() {
           style={{ background: "linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%)", borderColor: "#c4b5fd" }}>
           <div className="flex items-center gap-2 mb-4">
             <Brain size={18} style={{ color: PURPLE }} />
-            <h3 className="text-sm font-semibold" style={{ color: PURPLE }}>Pandangan SPPT AI</h3>
-            <AiBadge label="Dijana AI" />
+            <h3 className="text-sm font-semibold" style={{ color: PURPLE }}>{t("module6.spptAiInsights", "Pandangan SPPT AI")}</h3>
+            <AiBadge label={t("module6.aiGenerated", "Dijana AI")} />
           </div>
           {aiInsights.length === 0 ? (
-            <p className="text-xs text-gray-500">Tiada pandangan AI tersedia.</p>
+            <p className="text-xs text-gray-500">{t("module6.noAiInsights", "Tiada pandangan AI tersedia.")}</p>
           ) : (
             <div className="flex flex-col gap-3">
               {aiInsights.map((insight) => (
@@ -270,7 +270,7 @@ export default function ExecutiveDashboard() {
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full"
                           style={{ backgroundColor: "#ede9fe", color: PURPLE }}>
-                          Keyakinan: {(insight.confidence * 100).toFixed(0)}%
+                          {t("module6.confidence", "Keyakinan")}: {(insight.confidence * 100).toFixed(0)}%
                         </span>
                         <span className="text-xs text-gray-400">
                           {new Date(insight.generated_at).toLocaleDateString("ms-MY")}
@@ -285,7 +285,7 @@ export default function ExecutiveDashboard() {
           <a href="/dashboard/predictive"
             className="flex items-center justify-center gap-1 mt-4 text-xs font-medium hover:underline"
             style={{ color: PURPLE }}>
-            Lihat Analitik Prediktif Penuh <ChevronRight size={12} />
+            {t("module6.viewFullPredictiveAnalytics", "Lihat Analitik Prediktif Penuh")} <ChevronRight size={12} />
           </a>
         </div>
       </div>

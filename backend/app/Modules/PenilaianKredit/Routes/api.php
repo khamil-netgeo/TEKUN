@@ -13,8 +13,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/applications', [CreditAssessmentController::class, 'index']);
     Route::get('/applications/{id}/credit-score', [CreditAssessmentController::class, 'creditScore']);
     Route::get('/applications/{id}/amortization', [CreditAssessmentController::class, 'amortization']);
-    Route::post('/applications/{id}/approve', [CreditAssessmentController::class, 'approve']);
-    Route::post('/applications/{id}/reject', [CreditAssessmentController::class, 'reject']);
-    Route::post('/applications/{id}/kuari', [CreditAssessmentController::class, 'kuari']);
+    
+    Route::middleware(['role:credit_officer|manager'])->group(function () {
+        Route::post('/applications/{id}/approve', [CreditAssessmentController::class, 'approve']);
+        Route::post('/applications/{id}/reject', [CreditAssessmentController::class, 'reject']);
+        Route::post('/applications/{id}/kuari', [CreditAssessmentController::class, 'kuari']);
+    });
+    
     Route::get('/applications/{id}/offer-letter', [CreditAssessmentController::class, 'offerLetter']);
 });

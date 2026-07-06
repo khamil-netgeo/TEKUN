@@ -1,32 +1,93 @@
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { XCircle, AlertTriangle, Phone, Mail, FileText, ChevronRight } from 'lucide-react';
+import api from '@/services/api';
 
-const rejectReasons = [
-  {
-    code: 'AR-001',
-    title: 'Rekod Muflis Aktif',
-    description: 'Pemohon mempunyai rekod muflis aktif dalam pangkalan data Jabatan Insolvensi Malaysia.',
-    source: 'Jabatan Insolvensi Malaysia',
-    severity: 'critical',
-  },
-  {
-    code: 'AR-002',
-    title: 'Senarai Hitam CCRIS',
-    description: 'Rekod kredit menunjukkan akaun tertunggak melebihi 6 bulan dalam sistem CCRIS BNM.',
-    source: 'CCRIS / BNM',
-    severity: 'critical',
-  },
-  {
-    code: 'AR-003',
-    title: 'Had Umur Tidak Layak',
-    description: 'Pemohon berumur 68 tahun. Had umur maksimum untuk pembiayaan TEKUN adalah 65 tahun.',
-    source: 'Semakan Sistem Dalaman',
-    severity: 'warning',
-  },
-];
+interface RejectReason {
+  code?: string;
+  title?: string;
+  description: string;
+  source?: string;
+  severity?: 'critical' | 'warning' | string;
+}
+
+interface ApplicationData {
+  ref_no?: string;
+  applicant_name?: string;
+  name?: string;
+  checked_at?: string;
+  created_at?: string;
+  auto_reject_reason?: string;
+  auto_reject_reasons?: RejectReason[];
+}
 
 export default function AutoReject() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const [data, setData] = useState<ApplicationData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchApplication = async () => {
+      try {
+        const response = await api.get(`/permohonan-pembiayaan/${id}`);
+        setData(response.data.data || response.data);
+      } catch (error) {
+        console.error('Failed to fetch application details:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchApplication();
+    } else {
+      setLoading(false);
+    }
+  }, [id]);
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      return new Intl.DateTimeFormat('ms-MY', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    } catch (e) {
+      return dateString;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 font-medium text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>Memuatkan data...</p>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 font-medium text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>Maklumat permohonan tidak dijumpai.</p>
+      </div>
+    );
+  }
+
+  const reasons: RejectReason[] = data.auto_reject_reasons || (data.auto_reject_reason ? [
+    {
+      code: 'AR-SYS',
+      title: 'Sebab Penolakan',
+      description: data.auto_reject_reason,
+      source: 'Semakan Sistem Dalaman',
+      severity: 'critical',
+    }
+  ] : []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -61,15 +122,15 @@ export default function AutoReject() {
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">No. Rujukan</span>
-              <p className="font-bold text-gray-800 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>SPPT-2026-00847</p>
+              <p className="font-bold text-gray-800 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>{data.ref_no || 'N/A'}</p>
             </div>
             <div>
               <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Nama Pemohon</span>
-              <p className="font-bold text-gray-800 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>Ahmad bin Abdullah</p>
+              <p className="font-bold text-gray-800 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>{data.applicant_name || data.name || 'N/A'}</p>
             </div>
             <div>
               <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Tarikh Semakan</span>
-              <p className="font-bold text-gray-800 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>4 Julai 2026, 09:42</p>
+              <p className="font-bold text-gray-800 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>{formatDate(data.checked_at || data.created_at)}</p>
             </div>
           </div>
         </div>
@@ -79,8 +140,8 @@ export default function AutoReject() {
           Sebab-Sebab Penolakan
         </h2>
         <div className="space-y-4 mb-6">
-          {rejectReasons.map(reason => (
-            <div key={reason.code} className={`bg-white rounded-xl border-l-4 p-5 shadow-sm ${
+          {reasons.length > 0 ? reasons.map((reason, index) => (
+            <div key={reason.code || index} className={`bg-white rounded-xl border-l-4 p-5 shadow-sm ${
               reason.severity === 'critical' ? 'border-l-red-500' : 'border-l-orange-400'
             }`}>
               <div className="flex items-start gap-3">
@@ -96,19 +157,23 @@ export default function AutoReject() {
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                       reason.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
                     }`} style={{ fontFamily: 'Inter, sans-serif' }}>
-                      {reason.code}
+                      {reason.code || 'AR-SYS'}
                     </span>
-                    <h3 className="font-bold text-gray-800 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>{reason.title}</h3>
+                    <h3 className="font-bold text-gray-800 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>{reason.title || 'Sebab Penolakan'}</h3>
                   </div>
                   <p className="text-sm text-gray-600 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>{reason.description}</p>
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-gray-400">Sumber:</span>
-                    <span className="text-xs font-semibold text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>{reason.source}</span>
+                    <span className="text-xs font-semibold text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>{reason.source || 'Semakan Sistem Dalaman'}</span>
                   </div>
                 </div>
               </div>
             </div>
-          ))}
+          )) : (
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm text-center text-gray-500 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
+              Tiada rekod sebab penolakan dijumpai.
+            </div>
+          )}
         </div>
 
         {/* What to Do Next */}

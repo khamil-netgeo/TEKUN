@@ -1,21 +1,9 @@
-/**
- * Module 7 — CRM & Pemantauan Usahawan
- * ScheduleVisitModal — schedule a new field visit
- */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Calendar } from 'lucide-react';
 import { scheduleVisit } from '../services/entrepreneurService';
 import type { FieldVisit } from '../types';
 import toast from 'react-hot-toast';
-
-const PURPOSES = [
-  'Pemantauan Perniagaan',
-  'Tindakan Susulan NPL',
-  'Penilaian Semula',
-  'Lawatan Pertama',
-  'Penilaian Akhir',
-  'Lain-lain',
-];
+import api from '@/services/api';
 
 interface Props {
   entrepreneurId: string | number;
@@ -25,20 +13,46 @@ interface Props {
 }
 
 export default function ScheduleVisitModal({ entrepreneurId, entrepreneurName, onClose, onScheduled }: Props) {
+  const [purposes, setPurposes] = useState<string[]>([]);
   const [date, setDate]       = useState('');
   const [time, setTime]       = useState('');
-  const [purpose, setPurpose] = useState(PURPOSES[0]);
+  const [purpose, setPurpose] = useState('');
+  const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get('/reference/visit-purposes')
+      .then(res => {
+        const data = res.data?.data || res.data || [];
+        const mapped = data.map((item: any) => typeof item === 'string' ? item : item.name || item.label || item.value);
+        setPurposes(mapped);
+        if (mapped.length > 0) setPurpose(mapped[0]);
+      })
+      .catch(() => {
+        const fallback = [
+          'Pemantauan Perniagaan',
+          'Tindakan Susulan NPL',
+          'Penilaian Semula',
+          'Lawatan Pertama',
+          'Penilaian Akhir',
+          'Lain-lain',
+        ];
+        setPurposes(fallback);
+        setPurpose(fallback[0]);
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) { toast.error('Sila pilih tarikh lawatan.'); return; }
+    if (!location) { toast.error('Sila masukkan lokasi lawatan.'); return; }
     setLoading(true);
     try {
       const result = await scheduleVisit(entrepreneurId, {
         scheduled_date: date,
         scheduled_time: time || undefined,
         purpose,
+        location,
       });
       toast.success('Lawatan lapangan berjaya dijadualkan!');
       onScheduled(result.visit);
@@ -69,8 +83,20 @@ export default function ScheduleVisitModal({ entrepreneurId, entrepreneurName, o
               onChange={e => setPurpose(e.target.value)}
               className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             >
-              {PURPOSES.map(p => <option key={p}>{p}</option>)}
+              {purposes.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Lokasi Lawatan *</label>
+            <input
+              type="text"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              required
+              placeholder="Masukkan lokasi lawatan"
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

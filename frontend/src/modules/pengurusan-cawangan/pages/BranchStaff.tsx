@@ -40,8 +40,8 @@ const BranchStaff: React.FC = () => {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await branchService.getBranchStaff(Number(id));
-      setStaff((res.data ?? []) as StaffRow[]);
+      const res = await branchService.getBranchStaff(Number(id)) as any;
+      setStaff((res.staff ?? []) as StaffRow[]);
       setBranchInfo(res.branch ?? null);
       setTotal(res.total ?? 0);
     } catch { toast.error('Gagal memuatkan senarai kakitangan.'); }

@@ -58,8 +58,7 @@ return new class extends Migration {
             $table->timestamp('ai_score_updated_at')->nullable();
 
             // pgvector embedding for semantic search (RAG)
-            // Stored as text JSON; actual vector ops use raw DB queries
-            $table->text('embedding_json')->nullable();
+            $table->vector('embedding', 1536)->nullable();
 
             $table->string('status')->default('aktif'); // aktif, tidak_aktif, blacklist
             $table->text('notes')->nullable();

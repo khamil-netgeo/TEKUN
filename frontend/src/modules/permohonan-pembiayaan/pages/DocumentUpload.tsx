@@ -87,8 +87,9 @@ export default function DocumentUpload() {
           if (extracted?.extracted) {
             sessionStorage.setItem('ocr_data', JSON.stringify(extracted.extracted));
           }
-        } catch {
-          setOcrResult({ confidence: 87, extracted: { 'Nama Penuh': 'Ahmad bin Ali', 'No. IC': '900101-14-5678', 'Tarikh Lahir': '01/01/1990', 'Jantina': 'Lelaki', 'Alamat': 'No 1, Jalan Maju, 50000 Kuala Lumpur' } });
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+          setError(msg || (isBM ? 'Gagal mengekstrak data OCR' : 'Failed to extract OCR data'));
         } finally {
           setExtracting(false);
         }

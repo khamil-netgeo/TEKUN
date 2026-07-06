@@ -19,17 +19,6 @@ class IntegrationHealthService
     /** Cache TTL for health summary (seconds) */
     const CACHE_TTL = 15;
 
-    // ─── Simulated endpoints for demo/POC ────────────────────────────────────
-
-    private array $simulatedEndpoints = [
-        'esyariah' => ['url' => 'https://httpbin.org/delay/0', 'name' => 'e-Syariah'],
-        'muflis'   => ['url' => 'https://httpbin.org/delay/0', 'name' => 'Muflis (Insolvency)'],
-        'ssm'      => ['url' => 'https://httpbin.org/delay/0', 'name' => 'SSM (Suruhanjaya Syarikat)'],
-        'ccris'    => ['url' => 'https://httpbin.org/delay/1', 'name' => 'CCRIS (Bank Negara)'],
-        'ctos'     => ['url' => 'https://httpbin.org/delay/0', 'name' => 'CTOS (Credit Bureau)'],
-        'mykad'    => ['url' => 'https://httpbin.org/delay/0', 'name' => 'MyKad / eKYC (JPN)'],
-    ];
-
     // ─── Public Methods ───────────────────────────────────────────────────────
 
     /**
@@ -100,7 +89,7 @@ class IntegrationHealthService
             $integration->update(['circuit_breaker_state' => 'HALF_OPEN']);
         }
 
-        // Perform simulated health check
+        // Perform health check
         $result = $this->performHealthCheck($integration);
 
         // Bust cache
@@ -167,13 +156,15 @@ class IntegrationHealthService
         $latencyMs = null;
 
         try {
-            // Use simulated latency for POC (real URL calls would be made in production)
-            $simulatedLatency = $this->getSimulatedLatency($integration->service_key);
-            usleep($simulatedLatency * 1000); // simulate network delay
+            $response = Http::timeout(5)->get($integration->base_url);
 
             $latencyMs = (int) round((microtime(true) - $start) * 1000);
-            $httpStatus = 200;
-            $success = true;
+            $httpStatus = $response->status();
+            $success = $response->successful();
+
+            if (!$success) {
+                $errorMessage = 'HTTP Error: ' . $httpStatus;
+            }
 
         } catch (\Exception $e) {
             $latencyMs = (int) round((microtime(true) - $start) * 1000);
@@ -214,24 +205,6 @@ class IntegrationHealthService
             'status'          => $success ? ($latencyMs > 1000 ? 'DEGRADED' : 'OK') : 'ERROR',
             'circuit_breaker_state' => $integration->fresh()->circuit_breaker_state,
         ];
-    }
-
-    private function getSimulatedLatency(string $serviceKey): int
-    {
-        // Realistic simulated latencies for POC
-        $base = match ($serviceKey) {
-            'esyariah' => 240,
-            'muflis'   => 310,
-            'ssm'      => 185,
-            'ccris'    => 1800,  // intentionally slow
-            'ctos'     => 420,
-            'mykad'    => 560,
-            default    => 300,
-        };
-
-        // Add ±20% jitter
-        $jitter = (int) ($base * 0.2);
-        return $base + rand(-$jitter, $jitter);
     }
 
     private function getLatencyTimeSeries(int $integrationId): array

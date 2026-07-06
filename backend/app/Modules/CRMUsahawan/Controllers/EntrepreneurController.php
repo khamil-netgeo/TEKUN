@@ -9,6 +9,8 @@ use App\Modules\CRMUsahawan\Models\EntrepreneurKpiSnapshot;
 use App\Modules\CRMUsahawan\Services\EntrepreneurService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
  * Module 7 — CRM & Pemantauan Usahawan
@@ -156,11 +158,12 @@ class EntrepreneurController extends Controller
         ]);
 
         $user  = Auth::user();
-        $refNo = 'LW-' . strtoupper(substr(uniqid(), -6));
+        $refNo = $this->service->generateVisitRefNo();
 
         $visit = FieldVisit::create(array_merge($validated, [
             'entrepreneur_id' => $entrepreneur->id,
             'officer_id'      => $user?->id,
+            'branch_id'       => $user?->branch_id,
             'ref_no'          => $refNo,
             'status'          => 'Dijadualkan',
         ]));
@@ -218,17 +221,33 @@ class EntrepreneurController extends Controller
             $health
         ));
     }
+    
     // ── POST /api/entrepreneurs/visits/{visitId}/report ──────────────────────
     public function generateVisitReport(Request $request, string $visitId)
     {
-        $visit = \App\Modules\CRMUsahawan\Models\FieldVisit::find($visitId);
+        $visit = FieldVisit::find($visitId);
         if (!$visit) {
             return response()->json(['message' => 'Lawatan tidak dijumpai.'], 404);
         }
+
+        $html = '<h1>Laporan Lawatan Lapangan</h1>' .
+                '<p><strong>ID Lawatan:</strong> ' . $visit->id . '</p>' .
+                '<p><strong>Rujukan:</strong> ' . $visit->ref_no . '</p>' .
+                '<p><strong>Tarikh:</strong> ' . $visit->scheduled_date . '</p>' .
+                '<p><strong>Tujuan:</strong> ' . $visit->purpose . '</p>' .
+                '<p><strong>Lokasi:</strong> ' . $visit->location . '</p>' .
+                '<p><strong>Pemerhatian:</strong> ' . $visit->observations . '</p>' .
+                '<p><strong>Hasil:</strong> ' . $visit->outcome . '</p>';
+
+        $pdf = Pdf::loadHTML($html);
+        $fileName = 'reports/visit-' . $visitId . '-' . time() . '.pdf';
+        
+        Storage::disk('public')->put($fileName, $pdf->output());
+
         return response()->json([
-            'success'    => true,
-            'visit_id'   => $visitId,
-            'report_url' => '/storage/reports/visit-' . $visitId . '.pdf',
+            'success'      => true,
+            'visit_id'     => $visitId,
+            'report_url'   => Storage::disk('public')->url($fileName),
             'generated_at' => now()->toISOString(),
         ]);
     }

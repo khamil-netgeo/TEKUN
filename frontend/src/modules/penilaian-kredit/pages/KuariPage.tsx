@@ -4,20 +4,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckCircle, Clock, Send, Sparkles, Plus, X } from 'lucide-react';
 import api from '@/services/api';
 
-const FIELD_OPTIONS = [
-  { key: 'income_proof', label: 'Bukti Pendapatan' },
-  { key: 'bank_statement', label: 'Penyata Bank (3 bulan)' },
-  { key: 'ssm_cert', label: 'Sijil SSM' },
-  { key: 'business_plan', label: 'Pelan Perniagaan' },
-  { key: 'collateral_docs', label: 'Dokumen Cagaran' },
-  { key: 'guarantor_ic', label: 'MyKad Penjamin' },
-  { key: 'tax_return', label: 'Penyata Cukai' },
-  { key: 'business_photos', label: 'Gambar Premis Perniagaan' },
-];
-
 export default function KuariPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [fieldOptions, setFieldOptions] = useState<{key: string, label: string}[]>([]);
+  const [loadingFields, setLoadingFields] = useState(true);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [deadline, setDeadline] = useState(() => {
@@ -33,6 +24,21 @@ export default function KuariPage() {
     deadline: string;
     auto_escalate_at: string;
   } | null>(null);
+
+  useEffect(() => {
+    const fetchFields = async () => {
+      try {
+        const res = await api.get('/reference/document-fields');
+        setFieldOptions(res.data.data || res.data);
+      } catch (error) {
+        console.error('Failed to fetch document fields:', error);
+        toast.error('Gagal memuat turun senarai dokumen.');
+      } finally {
+        setLoadingFields(false);
+      }
+    };
+    fetchFields();
+  }, []);
 
   const toggleField = (key: string) => {
     setSelectedFields(prev =>
@@ -156,24 +162,30 @@ export default function KuariPage() {
               Pilih Medan yang Perlu Penjelasan
             </h2>
             <div className="grid grid-cols-2 gap-3">
-              {FIELD_OPTIONS.map(opt => (
-                <div
-                  key={opt.key}
-                  onClick={() => toggleField(opt.key)}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                    selectedFields.includes(opt.key)
-                      ? 'border-[#1B2B5E] bg-blue-50'
-                      : 'border-gray-100 hover:border-gray-200'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
-                    selectedFields.includes(opt.key) ? 'bg-[#1B2B5E]' : 'border-2 border-gray-300'
-                  }`}>
-                    {selectedFields.includes(opt.key) && <CheckCircle size={12} className="text-white" />}
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+              {loadingFields ? (
+                <div className="col-span-2 py-4 text-center text-sm text-gray-500">
+                  Memuatkan senarai dokumen...
                 </div>
-              ))}
+              ) : (
+                fieldOptions.map(opt => (
+                  <div
+                    key={opt.key}
+                    onClick={() => toggleField(opt.key)}
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      selectedFields.includes(opt.key)
+                        ? 'border-[#1B2B5E] bg-blue-50'
+                        : 'border-gray-100 hover:border-gray-200'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
+                      selectedFields.includes(opt.key) ? 'bg-[#1B2B5E]' : 'border-2 border-gray-300'
+                    }`}>
+                      {selectedFields.includes(opt.key) && <CheckCircle size={12} className="text-white" />}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -222,7 +234,7 @@ export default function KuariPage() {
               </div>
               <div className="space-y-2">
                 {selectedFields.map(f => {
-                  const opt = FIELD_OPTIONS.find(o => o.key === f);
+                  const opt = fieldOptions.find(o => o.key === f);
                   return (
                     <div key={f} className="flex items-center gap-2 p-2 bg-purple-50 rounded-lg">
                       <AlertCircle size={12} className="text-purple-600 flex-shrink-0" />

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\Payment;
 use App\Modules\PengurusanAkaun\Models\Moratorium;
+use App\Modules\PengurusanAkaun\Services\AiDefaultPredictionService;
 use App\Modules\PengurusanAkaun\Services\TawidhService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,8 @@ use Illuminate\Support\Facades\Log;
 class AccountController extends Controller
 {
     public function __construct(
-        private TawidhService $tawidhService
+        private TawidhService $tawidhService,
+        private AiDefaultPredictionService $aiPredictionService
     ) {}
 
     // ─── Private Helpers ────────────────────────────────────────────────────
@@ -52,7 +54,7 @@ class AccountController extends Controller
         $user  = Auth::user();
         $query = Account::with(['payments' => fn ($q) => $q->orderByDesc('paid_at')->limit(3)]);
 
-        if ($user && $user->branch_id && !$user->hasRole('Pentadbir Sistem')) {
+        if ($user && $user->branch_id && !$user->can('view_all_branches')) {
             $query->where('branch_id', $user->branch_id);
         }
 
@@ -278,8 +280,9 @@ class AccountController extends Controller
         $balance     = (float) ($account->outstanding_balance ?? 0);
         $annualRate  = (float) ($account->profit_rate ?? 0.07);
         $monthlyRate = $annualRate / 12 / 100; // profit_rate stored as percentage
+        $remainingMonths = (int) ($account->remaining_months ?? 0);
 
-        for ($i = 1; $i <= 6; $i++) {
+        for ($i = 1; $i <= $remainingMonths; $i++) {
             $interest  = round($balance * $monthlyRate, 2);
             $principal = round($instalment - $interest, 2);
             $balance   = max(0, round($balance - $principal, 2));
@@ -294,6 +297,10 @@ class AccountController extends Controller
                 'balance'    => $balance,
                 'status'     => 'AKAN DATANG',
             ];
+
+            if ($balance <= 0) {
+                break;
+            }
         }
 
         return $schedule;
@@ -301,34 +308,6 @@ class AccountController extends Controller
 
     private function analyzeHardship(Account $account, string $reason, int $months): array
     {
-        $score    = 50;
-        $keywords = ['kehilangan pekerjaan', 'penyakit', 'bencana', 'kematian', 'pandemik', 'kemalangan'];
-
-        foreach ($keywords as $kw) {
-            if (stripos($reason, $kw) !== false) {
-                $score += 10;
-                break;
-            }
-        }
-
-        if (($account->arrears_days ?? 0) > 90) $score += 20;
-        elseif (($account->arrears_days ?? 0) > 30) $score += 10;
-
-        $score = min(100, $score);
-
-        return [
-            'hardship_score' => $score,
-            'recommendation' => $score >= 70
-                ? 'Cadangan: Luluskan moratorium. Petunjuk kesusahan tinggi.'
-                : ($score >= 50
-                    ? 'Cadangan: Semak semula dengan dokumen sokongan.'
-                    : 'Cadangan: Pertimbangkan semula. Petunjuk kesusahan rendah.'),
-            'factors' => [
-                "Hari tunggakan: {$account->arrears_days} hari",
-                "Sebab: {$reason}",
-                "Tempoh diminta: {$months} bulan",
-                "Baki tertunggak: RM " . number_format($account->outstanding_balance, 2),
-            ],
-        ];
+        return $this->aiPredictionService->analyzeHardship($account, $reason, $months);
     }
 }

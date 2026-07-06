@@ -27,10 +27,10 @@ const BranchDetail: React.FC = () => {
     setLoading(true);
     try {
       const res = await branchService.getBranchById(Number(id));
-      const b = res.data;
-      setBranch(b);
-      setPerformanceHistory(b.performance_history ?? []);
-      setEditForm({ name: b.name, address: b.address, phone: b.phone, email: b.email, target_collection_rate: b.target_collection_rate, monthly_target: b.monthly_target });
+      const { branch, performance } = res.data as any;
+      setBranch(branch);
+      setPerformanceHistory(performance ?? []);
+      setEditForm({ name: branch.name, address: branch.address, phone: branch.phone, email: branch.email, target_collection_rate: branch.target_collection_rate, monthly_target: branch.monthly_target });
     } catch { toast.error('Gagal memuatkan maklumat cawangan.'); }
     finally { setLoading(false); }
   }, [id]);
@@ -45,7 +45,16 @@ const BranchDetail: React.FC = () => {
       toast.success('Maklumat cawangan berjaya dikemaskini.');
       setEditing(false);
       fetchDetail();
-    } catch { toast.error('Gagal mengemaskini maklumat cawangan.'); }
+    } catch (err: any) {
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        Object.keys(errors).forEach((key) => {
+          toast.error(errors[key][0]);
+        });
+      } else {
+        toast.error('Gagal mengemaskini maklumat cawangan.');
+      }
+    }
     finally { setSaving(false); }
   };
 

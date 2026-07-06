@@ -1,7 +1,3 @@
-/**
- * Module 3 — Pengeluaran Dana
- * AuthorityMatrix.tsx — Dynamic authority matrix with real API and pending approvals.
- */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, CheckCircle, AlertTriangle, RefreshCw, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -41,8 +37,9 @@ export default function AuthorityMatrix() {
       ]);
       setMatrix(matrixRes.data);
       setPendingApprovals(listRes.data);
-    } catch {
-      // silent
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Gagal memuat turun data matriks atau senarai kelulusan.');
     } finally {
       setLoading(false);
     }
@@ -58,8 +55,9 @@ export default function AuthorityMatrix() {
     try {
       const res = await disbursementService.getAuthorityMatrix(amount);
       setApplicable(res.applicable);
-    } catch {
-      // silent
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || 'Gagal menyemak had kuasa.');
     }
   };
 

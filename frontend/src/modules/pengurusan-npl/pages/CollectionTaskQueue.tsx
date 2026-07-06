@@ -27,13 +27,13 @@ const CHANNEL_ICON: Record<string, React.ReactNode> = {
 };
 
 const OUTCOME_OPTIONS = [
-  { value: 'promised_payment', label: 'Berjanji Bayar' },
-  { value: 'partial_payment', label: 'Bayaran Separa' },
-  { value: 'full_payment', label: 'Bayaran Penuh' },
-  { value: 'no_answer', label: 'Tiada Jawapan' },
-  { value: 'wrong_number', label: 'Nombor Salah' },
-  { value: 'refused_payment', label: 'Enggan Bayar' },
-  { value: 'restructure_request', label: 'Minta Penstrukturan Semula' },
+  { value: 'promised_payment', labelKey: 'npl.taskQueue.outcomes.promisedPayment' },
+  { value: 'partial_payment', labelKey: 'npl.taskQueue.outcomes.partialPayment' },
+  { value: 'full_payment', labelKey: 'npl.taskQueue.outcomes.fullPayment' },
+  { value: 'no_answer', labelKey: 'npl.taskQueue.outcomes.noAnswer' },
+  { value: 'wrong_number', labelKey: 'npl.taskQueue.outcomes.wrongNumber' },
+  { value: 'refused_payment', labelKey: 'npl.taskQueue.outcomes.refusedPayment' },
+  { value: 'restructure_request', labelKey: 'npl.taskQueue.outcomes.restructureRequest' },
 ];
 
 interface OutcomeFormProps {
@@ -43,6 +43,7 @@ interface OutcomeFormProps {
 }
 
 function OutcomeForm({ task, onClose, onSaved }: OutcomeFormProps) {
+  const { t } = useTranslation();
   const { log, loading } = useLogOutcome();
   const [outcome, setOutcome] = useState('');
   const [notes, setNotes] = useState('');
@@ -50,14 +51,14 @@ function OutcomeForm({ task, onClose, onSaved }: OutcomeFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!outcome) { toast.error('Sila pilih hasil panggilan.'); return; }
+    if (!outcome) { toast.error(t('npl.taskQueue.errorSelectOutcome')); return; }
     const ok = await log(task.id, outcome, notes, followUpDays);
     if (ok) {
-      toast.success('Hasil panggilan direkod.');
+      toast.success(t('npl.taskQueue.outcomeRecorded'));
       onSaved();
       onClose();
     } else {
-      toast.error('Gagal merekod hasil panggilan.');
+      toast.error(t('npl.taskQueue.outcomeFailed'));
     }
   };
 
@@ -66,37 +67,37 @@ function OutcomeForm({ task, onClose, onSaved }: OutcomeFormProps) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="p-5 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-[#1B2B5E]">Rekod Hasil Panggilan</h3>
+            <h3 className="font-bold text-[#1B2B5E]">{t('npl.taskQueue.recordOutcome')}</h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
           </div>
           <p className="text-sm text-gray-500 mt-1">{task.borrower_name} — {task.account_no}</p>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Hasil Panggilan *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('npl.taskQueue.callOutcomeLabel')}</label>
             <select
               value={outcome}
               onChange={(e) => setOutcome(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]"
             >
-              <option value="">Pilih hasil...</option>
+              <option value="">{t('npl.taskQueue.selectOutcome')}</option>
               {OUTCOME_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nota</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('npl.taskQueue.notesLabel')}</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              placeholder="Masukkan nota panggilan..."
+              placeholder={t('npl.taskQueue.notesPlaceholder')}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E] resize-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Susulan Dalam (hari)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('npl.taskQueue.followUpDays')}</label>
             <input
               type="number"
               value={followUpDays}
@@ -112,11 +113,11 @@ function OutcomeForm({ task, onClose, onSaved }: OutcomeFormProps) {
               disabled={loading}
               className="flex-1 py-2.5 bg-[#1B2B5E] text-white rounded-lg text-sm font-medium hover:bg-blue-900 disabled:opacity-50 transition-colors"
             >
-              {loading ? 'Menyimpan...' : 'Simpan Hasil'}
+              {loading ? t('npl.taskQueue.saving') : t('npl.taskQueue.saveOutcome')}
             </button>
             <button type="button" onClick={onClose}
               className="px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-              Batal
+              {t('npl.taskQueue.cancel')}
             </button>
           </div>
         </form>
@@ -131,29 +132,29 @@ export default function CollectionTaskQueue() {
   const [selectedTask, setSelectedTask] = useState<CollectionTask | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  if (loading) return <LoadingSpinner fullPage label="Memuatkan tugasan kutipan..." />;
+  if (loading) return <LoadingSpinner fullPage label={t('npl.taskQueue.loading')} />;
 
   return (
     <div className="space-y-6 p-4 md:p-6">
       <PageHeader
-        title="Baris Gilir Tugasan Kutipan"
-        subtitle="Senarai tugasan kutipan diutamakan oleh AI"
+        title={t('npl.taskQueue.title')}
+        subtitle={t('npl.taskQueue.subtitle')}
         breadcrumbs={[
-          { label: 'SPPT', href: '/' },
-          { label: 'Pemantauan NPL', href: '/module5/npl' },
-          { label: 'Tugasan Kutipan' },
+          { label: t('npl.taskQueue.breadcrumb.sppt'), href: '/' },
+          { label: t('npl.taskQueue.breadcrumb.npl'), href: '/module5/npl' },
+          { label: t('npl.taskQueue.breadcrumb.tasks') },
         ]}
         icon={<Phone className="w-6 h-6 text-white" />}
-        action={<AiBadge label="AI Keutamaan Aktif" variant="gradient" />}
+        action={<AiBadge label={t('npl.taskQueue.aiPriorityActive')} variant="gradient" />}
       />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Jumlah Tugasan', value: total, colour: '#1B2B5E' },
-          { label: 'Kritikal', value: tasks.filter((t: CollectionTask) => t.priority_label === 'Kritikal').length, colour: '#C62828' },
-          { label: 'Perlu Susulan Hari Ini', value: tasks.filter((t: CollectionTask) => t.follow_up_at && new Date(t.follow_up_at) <= new Date()).length, colour: '#E65100' },
-          { label: 'Selesai Hari Ini', value: tasks.filter((t: CollectionTask) => t.status === 'completed').length, colour: '#2E7D32' },
+          { label: t('npl.taskQueue.stats.total'), value: total, colour: '#1B2B5E' },
+          { label: t('npl.taskQueue.stats.critical'), value: tasks.filter((t: CollectionTask) => t.priority_label === 'Kritikal').length, colour: '#C62828' },
+          { label: t('npl.taskQueue.stats.followUpToday'), value: tasks.filter((t: CollectionTask) => t.follow_up_at && new Date(t.follow_up_at) <= new Date()).length, colour: '#E65100' },
+          { label: t('npl.taskQueue.stats.completedToday'), value: tasks.filter((t: CollectionTask) => t.status === 'completed').length, colour: '#2E7D32' },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
@@ -198,14 +199,14 @@ export default function CollectionTaskQueue() {
                       <div className="flex items-center gap-4 mt-1 text-xs text-gray-500 flex-wrap">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {task.arrears_days} hari tunggakan
+                          {task.arrears_days} {t('npl.taskQueue.arrearsDays')}
                         </span>
                         <span className="font-semibold text-red-600">
                           RM {Number(task.arrears_amount).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}
                         </span>
                         <span className="flex items-center gap-1 text-purple-600">
                           {CHANNEL_ICON[task.ai_suggested_channel] ?? <Phone className="w-3 h-3" />}
-                          AI: {task.ai_suggested_channel?.toUpperCase()}
+                          {t('npl.taskQueue.ai')} {task.ai_suggested_channel?.toUpperCase()}
                         </span>
                         <span className="flex items-center gap-1 text-blue-600">
                           <Clock className="w-3 h-3" />
@@ -222,7 +223,7 @@ export default function CollectionTaskQueue() {
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1B2B5E] text-white rounded-lg text-xs font-medium hover:bg-blue-900 transition-colors"
                     >
                       <CheckCircle className="w-3.5 h-3.5" />
-                      Log Hasil
+                      {t('npl.taskQueue.logOutcome')}
                     </button>
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : task.id)}
@@ -241,7 +242,7 @@ export default function CollectionTaskQueue() {
                     <Brain className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-xs font-semibold text-purple-700">Cadangan AI</span>
+                        <span className="text-xs font-semibold text-purple-700">{t('npl.taskQueue.aiRecommendation')}</span>
                         <AiBadge size="xs" />
                       </div>
                       <p className="text-xs text-gray-700">{task.ai_recommendation}</p>
@@ -249,21 +250,21 @@ export default function CollectionTaskQueue() {
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-xs">
                     <div>
-                      <p className="text-gray-400">Percubaan</p>
-                      <p className="font-semibold text-gray-700">{task.attempt_count} kali</p>
+                      <p className="text-gray-400">{t('npl.taskQueue.attempts')}</p>
+                      <p className="font-semibold text-gray-700">{task.attempt_count} {t('npl.taskQueue.times')}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Hasil Terakhir</p>
+                      <p className="text-gray-400">{t('npl.taskQueue.lastOutcome')}</p>
                       <p className="font-semibold text-gray-700">{task.last_outcome ?? '—'}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Dihubungi Terakhir</p>
+                      <p className="text-gray-400">{t('npl.taskQueue.lastContacted')}</p>
                       <p className="font-semibold text-gray-700">
                         {task.last_contacted_at ? new Date(task.last_contacted_at).toLocaleDateString('ms-MY') : '—'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Susulan Seterusnya</p>
+                      <p className="text-gray-400">{t('npl.taskQueue.nextFollowUp')}</p>
                       <p className="font-semibold text-gray-700 flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {task.follow_up_at ? new Date(task.follow_up_at).toLocaleDateString('ms-MY') : '—'}
@@ -279,7 +280,7 @@ export default function CollectionTaskQueue() {
         {tasks.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <CheckCircle className="w-12 h-12 mb-3 text-green-400" />
-            <p className="font-medium">Tiada tugasan kutipan buat masa ini.</p>
+            <p className="font-medium">{t('npl.taskQueue.noTasks')}</p>
           </div>
         )}
       </div>

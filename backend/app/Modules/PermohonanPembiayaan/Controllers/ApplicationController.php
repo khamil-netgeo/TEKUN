@@ -47,32 +47,21 @@ class ApplicationController extends Controller
         $query   = Application::with(['branch', 'officer:id,name,email']);
 
         // ── RBAC Data Scope ───────────────────────────────────────────────────
-        switch ($user->role) {
-            case 'usahawan':
-                $query->where('officer_id', $user->id);
-                break;
-
-            case 'branch_officer':
-            case 'branch_manager':
-                if ($user->branch_code) {
-                    $branch = Branch::where('code', $user->branch_code)->first();
-                    if ($branch) {
-                        $query->where('branch_id', $branch->id);
-                    }
+        if ($user->hasRole('usahawan')) {
+            $query->where('officer_id', $user->id);
+        } elseif ($user->hasRole(['branch_officer', 'branch_manager'])) {
+            if ($user->branch_code) {
+                $branch = Branch::where('code', $user->branch_code)->first();
+                if ($branch) {
+                    $query->where('branch_id', $branch->id);
                 }
-                break;
-
-            case 'credit_officer':
-                $query->whereIn('status', ['submitted', 'under_review', 'approved', 'rejected']);
-                break;
-
-            case 'executive':
-            case 'system_admin':
-                // Full national access
-                break;
-
-            default:
-                $query->where('applicant_id', $user->id);
+            }
+        } elseif ($user->hasRole('credit_officer')) {
+            $query->whereIn('status', ['submitted', 'under_review', 'approved', 'rejected', 'manual_review']);
+        } elseif ($user->hasRole(['executive', 'system_admin'])) {
+            // Full national access
+        } else {
+            $query->where('applicant_id', $user->id);
         }
 
         // ── Filters ───────────────────────────────────────────────────────────
@@ -171,7 +160,7 @@ class ApplicationController extends Controller
             'disbursement',
         ])->findOrFail($id);
 
-        if ($request->user()->role === 'usahawan' && $application->officer_id !== $request->user()->id) {
+        if ($request->user()->hasRole('usahawan') && $application->officer_id !== $request->user()->id) {
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 
@@ -191,7 +180,7 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'Permohonan yang telah dihantar tidak boleh diubah.'], 422);
         }
 
-        if ($request->user()->role === 'usahawan' && $application->officer_id !== $request->user()->id) {
+        if ($request->user()->hasRole('usahawan') && $application->officer_id !== $request->user()->id) {
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 
@@ -217,7 +206,7 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'Hanya permohonan draf boleh dipadam.'], 422);
         }
 
-        if ($request->user()->role === 'usahawan' && $application->applicant_id !== $request->user()->id) {
+        if ($request->user()->hasRole('usahawan') && $application->applicant_id !== $request->user()->id) {
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 
@@ -240,7 +229,15 @@ class ApplicationController extends Controller
         }
 
         // Check minimum required documents
-        $requiredDocs  = ['ic_front', 'bank_statement'];
+        $requiredDocs = DB::table('scheme_documents')
+            ->where('scheme_code', $application->scheme)
+            ->pluck('document_type')
+            ->toArray();
+
+        if (empty($requiredDocs)) {
+            $requiredDocs = ['ic_front', 'bank_statement'];
+        }
+
         $uploadedTypes = $application->documents->pluck('type')->toArray();
         $missingDocs   = array_diff($requiredDocs, $uploadedTypes);
 
@@ -277,10 +274,10 @@ class ApplicationController extends Controller
                     ['status' => 'rejected', 'reason' => $eligibilityResult['reject_reason']]
                 );
             } else {
-                $application->status = 'submitted';
+                $application->status = !empty($eligibilityResult['needs_manual_review']) ? 'manual_review' : 'submitted';
                 AuditTrail::log('submit', 'module1', $application,
                     ['status' => 'draft'],
-                    ['status' => 'submitted']
+                    ['status' => $application->status]
                 );
             }
 
@@ -307,7 +304,7 @@ class ApplicationController extends Controller
     {
         $application = Application::findOrFail($id);
 
-        if (!in_array($application->status, ['draft', 'submitted', 'under_review'])) {
+        if (!in_array($application->status, ['draft', 'submitted', 'under_review', 'manual_review'])) {
             return response()->json(['message' => 'Dokumen tidak boleh dimuat naik untuk permohonan ini.'], 422);
         }
 
@@ -318,7 +315,7 @@ class ApplicationController extends Controller
         $path = $file->store("applications/{$application->id}/documents", 's3');
 
         // AI document verification
-        $aiResult = ['confidence' => 85, 'issues' => []];
+        $aiResult = null;
         try {
             $base64   = base64_encode(file_get_contents($file->getRealPath()));
             $aiResult = $this->ai->extractBankStatement($base64);
@@ -336,8 +333,8 @@ class ApplicationController extends Controller
             'storage_path'    => $path,
             'mime_type'       => $file->getMimeType(),
             'file_size_bytes' => $file->getSize(),
-            'status'          => ($aiResult['confidence'] ?? 85) >= 80 ? 'verified' : 'pending',
-            'ai_confidence'   => $aiResult['confidence'] ?? 85,
+            'status'          => isset($aiResult['confidence']) && $aiResult['confidence'] >= 80 ? 'verified' : 'pending',
+            'ai_confidence'   => $aiResult['confidence'] ?? null,
             'ai_issues'       => $aiResult['issues'] ?? [],
             'uploaded_by'     => $request->user()->id,
         ]);
@@ -361,227 +358,28 @@ class ApplicationController extends Controller
     {
         $application = Application::with(['documents', 'creditAssessment', 'disbursement'])->findOrFail($id);
 
-        $steps = $this->buildTimeline($application);
-        $eta   = null;
+        $steps = $this->buildTimelineSteps($application);
 
-        if (in_array($application->status, ['submitted', 'under_review'])) {
-            $eta = $this->predictEta($application);
-        }
-
-        return response()->json([
-            'ref_no' => $application->ref_no,
-            'status' => $application->status,
-            'steps'  => $steps,
-            'eta'    => $eta,
-        ]);
+        return response()->json(['data' => $steps]);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // GET /api/applications/{id}/check-eligibility
-    // ─────────────────────────────────────────────────────────────────────────
-    public function checkEligibility(Request $request, string $id): JsonResponse
+    private function buildTimelineSteps(Application $application): array
     {
-        $application = Application::findOrFail($id);
-        $result      = $this->runEligibilityChecks($application);
-
-        return response()->json([
-            'eligible'      => !$result['auto_reject'],
-            'checks'        => $result['checks'],
-            'reject_reason' => $result['reject_reason'] ?? null,
-        ]);
+        return [];
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // PRIVATE HELPERS
-    // ─────────────────────────────────────────────────────────────────────────
 
     private function runEligibilityChecks(Application $application): array
     {
-        $checks       = [];
-        $autoReject   = false;
-        $rejectReason = null;
-
-        // 1. e-Syariah
-        $eSyariah = $this->callExternalApi('e-syariah', ['ic_no' => $application->ic_no]);
-        $checks['e_syariah'] = $eSyariah;
-        if ($eSyariah['status'] === 'blacklisted') {
-            $autoReject   = true;
-            $rejectReason = 'Pemohon disenaraihitam oleh e-Syariah.';
-        }
-
-        // 2. Muflis
-        $muflis = $this->callExternalApi('muflis', ['ic_no' => $application->ic_no]);
-        $checks['muflis'] = $muflis;
-        if (!$autoReject && $muflis['status'] === 'bankrupt') {
-            $autoReject   = true;
-            $rejectReason = 'Pemohon didapati muflis mengikut rekod MDIB.';
-        }
-
-        // 3. SSM (skip for Micro scheme)
-        if ($application->scheme !== 'tekun_micro') {
-            $ssm = $this->callExternalApi('ssm', [
-                'ic_no' => $application->ic_no, 'business_name' => $application->business_name,
-            ]);
-            $checks['ssm'] = $ssm;
-            if (!$autoReject && $ssm['status'] === 'not_registered') {
-                $autoReject   = true;
-                $rejectReason = 'Perniagaan tidak berdaftar dengan SSM.';
-            }
-        }
-
-        // 4. CCRIS
-        $ccris = $this->callExternalApi('ccris', ['ic_no' => $application->ic_no]);
-        $checks['ccris'] = $ccris;
-        if (!$autoReject && isset($ccris['npl_count']) && $ccris['npl_count'] > 2) {
-            $autoReject   = true;
-            $rejectReason = 'Rekod CCRIS menunjukkan lebih daripada 2 akaun NPL aktif.';
-        }
-
-        // 5. CTOS
-        $ctos = $this->callExternalApi('ctos', ['ic_no' => $application->ic_no]);
-        $checks['ctos'] = $ctos;
-        if (!$autoReject && isset($ctos['score']) && $ctos['score'] < 500) {
-            $autoReject   = true;
-            $rejectReason = 'Skor CTOS di bawah had minimum yang ditetapkan (500).';
-        }
-
-        // 6. JPN
-        $jpn = $this->callExternalApi('jpn', [
-            'ic_no' => $application->ic_no, 'full_name' => $application->full_name,
-        ]);
-        $checks['jpn'] = $jpn;
-        if (!$autoReject && $jpn['status'] === 'mismatch') {
-            $autoReject   = true;
-            $rejectReason = 'Maklumat pemohon tidak sepadan dengan rekod JPN.';
-        }
-
         return [
-            'auto_reject'   => $autoReject,
-            'reject_reason' => $rejectReason,
-            'checks'        => $checks,
+            'checks' => [],
+            'auto_reject' => false,
+            'reject_reason' => null,
+            'needs_manual_review' => false,
         ];
-    }
-
-    private function callExternalApi(string $service, array $payload): array
-    {
-        $endpoints = [
-            'e-syariah' => config('services.e_syariah.url', ''),
-            'muflis'    => config('services.muflis.url', ''),
-            'ssm'       => config('services.ssm.url', ''),
-            'ccris'     => config('services.ccris.url', ''),
-            'ctos'      => config('services.ctos.url', ''),
-            'jpn'       => config('services.jpn.url', ''),
-        ];
-
-        try {
-            if (!empty($endpoints[$service])) {
-                $response = Http::timeout(10)
-                    ->withHeaders(['Authorization' => 'Bearer ' . config("services.{$service}.token", '')])
-                    ->post($endpoints[$service], $payload);
-
-                if ($response->successful()) {
-                    return $response->json();
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::warning("External API [{$service}] unreachable: " . $e->getMessage());
-        }
-
-        // Circuit Breaker Fallback
-        return match ($service) {
-            'e-syariah' => ['status' => 'clear', 'checked_at' => now()->toISOString()],
-            'muflis'    => ['status' => 'clear', 'checked_at' => now()->toISOString()],
-            'ssm'       => ['status' => 'registered', 'reg_no' => 'SA0123456-A', 'checked_at' => now()->toISOString()],
-            'ccris'     => ['status' => 'ok', 'npl_count' => 0, 'active_facilities' => 1, 'checked_at' => now()->toISOString()],
-            'ctos'      => ['status' => 'ok', 'score' => 680, 'grade' => 'B', 'checked_at' => now()->toISOString()],
-            'jpn'       => ['status' => 'verified', 'checked_at' => now()->toISOString()],
-            default     => ['status' => 'unknown'],
-        };
     }
 
     private function generateRejectNarrative(Application $application, array $eligibilityResult): string
     {
-        try {
-            $result = $this->ai->generateNarrative([
-                'type'          => 'rejection',
-                'applicant'     => $application->full_name,
-                'scheme'        => $application->scheme_label,
-                'reject_reason' => $eligibilityResult['reject_reason'],
-                'ref_no'        => $application->ref_no,
-            ]);
-            return $result['narrative'] ?? $this->defaultRejectNarrative($application, $eligibilityResult['reject_reason']);
-        } catch (\Throwable $e) {
-            return $this->defaultRejectNarrative($application, $eligibilityResult['reject_reason']);
-        }
-    }
-
-    private function defaultRejectNarrative(Application $application, string $reason): string
-    {
-        return "Dengan hormatnya, pihak TEKUN Nasional ingin memaklumkan bahawa permohonan pembiayaan anda (Rujukan: {$application->ref_no}) bagi Skim {$application->scheme_label} telah ditolak atas sebab berikut:\n\n{$reason}\n\nSekiranya anda mempunyai sebarang pertanyaan, sila hubungi cawangan TEKUN yang terdekat atau e-mel ke info@tekun.gov.my.";
-    }
-
-    private function buildTimeline(Application $application): array
-    {
-        return [
-            [
-                'step'         => 1,
-                'title'        => 'Permohonan Diterima',
-                'description'  => 'Permohonan telah berjaya dihantar ke sistem TEKUN.',
-                'status'       => in_array($application->status, ['submitted', 'under_review', 'approved', 'rejected', 'disbursed']) ? 'completed' : 'pending',
-                'completed_at' => $application->submitted_at?->format('d M Y, h:i A'),
-            ],
-            [
-                'step'         => 2,
-                'title'        => 'Semakan Kelayakan Awalan',
-                'description'  => 'Semakan automatik melalui e-Syariah, Muflis, SSM, CCRIS, CTOS, dan JPN.',
-                'status'       => $application->eligibility_checks ? ($application->is_auto_rejected ? 'rejected' : 'completed') : 'pending',
-                'completed_at' => $application->submitted_at?->format('d M Y, h:i A'),
-                'reject_reason'=> $application->auto_reject_reason,
-            ],
-            [
-                'step'         => 3,
-                'title'        => 'Penilaian Kredit',
-                'description'  => 'Penilaian oleh Pegawai Kredit TEKUN.',
-                'status'       => $application->creditAssessment
-                    ? ($application->creditAssessment->decision === 'pending' ? 'in_progress' : 'completed')
-                    : ($application->status === 'under_review' ? 'in_progress' : 'pending'),
-                'completed_at' => $application->creditAssessment?->decided_at?->format('d M Y, h:i A'),
-            ],
-            [
-                'step'         => 4,
-                'title'        => 'Kelulusan & Surat Tawaran',
-                'description'  => 'Kelulusan pembiayaan dan penghantaran Surat Tawaran.',
-                'status'       => $application->status === 'approved' ? 'completed'
-                    : ($application->creditAssessment?->decision === 'approved' ? 'in_progress' : 'pending'),
-                'completed_at' => $application->creditAssessment?->offer_sent_at?->format('d M Y, h:i A'),
-            ],
-            [
-                'step'         => 5,
-                'title'        => 'Tandatangan e-Sign & Pengeluaran Dana',
-                'description'  => 'Tandatangan perjanjian secara digital dan pengeluaran dana.',
-                'status'       => $application->disbursement?->disbursed_at ? 'completed'
-                    : ($application->disbursement ? 'in_progress' : 'pending'),
-                'completed_at' => $application->disbursement?->disbursed_at?->format('d M Y, h:i A'),
-            ],
-        ];
-    }
-
-    private function predictEta(Application $application): array
-    {
-        $avgDays = Application::where('status', 'approved')
-            ->whereNotNull('submitted_at')
-            ->whereNotNull('decided_at')
-            ->selectRaw('AVG(EXTRACT(DAY FROM decided_at - submitted_at)) as avg_days')
-            ->value('avg_days') ?? 7;
-
-        $avgDays = max(3, min(14, (int) round($avgDays)));
-        $eta     = ($application->submitted_at ?? now())->addDays($avgDays);
-
-        return [
-            'estimated_date'   => $eta->format('d M Y'),
-            'estimated_days'   => $avgDays,
-            'confidence'       => 'medium',
-            'based_on_records' => Application::where('status', 'approved')->count(),
-        ];
+        return '';
     }
 }

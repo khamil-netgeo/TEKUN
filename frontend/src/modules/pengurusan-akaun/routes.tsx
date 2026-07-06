@@ -9,6 +9,7 @@
  */
 import React, { lazy } from 'react';
 import type { RouteObject } from 'react-router-dom';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 const Account360       = lazy(() => import('./pages/Account360'));
 const PaymentChannels  = lazy(() => import('./pages/PaymentChannels'));
@@ -18,23 +19,43 @@ const Moratorium       = lazy(() => import('./pages/Moratorium'));
 const routes: RouteObject[] = [
   {
     path: '/akaun',
-    element: React.createElement(Account360),
+    element: (
+      <ProtectedRoute requiredPermission="view_account">
+        <Account360 />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/akaun/:id',
-    element: React.createElement(Account360),
+    element: (
+      <ProtectedRoute requiredPermission="view_account">
+        <Account360 />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/akaun/:id/bayaran',
-    element: React.createElement(PaymentChannels),
+    element: (
+      <ProtectedRoute requiredPermission="manage_payment">
+        <PaymentChannels />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/akaun/:id/tawidh',
-    element: React.createElement(TawidhCalculator),
+    element: (
+      <ProtectedRoute requiredPermission="manage_tawidh">
+        <TawidhCalculator />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/akaun/:id/moratorium',
-    element: React.createElement(Moratorium),
+    element: (
+      <ProtectedRoute requiredPermission="manage_moratorium">
+        <Moratorium />
+      </ProtectedRoute>
+    ),
   },
 ];
 

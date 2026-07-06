@@ -8,7 +8,7 @@ use App\Modules\CRMUsahawan\Controllers\EntrepreneurController;
  * Loaded automatically by AppServiceProvider dynamic route loader.
  * DO NOT modify routes/api.php directly.
  */
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'permission:manage_crm'])->group(function () {
     // Entrepreneur CRUD
     Route::get('/entrepreneurs',             [EntrepreneurController::class, 'index']);
     Route::get('/entrepreneurs/{id}',        [EntrepreneurController::class, 'show']);
@@ -19,7 +19,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/entrepreneurs/{id}/visits', [EntrepreneurController::class, 'storeVisit']);
 
     // AI-generated visit report
-    Route::post('/entrepreneurs/visits/{visitId}/report', [EntrepreneurController::class, 'generateVisitReport']);
+    Route::post('/entrepreneurs/visits/{visitId}/report', [EntrepreneurController::class, 'visitReport']);
 
     // AI health score
     Route::get('/ai/entrepreneur-health/{id}', [EntrepreneurController::class, 'aiHealth']);

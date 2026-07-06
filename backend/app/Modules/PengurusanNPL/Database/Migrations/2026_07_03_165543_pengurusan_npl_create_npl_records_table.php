@@ -18,6 +18,9 @@ return new class extends Migration {
             $table->text('ai_recommendation')->nullable();
             $table->date('classified_at');
             $table->timestamps();
+
+            $table->index('classification');
+            $table->index('days_overdue');
         });
     }
     public function down(): void { Schema::dropIfExists('npl_records'); }

@@ -1,13 +1,12 @@
-// Module 9 — Produk Pembiayaan
-// Interactive eligibility checker page.
-
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Search, CheckCircle, XCircle, AlertTriangle, User, Building2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useEligibilityChecker } from '../hooks/useProducts';
 import type { EligibilityCheckParams, EligibilityCheckResult } from '../types';
 
 function ResultCard({ result }: { result: EligibilityCheckResult }) {
+  const { t } = useTranslation();
   return (
     <div
       className={`rounded-xl border-2 p-4 ${
@@ -24,9 +23,9 @@ function ResultCard({ result }: { result: EligibilityCheckResult }) {
           }`}
         >
           {result.eligible ? (
-            <><CheckCircle className="w-3 h-3" /> Layak</>
+            <><CheckCircle className="w-3 h-3" /> {t('eligibility.eligible')}</>
           ) : (
-            <><XCircle className="w-3 h-3" /> Tidak Layak</>
+            <><XCircle className="w-3 h-3" /> {t('eligibility.ineligible')}</>
           )}
         </span>
       </div>
@@ -70,6 +69,7 @@ function ResultCard({ result }: { result: EligibilityCheckResult }) {
 }
 
 export default function EligibilityCheckerPage() {
+  const { t } = useTranslation();
   const { register, handleSubmit, formState: { errors } } = useForm<EligibilityCheckParams>();
   const { results, checking, error, checkAll, reset } = useEligibilityChecker();
   const [hasChecked, setHasChecked] = useState(false);
@@ -89,15 +89,15 @@ export default function EligibilityCheckerPage() {
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#2E7D32' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-tekun-green">
             <Search className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold" style={{ color: '#1B2B5E' }}>
-              Semakan Kelayakan Pembiayaan
+            <h1 className="text-xl font-bold text-tekun-blue">
+              {t('eligibility.title')}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              Semak kelayakan pemohon terhadap semua skim pembiayaan TEKUN
+              {t('eligibility.subtitle')}
             </p>
           </div>
         </div>
@@ -110,50 +110,50 @@ export default function EligibilityCheckerPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#1B2B5E]" />
-                  Maklumat Pemohon
+                  <User className="w-4 h-4 text-tekun-blue" />
+                  {t('eligibility.applicantInfo')}
                 </h3>
 
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">
-                      No. Kad Pengenalan <span className="text-red-500">*</span>
+                      {t('eligibility.icNumber')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
-                      placeholder="cth: 900101015678"
+                      placeholder={t('eligibility.icPlaceholder')}
                       maxLength={14}
-                      {...register('ic', { required: 'No. IC diperlukan', minLength: 12 })}
-                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1B2B5E] focus:border-transparent"
+                      {...register('ic', { required: t('eligibility.icRequired'), minLength: 12 })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tekun-blue focus:border-transparent"
                     />
-                    {errors.ic && <p className="text-xs text-red-500 mt-1">{errors.ic.message}</p>}
+                    {errors.ic && <p className="text-xs text-red-500 mt-1">{errors.ic?.message}</p>}
                   </div>
 
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">Jantina</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t('eligibility.gender')}</label>
                     <select
                       {...register('gender')}
-                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1B2B5E] focus:border-transparent"
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tekun-blue focus:border-transparent"
                     >
-                      <option value="">-- Pilih --</option>
-                      <option value="M">Lelaki</option>
-                      <option value="F">Perempuan</option>
+                      <option value="">{t('eligibility.select')}</option>
+                      <option value="M">{t('eligibility.male')}</option>
+                      <option value="F">{t('eligibility.female')}</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">Sektor Perniagaan</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t('eligibility.businessSector')}</label>
                     <select
                       {...register('sector')}
-                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1B2B5E] focus:border-transparent"
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tekun-blue focus:border-transparent"
                     >
-                      <option value="">-- Pilih --</option>
-                      <option value="perniagaan">Perniagaan Am</option>
-                      <option value="pertanian">Pertanian</option>
-                      <option value="perkhidmatan">Perkhidmatan</option>
-                      <option value="pembuatan">Pembuatan</option>
-                      <option value="teknologi">Teknologi</option>
-                      <option value="makanan">Makanan & Minuman</option>
+                      <option value="">{t('eligibility.select')}</option>
+                      <option value="perniagaan">{t('eligibility.sectorGeneral')}</option>
+                      <option value="pertanian">{t('eligibility.sectorAgriculture')}</option>
+                      <option value="perkhidmatan">{t('eligibility.sectorServices')}</option>
+                      <option value="pembuatan">{t('eligibility.sectorManufacturing')}</option>
+                      <option value="teknologi">{t('eligibility.sectorTechnology')}</option>
+                      <option value="makanan">{t('eligibility.sectorFnb')}</option>
                     </select>
                   </div>
                 </div>
@@ -161,20 +161,20 @@ export default function EligibilityCheckerPage() {
 
               <div>
                 <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-[#E65100]" />
-                  Maklumat Perniagaan
+                  <Building2 className="w-4 h-4 text-tekun-orange" />
+                  {t('eligibility.businessInfo')}
                 </h3>
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">
-                      Umur Perniagaan (bulan)
+                      {t('eligibility.businessAge')}
                     </label>
                     <input
                       type="number"
                       min={0}
-                      placeholder="cth: 24"
+                      placeholder={t('eligibility.businessAgePlaceholder')}
                       {...register('business_age_months', { min: 0, valueAsNumber: true })}
-                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#1B2B5E] focus:border-transparent"
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tekun-blue focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -183,24 +183,24 @@ export default function EligibilityCheckerPage() {
               <div>
                 <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
                   <Search className="w-4 h-4 text-gray-500" />
-                  Hasil Semakan Luaran
+                  {t('eligibility.externalCheck')}
                 </h3>
                 <div className="space-y-2">
                   {[
-                    { key: 'is_blacklisted' as const, label: 'Disenaraihitam?', invert: true },
-                    { key: 'ccris_clear' as const, label: 'CCRIS Bersih?', invert: false },
-                    { key: 'ctos_clear' as const, label: 'CTOS Bersih?', invert: false },
-                    { key: 'muflis_clear' as const, label: 'Tiada Rekod Muflis?', invert: false },
+                    { key: 'is_blacklisted' as const, label: t('eligibility.blacklisted'), invert: true },
+                    { key: 'ccris_clear' as const, label: t('eligibility.ccrisClear'), invert: false },
+                    { key: 'ctos_clear' as const, label: t('eligibility.ctosClear'), invert: false },
+                    { key: 'muflis_clear' as const, label: t('eligibility.bankruptClear'), invert: false },
                   ].map(({ key, label }) => (
                     <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                       <span className="text-xs text-gray-700">{label}</span>
                       <select
                         {...register(key, { setValueAs: (v) => v === '' ? undefined : v === '1' })}
-                        className="text-xs border border-gray-200 rounded p-1 focus:ring-1 focus:ring-[#1B2B5E]"
+                        className="text-xs border border-gray-200 rounded p-1 focus:ring-1 focus:ring-tekun-blue"
                       >
-                        <option value="">Tidak diketahui</option>
-                        <option value="1">Ya</option>
-                        <option value="0">Tidak</option>
+                        <option value="">{t('eligibility.unknown')}</option>
+                        <option value="1">{t('eligibility.yes')}</option>
+                        <option value="0">{t('eligibility.no')}</option>
                       </select>
                     </div>
                   ))}
@@ -210,18 +210,17 @@ export default function EligibilityCheckerPage() {
               <button
                 type="submit"
                 disabled={checking}
-                className="w-full py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ background: '#1B2B5E' }}
+                className="w-full py-2.5 rounded-xl text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2 bg-tekun-blue"
               >
                 {checking ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Menyemak...
+                    {t('eligibility.checking')}
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4" />
-                    Semak Kelayakan
+                    {t('eligibility.checkEligibility')}
                   </>
                 )}
               </button>
@@ -242,15 +241,15 @@ export default function EligibilityCheckerPage() {
             <div className="space-y-3">
               {/* Summary bar */}
               <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between">
-                <h3 className="font-bold text-sm text-gray-700">Keputusan Semakan</h3>
+                <h3 className="font-bold text-sm text-gray-700">{t('eligibility.checkResults')}</h3>
                 <div className="flex gap-3">
                   <span className="flex items-center gap-1 text-sm font-semibold text-green-700">
                     <CheckCircle className="w-4 h-4" />
-                    {eligibleCount} Layak
+                    {eligibleCount} {t('eligibility.eligible')}
                   </span>
                   <span className="flex items-center gap-1 text-sm font-semibold text-red-600">
                     <XCircle className="w-4 h-4" />
-                    {ineligibleCount} Tidak Layak
+                    {ineligibleCount} {t('eligibility.ineligible')}
                   </span>
                 </div>
               </div>
@@ -265,7 +264,7 @@ export default function EligibilityCheckerPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 flex items-center justify-center text-gray-400">
               <div className="text-center">
                 <Search className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Masukkan maklumat pemohon dan klik Semak Kelayakan.</p>
+                <p className="text-sm">{t('eligibility.emptyState')}</p>
               </div>
             </div>
           )}

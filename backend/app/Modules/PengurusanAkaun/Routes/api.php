@@ -18,7 +18,7 @@ use App\Modules\PengurusanAkaun\Controllers\AiAccountController;
  *   POST /api/accounts/{id}/moratorium      → new_schedule
  *   POST /api/ai/default-prediction         → {probability, risk_level, factors}
  */
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'permission:view_accounts'])->group(function () {
 
     // ─── Account 360 & Listing ────────────────────────────────────────────────
     Route::get('/accounts',                        [AccountController::class, 'index']);
@@ -35,9 +35,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // ─── Moratorium / Restructuring ───────────────────────────────────────────
     Route::post('/accounts/{id}/moratorium',       [AccountController::class, 'moratorium']);
-
-    // ─── Account Statement (PDF download) ────────────────────────────────────
-    Route::get('/accounts/{id}/statement',         [AccountController::class, 'statement']);
 
     // ─── AI Default Prediction ────────────────────────────────────────────────
     // This route overrides the core-foundation placeholder in routes/api.php

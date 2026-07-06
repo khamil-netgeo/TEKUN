@@ -60,15 +60,21 @@ export default function PaymentChannels() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
+    Promise.allSettled([
       api.get('/accounts/payment-channels'),
       id ? api.get(`/accounts/${id}/payment-history`) : Promise.resolve({ data: { data: [] } }),
     ])
       .then(([chRes, histRes]) => {
-        setChannels(chRes.data?.data ?? chRes.data ?? []);
-        setHistory(histRes.data?.data ?? histRes.data ?? []);
+        if (chRes.status === 'fulfilled') {
+          setChannels(chRes.value.data?.data ?? chRes.value.data ?? []);
+        } else {
+          setError(t('payment.load_error', 'Gagal memuatkan saluran pembayaran'));
+        }
+
+        if (histRes.status === 'fulfilled') {
+          setHistory(histRes.value.data?.data ?? histRes.value.data ?? []);
+        }
       })
-      .catch(() => setError(t('payment.load_error', 'Gagal memuatkan saluran pembayaran')))
       .finally(() => setLoading(false));
   }, [id, t]);
 

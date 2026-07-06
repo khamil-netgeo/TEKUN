@@ -108,25 +108,35 @@ function HealthScoreRing({ score }: { score: number }) {
 // ── Balance Reduction Area Chart ─────────────────────────────────────────────
 function BalanceChart({ account }: { account: Account }) {
   const { t } = useTranslation();
-  const points: BalancePoint[] = [];
+  const [points, setPoints] = useState<BalancePoint[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (account.disbursement_date && account.maturity_date) {
-    const start = new Date(account.disbursement_date);
-    const end   = new Date(account.maturity_date);
-    const totalMonths =
-      (end.getFullYear() - start.getFullYear()) * 12 +
-      (end.getMonth() - start.getMonth());
-    const monthlyReduction = account.financing_amount / Math.max(totalMonths, 1);
+  useEffect(() => {
+    setLoading(true);
+    api.get(`/accounts/${account.id}/payment-schedule`)
+      .then(r => {
+        const schedule = r.data?.data ?? r.data;
+        if (Array.isArray(schedule)) {
+          const mapped = schedule.map((item: any) => {
+            const d = new Date(item.due_date || item.date);
+            return {
+              month: d.toLocaleDateString('ms-MY', { month: 'short', year: '2-digit' }),
+              balance: Math.round(item.balance || item.remaining_balance || 0),
+            };
+          });
+          setPoints(mapped);
+        }
+      })
+      .catch(err => console.error('Failed to fetch payment schedule', err))
+      .finally(() => setLoading(false));
+  }, [account.id]);
 
-    for (let i = 0; i <= Math.min(totalMonths, 36); i += 3) {
-      const d = new Date(start);
-      d.setMonth(d.getMonth() + i);
-      const balance = Math.max(0, account.financing_amount - monthlyReduction * i);
-      points.push({
-        month: d.toLocaleDateString('ms-MY', { month: 'short', year: '2-digit' }),
-        balance: Math.round(balance),
-      });
-    }
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-center h-[270px]">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
   if (points.length < 2) return null;
@@ -380,35 +390,33 @@ export default function Account360() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">
-                      {t('account.type', 'Jenis')}
+                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('account.moratorium_status', 'Status')}
                     </th>
-                    <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">
-                      {t('account.start_date', 'Tarikh Mula')}
+                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('account.moratorium_type', 'Jenis')}
                     </th>
-                    <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">
-                      {t('account.end_date', 'Tarikh Tamat')}
+                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('account.moratorium_start', 'Tarikh Mula')}
                     </th>
-                    <th className="text-left py-2 px-3 text-xs text-gray-500 font-medium">
-                      {t('common.status', 'Status')}
+                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('account.moratorium_end', 'Tarikh Tamat')}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {account.moratoriums.map(m => (
-                    <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 px-3 capitalize">{m.type}</td>
-                      <td className="py-2 px-3">{m.start_date}</td>
-                      <td className="py-2 px-3">{m.end_date}</td>
+                  {account.moratoriums.map((m) => (
+                    <tr key={m.id} className="border-b border-gray-100">
                       <td className="py-2 px-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          m.status === 'approved' ? 'bg-green-100 text-green-700' :
-                          m.status === 'pending'  ? 'bg-orange-100 text-orange-700' :
-                          'bg-red-100 text-red-700'
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          m.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {m.status}
+                          {m.status.toUpperCase()}
                         </span>
                       </td>
+                      <td className="py-2 px-3 text-gray-700">{m.type}</td>
+                      <td className="py-2 px-3 text-gray-700">{m.start_date}</td>
+                      <td className="py-2 px-3 text-gray-700">{m.end_date}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -416,31 +424,6 @@ export default function Account360() {
             </div>
           </div>
         )}
-
-        {/* ── Quick Actions ── */}
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => navigate(`/accounts/${id}/payment`)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#2E7D32] text-white text-sm font-medium rounded-lg hover:bg-[#1B5E20] transition-colors"
-          >
-            <CheckCircle className="w-4 h-4" />
-            {t('account.record_payment', 'Rekod Pembayaran')}
-          </button>
-          <button
-            onClick={() => navigate(`/accounts/${id}/moratorium`)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#E65100] text-white text-sm font-medium rounded-lg hover:bg-[#BF360C] transition-colors"
-          >
-            <Calendar className="w-4 h-4" />
-            {t('account.apply_moratorium', 'Mohon Moratorium')}
-          </button>
-          <button
-            onClick={() => navigate(`/accounts/${id}/tawidh`)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#1B2B5E] text-white text-sm font-medium rounded-lg hover:bg-[#0d1a3a] transition-colors"
-          >
-            <DollarSign className="w-4 h-4" />
-            {t('account.tawidh', "Kira Ta'widh")}
-          </button>
-        </div>
       </div>
     </div>
   );

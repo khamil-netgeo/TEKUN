@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, RefreshCw, Phone } from 'lucide-react';
+import api from '@/services/api';
 
 export default function OtpVerification() {
   const navigate = useNavigate();
@@ -31,16 +32,15 @@ export default function OtpVerification() {
     if (e.key === 'Backspace' && !otp[idx] && idx > 0) inputs.current[idx - 1]?.focus();
   };
 
-  const verify = () => {
+  const verify = async () => {
     setStatus('verifying');
-    setTimeout(() => {
-      if (otp.join('') === '123456') {
-        setStatus('success');
-        setTimeout(() => navigate('/dashboard'), 1500);
-      } else {
-        setStatus('error');
-      }
-    }, 1500);
+    try {
+      await api.post('/auth/verify-otp', { otp: otp.join('') });
+      setStatus('success');
+      setTimeout(() => navigate('/dashboard'), 1500);
+    } catch (error) {
+      setStatus('error');
+    }
   };
 
   const resend = () => {
@@ -104,7 +104,7 @@ export default function OtpVerification() {
           {status === 'error' && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4">
               <span className="text-red-600 text-sm font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>
-                Kod TAC tidak sah. Sila cuba semula. (Guna: 123456)
+                Kod TAC tidak sah. Sila cuba semula.
               </span>
             </div>
           )}

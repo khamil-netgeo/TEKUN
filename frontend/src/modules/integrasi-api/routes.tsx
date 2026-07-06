@@ -4,6 +4,7 @@
  */
 import React, { lazy } from 'react';
 import type { RouteObject } from 'react-router-dom';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 const ApiHealthDashboard = lazy(() => import('./pages/ApiHealthDashboard'));
 const ApiHealth = lazy(() => import('./pages/ApiHealth'));
@@ -11,11 +12,19 @@ const ApiHealth = lazy(() => import('./pages/ApiHealth'));
 const routes: RouteObject[] = [
   {
     path: 'integrasi-api',
-    element: React.createElement(ApiHealthDashboard),
+    element: (
+      <ProtectedRoute requireRoles={['system_admin', 'executive']}>
+        <ApiHealthDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
     path: 'integrasi-api/health',
-    element: React.createElement(ApiHealth),
+    element: (
+      <ProtectedRoute requireRoles={['system_admin', 'executive']}>
+        <ApiHealth />
+      </ProtectedRoute>
+    ),
   },
 ];
 

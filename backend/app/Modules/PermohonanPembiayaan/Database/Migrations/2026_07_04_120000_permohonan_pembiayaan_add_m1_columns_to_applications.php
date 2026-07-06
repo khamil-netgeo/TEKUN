@@ -85,6 +85,41 @@ return new class extends Migration
                 $table->timestamp('otp_verified_at')->nullable()->after('otp_verified');
             }
         });
+
+        // Consolidate documents table fixes
+        if (Schema::hasTable('documents')) {
+            Schema::table('documents', function (Blueprint $table) {
+                if (!Schema::hasColumn('documents', 'application_id')) {
+                    $table->foreignId('application_id')->nullable()->constrained('applications')->cascadeOnDelete();
+                }
+                if (!Schema::hasColumn('documents', 'document_type')) {
+                    $table->string('document_type')->nullable();
+                }
+                if (!Schema::hasColumn('documents', 'file_path')) {
+                    $table->string('file_path')->nullable();
+                }
+                if (!Schema::hasColumn('documents', 'original_name')) {
+                    $table->string('original_name')->nullable();
+                }
+                if (!Schema::hasColumn('documents', 'status')) {
+                    $table->string('status')->default('pending');
+                }
+                if (!Schema::hasColumn('documents', 'remarks')) {
+                    $table->text('remarks')->nullable();
+                }
+            });
+        } else {
+            Schema::create('documents', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('application_id')->constrained('applications')->cascadeOnDelete();
+                $table->string('document_type');
+                $table->string('file_path');
+                $table->string('original_name')->nullable();
+                $table->string('status')->default('pending');
+                $table->text('remarks')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void
@@ -102,5 +137,20 @@ return new class extends Migration
                 }
             }
         });
+
+        if (Schema::hasTable('documents')) {
+            Schema::table('documents', function (Blueprint $table) {
+                $columns = ['document_type', 'file_path', 'original_name', 'status', 'remarks'];
+                foreach ($columns as $col) {
+                    if (Schema::hasColumn('documents', $col)) {
+                        $table->dropColumn($col);
+                    }
+                }
+                if (Schema::hasColumn('documents', 'application_id')) {
+                    $table->dropForeign(['application_id']);
+                    $table->dropColumn('application_id');
+                }
+            });
+        }
     }
 };

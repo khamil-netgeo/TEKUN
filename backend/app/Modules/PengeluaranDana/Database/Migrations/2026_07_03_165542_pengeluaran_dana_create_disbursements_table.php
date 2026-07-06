@@ -33,6 +33,11 @@ return new class extends Migration {
             $table->integer('aging_days')->default(0);
             $table->boolean('is_escalated')->default(false);
             $table->timestamps();
+
+            $table->index('status');
+            $table->index('esign_status');
+            $table->index('is_batch');
+            $table->index('created_at');
         });
     }
     public function down(): void { Schema::dropIfExists('disbursements'); }

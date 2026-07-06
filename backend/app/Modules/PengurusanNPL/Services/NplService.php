@@ -4,6 +4,7 @@ namespace App\Modules\PengurusanNPL\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use App\Models\Account;
 use App\Models\NplRecord;
 use App\Models\DunningAction;
@@ -70,23 +71,52 @@ class NplService
             ];
         }
 
-        // By branch (mock — real implementation joins with branches table)
-        $byBranch = [
-            ['branch' => 'Kuala Lumpur',  'npl_count' => max(0, (int)($nplCount * 0.35)), 'npl_ratio' => round($nplRatio * 1.1, 2), 'risk' => 'high'],
-            ['branch' => 'Shah Alam',     'npl_count' => max(0, (int)($nplCount * 0.20)), 'npl_ratio' => round($nplRatio * 0.9, 2), 'risk' => 'medium'],
-            ['branch' => 'Johor Bahru',   'npl_count' => max(0, (int)($nplCount * 0.18)), 'npl_ratio' => round($nplRatio * 0.85, 2),'risk' => 'medium'],
-            ['branch' => 'Pulau Pinang',  'npl_count' => max(0, (int)($nplCount * 0.15)), 'npl_ratio' => round($nplRatio * 0.75, 2),'risk' => 'low'],
-            ['branch' => 'Kota Kinabalu', 'npl_count' => max(0, (int)($nplCount * 0.12)), 'npl_ratio' => round($nplRatio * 0.70, 2),'risk' => 'low'],
-        ];
+        // By branch
+        $branchData = DB::table('accounts')
+            ->join('branches', 'accounts.branch_id', '=', 'branches.id')
+            ->where('accounts.status', 'active')
+            ->select(
+                'branches.name as branch',
+                DB::raw('COUNT(accounts.id) as total_accounts'),
+                DB::raw('SUM(accounts.outstanding_balance) as total_outstanding'),
+                DB::raw('SUM(CASE WHEN accounts.classification IN (\'npl_substandard\', \'npl_doubtful\', \'npl_loss\') THEN 1 ELSE 0 END) as npl_count'),
+                DB::raw('SUM(CASE WHEN accounts.classification IN (\'npl_substandard\', \'npl_doubtful\', \'npl_loss\') THEN accounts.outstanding_balance ELSE 0 END) as npl_amount')
+            )
+            ->groupBy('branches.id', 'branches.name')
+            ->get();
+
+        $byBranch = $branchData->map(function ($item) {
+            $ratio = $item->total_outstanding > 0 ? round(($item->npl_amount / $item->total_outstanding) * 100, 2) : 0.0;
+            return [
+                'branch'    => $item->branch,
+                'npl_count' => (int) $item->npl_count,
+                'npl_ratio' => $ratio,
+                'risk'      => $ratio > self::BNM_NPL_THRESHOLD ? 'high' : ($ratio > (self::BNM_NPL_THRESHOLD * 0.8) ? 'medium' : 'low'),
+            ];
+        })->toArray();
 
         // By sector
-        $bySector = [
-            ['sector' => 'Makanan & Minuman',   'npl_count' => max(0, (int)($nplCount * 0.30)), 'npl_ratio' => round($nplRatio * 1.2, 2)],
-            ['sector' => 'Peruncitan',           'npl_count' => max(0, (int)($nplCount * 0.25)), 'npl_ratio' => round($nplRatio * 1.0, 2)],
-            ['sector' => 'Perkhidmatan',         'npl_count' => max(0, (int)($nplCount * 0.20)), 'npl_ratio' => round($nplRatio * 0.9, 2)],
-            ['sector' => 'Pertanian',            'npl_count' => max(0, (int)($nplCount * 0.15)), 'npl_ratio' => round($nplRatio * 0.8, 2)],
-            ['sector' => 'Pembuatan',            'npl_count' => max(0, (int)($nplCount * 0.10)), 'npl_ratio' => round($nplRatio * 0.7, 2)],
-        ];
+        $sectorData = DB::table('accounts')
+            ->join('sectors', 'accounts.sector_id', '=', 'sectors.id')
+            ->where('accounts.status', 'active')
+            ->select(
+                'sectors.name as sector',
+                DB::raw('COUNT(accounts.id) as total_accounts'),
+                DB::raw('SUM(accounts.outstanding_balance) as total_outstanding'),
+                DB::raw('SUM(CASE WHEN accounts.classification IN (\'npl_substandard\', \'npl_doubtful\', \'npl_loss\') THEN 1 ELSE 0 END) as npl_count'),
+                DB::raw('SUM(CASE WHEN accounts.classification IN (\'npl_substandard\', \'npl_doubtful\', \'npl_loss\') THEN accounts.outstanding_balance ELSE 0 END) as npl_amount')
+            )
+            ->groupBy('sectors.id', 'sectors.name')
+            ->get();
+
+        $bySector = $sectorData->map(function ($item) {
+            $ratio = $item->total_outstanding > 0 ? round(($item->npl_amount / $item->total_outstanding) * 100, 2) : 0.0;
+            return [
+                'sector'    => $item->sector,
+                'npl_count' => (int) $item->npl_count,
+                'npl_ratio' => $ratio,
+            ];
+        })->toArray();
 
         return [
             'total_accounts'     => $totalAccounts,
@@ -326,50 +356,49 @@ class NplService
                 'outcome_notes'     => $data['notes'] ?? null,
                 'last_contacted_at' => now(),
                 'attempt_count'     => DB::raw('attempt_count + 1'),
-                'follow_up_at'      => isset($data['follow_up_days'])
-                    ? now()->addDays((int)$data['follow_up_days'])
-                    : null,
+                'follow_up_at'      => $data['follow_up_at'] ?? null,
                 'updated_at'        => now(),
             ]);
 
         return [
-            'success'    => true,
-            'task_id'    => $taskId,
-            'new_status' => $newStatus,
-            'updated_at' => now()->toISOString(),
+            'success' => true,
+            'message' => 'Log panggilan berjaya direkodkan.',
         ];
     }
 
     /**
-     * Use SPPT AI to generate a personalized dunning message.
+     * Generate an AI-personalized dunning message using Gemini API.
      */
-    public function generateAiDunningMessage(array $accountData): string
+    public function generateAiDunningMessage(int $accountId): string
     {
-        $geminiKey  = config('services.gemini.api_key', env('GEMINI_API_KEY'));
-        $geminiBase = rtrim(config('services.gemini.base_url', env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta')), '/');
-        $model      = config('services.gemini.default_model', env('GEMINI_DEFAULT_MODEL', 'gemini-3.5-flash'));
-
-        if (!$geminiKey) {
-            return 'Saudara/Saudari, akaun pembiayaan anda mempunyai tunggakan. Sila hubungi TEKUN Nasional untuk penyelesaian segera.';
+        $account = DB::table('accounts')->find($accountId);
+        if (!$account) {
+            return 'Sila jelaskan tunggakan anda dengan segera.';
         }
-
-        $prompt = "Tulis mesej peringatan ringkas dalam Bahasa Melayu (maksimum 160 aksara untuk SMS) untuk peminjam TEKUN Nasional bernama {$accountData['name']} yang mempunyai tunggakan RM{$accountData['arrears']} selama {$accountData['days']} hari. Nada: profesional tetapi mesra. Sertakan nombor telefon TEKUN: 1800-88-3535.";
 
         try {
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                ->timeout(10)
-                ->post("{$geminiBase}/models/{$model}:generateContent?key={$geminiKey}", [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['maxOutputTokens' => 200, 'temperature' => 0.3],
-                ]);
+            $prompt = "Hasilkan mesej peringatan (dunning) yang profesional, tegas tetapi sopan dalam Bahasa Melayu untuk pelanggan bernama {$account->borrower_name} (Akaun: {$account->account_no}) yang mempunyai tunggakan sebanyak RM" . round($account->arrears_amount, 2) . " selama {$account->arrears_days} hari. Minta mereka membuat pembayaran segera untuk mengelakkan tindakan lanjut.";
+
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+            ])->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . config('services.gemini.api_key'), [
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $prompt]
+                        ]
+                    ]
+                ]
+            ]);
 
             if ($response->successful()) {
-                return $response->json('candidates.0.content.parts.0.text', 'Mesej tidak dapat dijana. Sila cuba semula.');
+                $data = $response->json();
+                return $data['candidates'][0]['content']['parts'][0]['text'] ?? 'Sila jelaskan tunggakan anda dengan segera.';
             }
         } catch (\Exception $e) {
-            // Fallback
+            Log::error('Gemini API Error: ' . $e->getMessage());
         }
 
-        return "Saudara/i {$accountData['name']}, akaun pembiayaan TEKUN anda mempunyai tunggakan RM{$accountData['arrears']}. Sila hubungi kami di 1800-88-3535 untuk penyelesaian. Terima kasih.";
+        return 'Sila jelaskan tunggakan anda dengan segera.';
     }
 }

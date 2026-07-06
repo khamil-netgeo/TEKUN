@@ -3,6 +3,7 @@ import {
   MessageCircle, X, Send, Bot, User, Loader2, ChevronDown,
   Sparkles, RotateCcw
 } from 'lucide-react';
+import api from '@/services/api';
 
 /* ─── Types ─── */
 interface Message {
@@ -39,18 +40,10 @@ const SUGGESTIONS = {
 };
 
 /* ─── API ─── */
-const API_BASE = 'http://34.177.95.116:8000/api';
-
 async function sendMessage(message: string, history: ChatHistory[]): Promise<string> {
-  const res = await fetch(`${API_BASE}/chatbot/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ message, history }),
-  });
-  if (!res.ok) throw new Error('API error');
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.reply;
+  const res = await api.post('/chatbot/chat', { message, history });
+  if (res.data.error) throw new Error(res.data.error);
+  return res.data.reply;
 }
 
 /* ─── Markdown-lite renderer ─── */
