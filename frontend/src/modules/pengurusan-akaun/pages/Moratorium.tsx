@@ -48,6 +48,7 @@ export default function Moratorium() {
   const [submitting, setSubmitting] = useState(false);
   const [aiImpact,  setAiImpact]  = useState<AiImpact | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError,   setAiError]   = useState<string | null>(null);
   const [success,   setSuccess]   = useState(false);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<MoratoriumForm>({
@@ -74,19 +75,22 @@ export default function Moratorium() {
     if (!watchReason || watchReason.length < 20 || !account) return;
     const timer = setTimeout(() => {
       setAiLoading(true);
-      // Simulate AI impact analysis locally to avoid missing endpoint error
-      setTimeout(() => {
-        setAiImpact({
-          recommended: account.arrears_days < 180,
-          impact_score: Math.max(30, 90 - account.arrears_days),
-          recommendation: account.arrears_days < 90
-            ? t('moratorium.ai_recommend_yes', 'Moratorium disyorkan untuk mengelakkan NPL.')
-            : t('moratorium.ai_recommend_caution', 'Pertimbangkan penstrukturan semula dengan teliti.'),
-          risks: [t('moratorium.risk_1', 'Tempoh pembiayaan dilanjutkan'), t('moratorium.risk_2', 'Kos faedah bertambah')],
-          benefits: [t('moratorium.benefit_1', 'Mengurangkan tekanan aliran tunai'), t('moratorium.benefit_2', 'Mengelakkan status NPL')],
+      setAiError(null);
+      
+      api.post(`/accounts/${account.id}/ai-impact`, {
+        type: watchType,
+        reason: watchReason
+      })
+        .then(res => {
+          setAiImpact(res.data?.data ?? res.data);
+        })
+        .catch(err => {
+          setAiError(err?.response?.data?.message ?? t('moratorium.ai_error', 'Gagal mendapatkan analisis AI'));
+          setAiImpact(null);
+        })
+        .finally(() => {
+          setAiLoading(false);
         });
-        setAiLoading(false);
-      }, 500);
     }, 800);
     return () => clearTimeout(timer);
   }, [watchReason, watchType, account, t]);
@@ -300,6 +304,11 @@ export default function Moratorium() {
                   {t('moratorium.ai_analyzing', 'Enjin AI SPPT sedang menganalisis...')}
                 </span>
               </div>
+            ) : aiError ? (
+              <div className="flex items-center gap-3 py-4 text-red-500 text-sm">
+                <AlertTriangle className="w-4 h-4" />
+                <span>{aiError}</span>
+              </div>
             ) : aiImpact ? (
               <div className="space-y-4">
                 {/* Recommendation */}
@@ -361,11 +370,8 @@ export default function Moratorium() {
                 )}
               </div>
             ) : (
-              <div className="text-center py-6 text-gray-400">
-                <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-xs">
-                  {t('moratorium.ai_prompt', 'Sila isi sebab permohonan (minimum 20 aksara) untuk melihat analisis impak AI.')}
-                </p>
+              <div className="py-4 text-xs text-gray-500">
+                {t('moratorium.ai_empty', 'Sila isi sebab permohonan (minimum 20 aksara) untuk melihat analisis impak AI.')}
               </div>
             )}
           </div>

@@ -54,7 +54,7 @@ class AccountController extends Controller
         $user  = Auth::user();
         $query = Account::with(['payments' => fn ($q) => $q->orderByDesc('paid_at')->limit(3)]);
 
-        if ($user && $user->branch_id && !$user->hasRole('Pentadbir Sistem')) {
+        if ($user && $user->branch_id && !$user->can('view_all_branches')) {
             $query->where('branch_id', $user->branch_id);
         }
 
@@ -280,8 +280,9 @@ class AccountController extends Controller
         $balance     = (float) ($account->outstanding_balance ?? 0);
         $annualRate  = (float) ($account->profit_rate ?? 0.07);
         $monthlyRate = $annualRate / 12 / 100; // profit_rate stored as percentage
+        $remainingMonths = (int) ($account->remaining_months ?? 0);
 
-        for ($i = 1; $i <= 6; $i++) {
+        for ($i = 1; $i <= $remainingMonths; $i++) {
             $interest  = round($balance * $monthlyRate, 2);
             $principal = round($instalment - $interest, 2);
             $balance   = max(0, round($balance - $principal, 2));
@@ -296,6 +297,10 @@ class AccountController extends Controller
                 'balance'    => $balance,
                 'status'     => 'AKAN DATANG',
             ];
+
+            if ($balance <= 0) {
+                break;
+            }
         }
 
         return $schedule;

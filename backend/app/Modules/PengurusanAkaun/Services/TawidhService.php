@@ -54,24 +54,33 @@ class TawidhService
             'overdue_amount'    => $overdue,
             'days_overdue'      => $days,
             'bnm_rate'          => $rate,
-            'bnm_rate_label'    => '1% setahun (Kadar BNM)',
+            'bnm_rate_label'    => __('1% setahun (Kadar BNM)'),
             'bnm_amount'        => $bnmAmount,
             'actual_loss'       => $actualLoss,
             'tawidh'            => $finalAmount,
             'total_payable'     => round($overdue + $finalAmount, 2),
-            'formula'           => "Ta'widh = RM {$overdue} × {$rate} × ({$days} ÷ 365) = RM {$bnmAmount}",
+            'formula'           => __("Ta'widh = RM :overdue × :rate × (:days ÷ 365) = RM :bnmAmount", [
+                'overdue' => $overdue,
+                'rate' => $rate,
+                'days' => $days,
+                'bnmAmount' => $bnmAmount
+            ]),
             'formula_steps'     => [
-                "1. Jumlah Tertunggak: RM " . number_format($overdue, 2),
-                "2. Kadar BNM: 1% setahun (0.01)",
-                "3. Tempoh Tertunggak: {$days} hari",
-                "4. Pengiraan: RM {$overdue} × 0.01 × ({$days}/365) = RM {$bnmAmount}",
-                "5. Had Maksimum BNM: RM " . number_format(self::MAX_TAWIDH, 2),
-                "6. Ta'widh Dikenakan: RM " . number_format($finalAmount, 2),
+                __("1. Jumlah Tertunggak: RM :amount", ['amount' => number_format($overdue, 2)]),
+                __("2. Kadar BNM: 1% setahun (0.01)"),
+                __("3. Tempoh Tertunggak: :days hari", ['days' => $days]),
+                __("4. Pengiraan: RM :overdue × 0.01 × (:days/365) = RM :bnmAmount", [
+                    'overdue' => $overdue,
+                    'days' => $days,
+                    'bnmAmount' => $bnmAmount
+                ]),
+                __("5. Had Maksimum BNM: RM :amount", ['amount' => number_format(self::MAX_TAWIDH, 2)]),
+                __("6. Ta'widh Dikenakan: RM :amount", ['amount' => number_format($finalAmount, 2)]),
             ],
             'shariah_compliant' => true,
-            'shariah_basis'     => "Diluluskan oleh Majlis Penasihat Syariah BNM. " .
+            'shariah_basis'     => __("Diluluskan oleh Majlis Penasihat Syariah BNM. " .
                                    "Ta'widh adalah pampasan kerugian sebenar, bukan penalti. " .
-                                   "Rujukan: BNM/RH/PD 028-3 — Garis Panduan Ta'widh.",
+                                   "Rujukan: BNM/RH/PD 028-3 — Garis Panduan Ta'widh."),
             'authority'         => 'BNM Shariah Advisory Council Resolution — Ta\'widh for Islamic Finance',
             'max_cap'           => self::MAX_TAWIDH,
             'is_capped'         => $bnmAmount > self::MAX_TAWIDH,

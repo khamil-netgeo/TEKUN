@@ -21,6 +21,8 @@ return new class extends Migration {
             $table->timestamp('paid_at')->nullable();
             $table->string('processed_by')->nullable();
             $table->timestamps();
+
+            $table->index(['account_id', 'paid_at']);
         });
     }
     public function down(): void { Schema::dropIfExists('payments'); }
