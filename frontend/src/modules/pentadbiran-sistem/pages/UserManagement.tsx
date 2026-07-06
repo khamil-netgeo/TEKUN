@@ -1,9 +1,5 @@
-/**
- * Module 12 — Pentadbiran Sistem
- * User Management — real DB via /api/admin/users
- */
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Plus, Search, Shield, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { Users, Plus, Search, Shield, Edit2, Ban, CheckCircle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../services/api';
 
@@ -37,6 +33,8 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('Semua');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: '', password: '' });
@@ -45,24 +43,34 @@ export default function UserManagement() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/users');
+      const params: Record<string, any> = { page };
+      if (search) params.search = search;
+      if (roleFilter !== 'Semua') params.role = roleFilter;
+
+      const res = await api.get('/users', { params });
       setUsers(res.data.data ?? res.data);
+      if (res.data.last_page) {
+        setTotalPages(res.data.last_page);
+      } else {
+        setTotalPages(1);
+      }
     } catch {
       toast.error('Gagal memuatkan senarai pengguna');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, search, roleFilter]);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchUsers();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchUsers]);
 
-  const roles = ['Semua', ...Array.from(new Set(users.map(u => u.role).filter(Boolean)))];
+  const roles = ['Semua', 'Pegawai Cawangan', 'Pengurus Cawangan', 'Pegawai Kredit', 'Eksekutif', 'Pentadbir Sistem'];
 
-  const filtered = users.filter(u =>
-    (roleFilter === 'Semua' || u.role === roleFilter) &&
-    (u.name?.toLowerCase().includes(search.toLowerCase()) ||
-     u.email?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = users;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,14 +94,22 @@ export default function UserManagement() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Padam pengguna ini?')) return;
+  const handleToggleStatus = async (u: User) => {
+    const isSuspending = u.status === 'active';
+    const actionText = isSuspending ? 'gantung' : 'aktifkan';
+    
+    if (!window.confirm(`Adakah anda pasti mahu ${actionText} pengguna ini?`)) return;
     try {
-      await api.delete(`/users/${id}`);
-      toast.success('Pengguna dipadam');
+      if (isSuspending) {
+        await api.post(`/users/${u.id}/suspend`);
+        toast.success('Pengguna digantung');
+      } else {
+        await api.post(`/users/${u.id}/activate`);
+        toast.success('Pengguna diaktifkan');
+      }
       fetchUsers();
     } catch {
-      toast.error('Gagal memadam pengguna');
+      toast.error(`Gagal ${actionText} pengguna`);
     }
   };
 
@@ -151,13 +167,13 @@ export default function UserManagement() {
               type="text"
               placeholder="Cari nama atau emel..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none"
             />
           </div>
           <select
             value={roleFilter}
-            onChange={e => setRoleFilter(e.target.value)}
+            onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
             className="border rounded-lg px-3 py-2 text-sm focus:outline-none"
           >
             {roles.map(r => <option key={r}>{r}</option>)}
@@ -172,54 +188,79 @@ export default function UserManagement() {
             <span className="ml-2 text-gray-500">Memuatkan...</span>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-white" style={{ background: NAVY }}>
-                <th className="px-4 py-3">Pengguna</th>
-                <th className="px-4 py-3">Peranan</th>
-                <th className="px-4 py-3">Cawangan</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Log Masuk Terakhir</th>
-                <th className="px-4 py-3 text-right">Tindakan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-10 text-gray-400">Tiada pengguna ditemui</td></tr>
-              ) : filtered.map(u => (
-                <tr key={u.id} className="border-t hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-800">{u.name}</div>
-                    <div className="text-xs text-gray-400">{u.email}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                      <Shield className="w-3 h-3" />{u.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{u.branch ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[u.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {STATUS_LABELS[u.status] ?? u.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">
-                    {u.last_login_at ? new Date(u.last_login_at).toLocaleString('ms-MY') : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => handleEdit(u)} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="Edit">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDelete(u.id)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Padam">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          <>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-white" style={{ background: NAVY }}>
+                  <th className="px-4 py-3">Pengguna</th>
+                  <th className="px-4 py-3">Peranan</th>
+                  <th className="px-4 py-3">Cawangan</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Log Masuk Terakhir</th>
+                  <th className="px-4 py-3 text-right">Tindakan</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-10 text-gray-400">Tiada pengguna ditemui</td></tr>
+                ) : filtered.map(u => (
+                  <tr key={u.id} className="border-t hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-800">{u.name}</div>
+                      <div className="text-xs text-gray-400">{u.email}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                        <Shield className="w-3 h-3" />{u.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{u.branch ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[u.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {STATUS_LABELS[u.status] ?? u.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {u.last_login_at ? new Date(u.last_login_at).toLocaleString('ms-MY') : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => handleEdit(u)} className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="Edit">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleToggleStatus(u)} 
+                          className={`p-1.5 rounded ${u.status === 'active' ? 'hover:bg-red-50 text-red-600' : 'hover:bg-green-50 text-green-600'}`} 
+                          title={u.status === 'active' ? 'Gantung' : 'Aktifkan'}
+                        >
+                          {u.status === 'active' ? <Ban className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {totalPages > 1 && (
+              <div className="p-4 border-t flex justify-between items-center text-sm">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Sebelumnya
+                </button>
+                <span className="text-gray-500">Muka {page} dari {totalPages}</span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Seterusnya
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

@@ -4,6 +4,7 @@
  */
 import React, { lazy } from 'react';
 import type { RouteObject } from 'react-router-dom';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 const UserManagement = lazy(() => import('./pages/UserManagement'));
 const SystemConfig = lazy(() => import('./pages/SystemConfig'));
@@ -12,15 +13,27 @@ const RoleManagement = lazy(() => import('./pages/RoleManagement'));
 const routes: RouteObject[] = [
   {
     path: 'pentadbiran',
-    element: React.createElement(UserManagement),
+    element: (
+      <ProtectedRoute allowedRoles={['Pentadbir Sistem']}>
+        <UserManagement />
+      </ProtectedRoute>
+    ),
   },
   {
     path: 'pentadbiran/konfigurasi',
-    element: React.createElement(SystemConfig),
+    element: (
+      <ProtectedRoute allowedRoles={['Pentadbir Sistem']}>
+        <SystemConfig />
+      </ProtectedRoute>
+    ),
   },
   {
     path: 'pentadbiran/peranan',
-    element: React.createElement(RoleManagement),
+    element: (
+      <ProtectedRoute allowedRoles={['Pentadbir Sistem']}>
+        <RoleManagement />
+      </ProtectedRoute>
+    ),
   },
 ];
 

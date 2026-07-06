@@ -1,11 +1,11 @@
 /**
  * Module 12 — Pentadbiran Sistem
- * System Configuration — real DB via /api/admin/config
+ * System Configuration — real DB via /api/pentadbiran-sistem/system-configs
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Settings, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../../services/api';
+import api from '@/services/api';
 
 const NAVY = '#1B2B5E';
 const GREEN = '#2E7D32';
@@ -27,7 +27,7 @@ export default function SystemConfig() {
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/system-configs');
+      const res = await api.get('/pentadbiran-sistem/system-configs');
       setConfigs(res.data.data ?? res.data);
     } catch {
       toast.error('Gagal memuatkan konfigurasi');
@@ -41,7 +41,7 @@ export default function SystemConfig() {
   const handleSave = async (key: string) => {
     setSaving(key);
     try {
-      await api.put(`/admin/config/${key}`, { value: edited[key] });
+      await api.put(`/pentadbiran-sistem/system-configs/${key}`, { value: edited[key] });
       toast.success('Konfigurasi disimpan');
       setEdited(e => { const n = { ...e }; delete n[key]; return n; });
       fetchConfigs();

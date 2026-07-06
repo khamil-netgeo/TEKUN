@@ -405,11 +405,10 @@ class UserController extends Controller
                     $usersCount = 0;
                 }
                 return [
-                    'id'                => $role->id,
-                    'name'              => $role->name,
-                    'users_count'       => $usersCount,
-                    'permissions'       => $role->permissions->pluck('name'),
-                    'permissions_count' => $role->permissions->count(),
+                    'id'          => $role->id,
+                    'name'        => $role->name,
+                    'permissions' => $role->permissions->pluck('name'),
+                    'users_count' => $usersCount,
                 ];
             });
 
@@ -420,49 +419,43 @@ class UserController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // HELPERS
+    // HELPER METHODS
     // ══════════════════════════════════════════════════════════════════════════
 
+    /**
+     * Resolve the status of the user to system keys.
+     */
     private function resolveStatus(User $user): string
     {
-        if ($user->is_suspended ?? false) {
-            return 'Digantung';
+        if ($user->is_suspended) {
+            return 'suspended';
         }
-        if (!($user->is_active ?? true)) {
-            return 'Tidak Aktif';
+        if (!$user->is_active) {
+            return 'inactive';
         }
-        return 'Aktif';
+        return 'active';
     }
 
-    private function logAudit(
-        string $action,
-        User   $user,
-        array  $oldValues,
-        array  $newValues,
-        string $description
-    ): void {
+    /**
+     * Log an audit trail entry.
+     */
+    private function logAudit(string $action, User $targetUser, array $oldValues = [], array $newValues = [], string $description = ''): void
+    {
         try {
-            $sensitive = ['password', 'remember_token'];
-            $oldValues = array_diff_key($oldValues, array_flip($sensitive));
-            $newValues = array_diff_key($newValues, array_flip($sensitive));
-
             AuditTrail::create([
-                'user_id'        => Auth::id(),
-                'action'         => $action,
-                'module'         => 'module12',
-                'auditable_type' => User::class,
-                'auditable_id'   => $user->id,
-                'old_values'     => empty($oldValues) ? null : $oldValues,
-                'new_values'     => empty($newValues) ? null : $newValues,
-                'ip_address'     => request()->ip(),
-                'user_agent'     => request()->userAgent(),
+                'user_id'     => Auth::id(),
+                'module'      => 'PentadbiranSistem',
+                'action'      => $action,
+                'description' => $description,
+                'old_values'  => $oldValues,
+                'new_values'  => $newValues,
+                'ip_address'  => request()->ip(),
+                'user_agent'  => request()->userAgent(),
+                'target_id'   => $targetUser->id,
+                'target_type' => User::class,
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('M12 audit log failed', [
-                'action' => $action,
-                'user'   => $user->id,
-                'error'  => $e->getMessage(),
-            ]);
+            // Ignore audit trail errors
         }
     }
 }
