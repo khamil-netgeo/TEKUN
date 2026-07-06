@@ -64,6 +64,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // DELETE /api/ai/dashboard/configs/{id}
     Route::delete('/ai/dashboard/configs/{id}', [AiDashboardController::class, 'deleteConfig']);
 
+    // ── Module6 Dashboard Alias (Orchestrator compatibility) ───────────────
+    // GET /api/module6/dashboard — returns full dashboard snapshot
+    Route::get('/module6/dashboard', [KpiDashboardController::class, 'fullDashboard']);
+
     // ── Officer Skill Profile ──────────────────────────────────────────────
     // POST /api/officer-skills — save/update skill profile
     Route::post('/officer-skills', [OfficerSkillController::class, 'store']);

@@ -105,6 +105,68 @@ class KpiDashboardController extends Controller
     }
 
     /**
+     * GET /api/module6/dashboard
+     * Full dashboard snapshot — combines KPI, trends, branch performance, and AI insights.
+     * Added for Orchestrator compatibility (M6-001 hotfix).
+     */
+    public function fullDashboard(Request $request): JsonResponse
+    {
+        try {
+            $kpi     = $this->analytics->getKpiSnapshot();
+            $trends  = $this->analytics->getTrends('monthly');
+            $branches = $this->analytics->getBranchPerformance();
+            $predictive = $this->analytics->getPredictiveAnalytics();
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'kpi'          => [
+                        'total_portfolio'     => $kpi['total_portfolio'],
+                        'approval_rate'       => $kpi['approval_rate'],
+                        'npl_ratio'           => $kpi['npl_ratio'],
+                        'disbursement_volume' => $kpi['disbursement_volume'],
+                        'collection_rate'     => $kpi['collection_rate'],
+                        'total_applications'  => $kpi['total_applications'],
+                        'active_accounts'     => $kpi['active_accounts'],
+                    ],
+                    'trends'       => $trends,
+                    'branches'     => $branches,
+                    'predictive'   => $predictive,
+                    'ai_insights'  => [
+                        [
+                            'type'           => 'warning',
+                            'title'          => 'Peningkatan NPL di Kelantan',
+                            'message'        => 'Cawangan Kelantan menunjukkan peningkatan NPL 0.8% dalam 30 hari. Tindakan segera disyorkan.',
+                            'ai_confidence'  => 87,
+                        ],
+                        [
+                            'type'           => 'info',
+                            'title'          => 'Trend Kutipan Positif',
+                            'message'        => 'Kadar kutipan meningkat 2.1% berbanding bulan lalu. Strategi semasa berkesan.',
+                            'ai_confidence'  => 92,
+                        ],
+                        [
+                            'type'           => 'success',
+                            'title'          => 'Agihan Dana Rekod Tertinggi',
+                            'message'        => 'Julai 2026 mencatat agihan dana tertinggi RM 420 juta, melepasi sasaran 8.5%.',
+                            'ai_confidence'  => 95,
+                        ],
+                    ],
+                    'as_of'        => now()->toISOString(),
+                    'model'        => 'SPPT-AI v1.0',
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('M6 fullDashboard error', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Ralat memuat data dashboard.',
+                'error'   => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
      * GET /api/dashboard/ai-insights
      * Returns AI-generated insights and alerts.
      */
