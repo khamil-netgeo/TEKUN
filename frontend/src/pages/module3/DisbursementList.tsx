@@ -1,13 +1,14 @@
-import { useState } from 'react';
+// FILE: DisbursementList.tsx
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CheckSquare, Square, Search, Calendar, Filter,
   FileText, Mail, AlertCircle, ChevronDown,
-  ArrowRight, Building2, Globe, Landmark,
+  ArrowRight, Building2, Globe, Landmark, Crown,
 } from 'lucide-react';
 
 /* ── Types ──────────────────────────────────────────────────────────── */
-type EscalationLevel = 'cawangan' | 'negeri' | 'hq';
+type EscalationLevel = 'branch' | 'state' | 'hq' | 'board';
 
 interface Disbursement {
   id: string;
@@ -21,17 +22,18 @@ interface Disbursement {
   escalationLevel: EscalationLevel;
 }
 
-/* ── Mock data ──────────────────────────────────────────────────────── */
+/* ── Mock data (Corrected based on Backend Truth) ───────────────────── */
 const disbursements: Disbursement[] = [
-  { id: 'SPPT-2026-07-00089', name: 'Siti Nurhaliza',       scheme: 'TEKUN Usahawan', amount: 25000, approvedDate: '03/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Cawangan',   escalationLevel: 'cawangan' },
-  { id: 'SPPT-2026-07-00090', name: 'Ahmad Razif',          scheme: 'TEKUN Micro',    amount: 8000,  approvedDate: '03/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Cawangan',   escalationLevel: 'cawangan' },
-  { id: 'SPPT-2026-07-00091', name: 'Noraini Hassan',       scheme: 'TEKUN Wanita',   amount: 15000, approvedDate: '02/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'MENUNGGU',       authority: 'Pengurus Cawangan',   escalationLevel: 'cawangan' },
-  { id: 'SPPT-2026-07-00092', name: 'Zulkifli Omar',        scheme: 'TEKUN Usahawan', amount: 45000, approvedDate: '01/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Jawatankuasa Kredit', escalationLevel: 'negeri'   },
-  { id: 'SPPT-2026-07-00093', name: 'Haslinda Abdul Rahman',scheme: 'TEKUN Micro',    amount: 10000, approvedDate: '01/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Cawangan',   escalationLevel: 'cawangan' },
-  { id: 'SPPT-2026-07-00094', name: 'Mohd Firdaus',         scheme: 'TEKUN Usahawan', amount: 30000, approvedDate: '30/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Jawatankuasa Kredit', escalationLevel: 'negeri'   },
-  { id: 'SPPT-2026-07-00095', name: 'Sharifah Aisyah',      scheme: 'TEKUN Wanita',   amount: 12500, approvedDate: '30/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'MENUNGGU',       authority: 'Pengurus Cawangan',   escalationLevel: 'cawangan' },
-  { id: 'SPPT-2026-07-00096', name: 'Azman Ismail',         scheme: 'TEKUN Micro',    amount: 6000,  approvedDate: '29/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Cawangan',   escalationLevel: 'cawangan' },
-  { id: 'SPPT-2026-07-00097', name: 'Tengku Amirul',        scheme: 'TEKUN Usahawan', amount: 120000,approvedDate: '28/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Lembaga Pengarah',    escalationLevel: 'hq'       },
+  { id: 'SPPT-2026-07-00089', name: 'Siti Nurhaliza',       scheme: 'TEKUN Usahawan', amount: 25000,  approvedDate: '03/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Negeri',         escalationLevel: 'state'  },
+  { id: 'SPPT-2026-07-00090', name: 'Ahmad Razif',          scheme: 'TEKUN Micro',    amount: 8000,   approvedDate: '03/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Cawangan',       escalationLevel: 'branch' },
+  { id: 'SPPT-2026-07-00091', name: 'Noraini Hassan',       scheme: 'TEKUN Wanita',   amount: 15000,  approvedDate: '02/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'MENUNGGU',       authority: 'Pengurus Negeri',         escalationLevel: 'state'  },
+  { id: 'SPPT-2026-07-00092', name: 'Zulkifli Omar',        scheme: 'TEKUN Usahawan', amount: 45000,  approvedDate: '01/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Negeri',         escalationLevel: 'state'  },
+  { id: 'SPPT-2026-07-00093', name: 'Haslinda Abdul Rahman',scheme: 'TEKUN Micro',    amount: 10000,  approvedDate: '01/07/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Cawangan',       escalationLevel: 'branch' },
+  { id: 'SPPT-2026-07-00094', name: 'Mohd Firdaus',         scheme: 'TEKUN Usahawan', amount: 80000,  approvedDate: '30/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Besar',          escalationLevel: 'hq'     },
+  { id: 'SPPT-2026-07-00095', name: 'Sharifah Aisyah',      scheme: 'TEKUN Wanita',   amount: 12500,  approvedDate: '30/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'MENUNGGU',       authority: 'Pengurus Negeri',         escalationLevel: 'state'  },
+  { id: 'SPPT-2026-07-00096', name: 'Azman Ismail',         scheme: 'TEKUN Micro',    amount: 6000,   approvedDate: '29/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Cawangan',       escalationLevel: 'branch' },
+  { id: 'SPPT-2026-07-00097', name: 'Tengku Amirul',        scheme: 'TEKUN Usahawan', amount: 120000, approvedDate: '28/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Pengurus Besar',          escalationLevel: 'hq'     },
+  { id: 'SPPT-2026-07-00098', name: 'Dato Seri Vida',       scheme: 'TEKUN Niaga',    amount: 250000, approvedDate: '27/06/2026', bankStatus: 'DISAHKAN', esignStatus: 'DITANDATANGANI', authority: 'Lembaga Pengarah TEKUN', escalationLevel: 'board'  },
 ];
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
@@ -40,44 +42,37 @@ const esignBadge = (status: string) =>
     ? <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">DITANDATANGANI</span>
     : <span className="px-2 py-1 rounded text-xs font-semibold bg-orange-100 text-orange-700">MENUNGGU</span>;
 
-const authorityBadge = (auth: string) => {
-  if (auth === 'Jawatankuasa Kredit') return <span className="px-2 py-1 rounded text-xs font-semibold bg-orange-100 text-orange-700">{auth}</span>;
-  if (auth === 'Lembaga Pengarah')    return <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700">{auth}</span>;
-  return <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-700">{auth}</span>;
+const authorityBadge = (level: EscalationLevel) => {
+  switch (level) {
+    case 'state': return <span className="px-2 py-1 rounded text-xs font-semibold bg-orange-100 text-orange-700">Negeri</span>;
+    case 'hq': return <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700">Ibu Pejabat</span>;
+    case 'board': return <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700">Lembaga</span>;
+    default: return <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-700">Cawangan</span>;
+  }
 };
 
-/* ── Escalation flow banner ─────────────────────────────────────────── */
-const ESCALATION_STEPS = [
-  { key: 'cawangan', label: 'Cawangan',      icon: Building2, color: '#1B2B5E' },
-  { key: 'negeri',   label: 'Negeri',         icon: Globe,     color: '#E65100' },
-  { key: 'hq',       label: 'Ibu Pejabat (HQ)', icon: Landmark, color: '#C62828' },
+/* ── Escalation flow banner (Static) ────────────────────────────────── */
+const OVERALL_ESCALATION_FLOW = [
+  { label: 'Cawangan',      icon: Building2 },
+  { label: 'Negeri',        icon: Globe },
+  { label: 'Ibu Pejabat',   icon: Landmark },
+  { label: 'Lembaga Pengarah', icon: Crown },
 ];
 
-function EscalationBanner({ level }: { level: EscalationLevel }) {
-  const idx = ESCALATION_STEPS.findIndex(s => s.key === level);
+function EscalationBanner() {
   return (
-    <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-4">
-      <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-      <span className="text-xs font-semibold text-orange-700 mr-2">Aliran Kelulusan:</span>
-      {ESCALATION_STEPS.map((step, i) => {
+    <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 mb-4">
+      <AlertCircle className="w-4 h-4 text-gray-500 flex-shrink-0" />
+      <span className="text-xs font-semibold text-gray-700 mr-2">Aliran Kelulusan Penuh:</span>
+      {OVERALL_ESCALATION_FLOW.map((step, i) => {
         const Icon = step.icon;
-        const isActive  = i === idx;
-        const isDone    = i < idx;
         return (
-          <div key={step.key} className="flex items-center gap-1">
-            <div
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                isActive  ? 'text-white border-transparent'
-                : isDone  ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-white text-gray-400 border-gray-200'
-              }`}
-              style={isActive ? { background: step.color, borderColor: step.color } : {}}
-            >
+          <div key={step.label} className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold bg-white text-gray-600 border border-gray-200">
               <Icon size={12} />
               {step.label}
-              {isDone && <span className="ml-1">✓</span>}
             </div>
-            {i < ESCALATION_STEPS.length - 1 && (
+            {i < OVERALL_ESCALATION_FLOW.length - 1 && (
               <ArrowRight size={12} className="text-gray-400 mx-0.5" />
             )}
           </div>
@@ -113,6 +108,8 @@ export default function DisbursementList() {
       d.id.toLowerCase().includes(search.toLowerCase())
     );
 
+  const escalationCount = disbursements.filter(d => d.escalationLevel !== 'branch').length;
+
   /* Navigate to authority matrix, passing the application data */
   const handleEscalate = (d: Disbursement) => {
     setEscalateId(d.id);
@@ -126,6 +123,8 @@ export default function DisbursementList() {
         authority:       d.authority,
       },
     });
+    // Clear the visual state after navigation has been triggered
+    setTimeout(() => setEscalateId(null), 0);
   };
 
   return (
@@ -136,7 +135,7 @@ export default function DisbursementList() {
           Pengeluaran Dana — Senarai Sedia Diproses
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Aliran kelulusan: Cawangan → Negeri → Ibu Pejabat (HQ)
+          Aliran kelulusan: Cawangan → Negeri → Ibu Pejabat → Lembaga Pengarah
         </p>
       </div>
 
@@ -146,7 +145,7 @@ export default function DisbursementList() {
           { label: 'Sedia Diproses',          value: '23',        sub: 'permohonan',  color: '#1B2B5E', bg: 'bg-blue-100'   },
           { label: 'Jumlah Dana',              value: 'RM 412,500',sub: '',            color: '#2E7D32', bg: 'bg-green-100'  },
           { label: 'Menunggu e-Tandatangan',   value: '7',         sub: 'permohonan',  color: '#E65100', bg: 'bg-orange-100' },
-          { label: 'Perlu Kelulusan Tambahan', value: '3',         sub: 'eskalasi',    color: '#C62828', bg: 'bg-red-100'    },
+          { label: 'Perlu Kelulusan Tambahan', value: `${escalationCount}`, sub: 'eskalasi',    color: '#C62828', bg: 'bg-red-100'    },
         ].map(c => (
           <div key={c.label} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-full ${c.bg} flex items-center justify-center`}>
@@ -165,15 +164,15 @@ export default function DisbursementList() {
         {/* Table */}
         <div className="flex-1">
           {/* AI Banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">AI</div>
-            <p className="text-sm text-blue-800 font-medium">
-              AI telah mengenal pasti semua permohonan yang layak secara automatik. 3 permohonan memerlukan eskalasi kelulusan.
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">AI</div>
+            <p className="text-sm text-purple-800 font-medium">
+              AI telah mengenal pasti semua permohonan yang layak secara automatik. {escalationCount} permohonan memerlukan eskalasi kelulusan.
             </p>
           </div>
 
           {/* Escalation flow banner */}
-          <EscalationBanner level="cawangan" />
+          <EscalationBanner />
 
           {/* Tabs + Search */}
           <div className="flex items-center justify-between mb-4">
@@ -221,7 +220,7 @@ export default function DisbursementList() {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Tarikh Lulus</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status Bank</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">e-Sign</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Had Kuasa</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Peringkat Lulus</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Tindakan</th>
                 </tr>
               </thead>
@@ -247,7 +246,7 @@ export default function DisbursementList() {
                       <span className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-700">DISAHKAN</span>
                     </td>
                     <td className="px-4 py-3">{esignBadge(d.esignStatus)}</td>
-                    <td className="px-4 py-3">{authorityBadge(d.authority)}</td>
+                    <td className="px-4 py-3">{authorityBadge(d.escalationLevel)}</td>
                     <td className="px-4 py-3">
                       {d.esignStatus === 'MENUNGGU' ? (
                         <button
@@ -256,12 +255,11 @@ export default function DisbursementList() {
                         >
                           ⏱ Tunggu e-Sign
                         </button>
-                      ) : d.authority === 'Jawatankuasa Kredit' || d.authority === 'Lembaga Pengarah' ? (
-                        /* ── ESCALATION BUTTON — clickable, navigates to /module3/authority ── */
+                      ) : d.escalationLevel !== 'branch' ? (
                         <button
                           onClick={() => handleEscalate(d)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:scale-105 active:scale-95 shadow-sm"
-                          style={{ background: d.authority === 'Lembaga Pengarah' ? '#C62828' : '#E65100' }}
+                          style={{ background: d.escalationLevel === 'board' ? '#C62828' : '#E65100' }}
                           title={`Eskalasi ke ${d.authority}`}
                         >
                           <ArrowRight size={12} />
@@ -309,17 +307,6 @@ export default function DisbursementList() {
               </div>
             </div>
           )}
-
-          {/* AI footer */}
-          <div className="mt-4 bg-white border border-gray-100 rounded-xl p-4 flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">AI</div>
-              <p className="text-sm text-gray-700">
-                AI telah mengesahkan semua 16 permohonan memenuhi syarat pengeluaran. 3 permohonan memerlukan eskalasi kelulusan tambahan.
-              </p>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white flex-shrink-0">✓</div>
-          </div>
         </div>
 
         {/* Sidebar — Authority Matrix summary */}
@@ -332,10 +319,10 @@ export default function DisbursementList() {
           </div>
           <div className="space-y-3 text-sm">
             {[
-              { role: 'Pegawai Kewangan',    range: 'sehingga RM 10,000',       color: 'text-gray-700', icon: Building2 },
-              { role: 'Pengurus Cawangan',   range: 'sehingga RM 30,000',       color: 'text-blue-700', icon: Building2 },
-              { role: 'Jawatankuasa Kredit', range: 'RM 30,001 – RM 100,000',   color: 'text-orange-600 font-bold', icon: Globe },
-              { role: 'Lembaga Pengarah',    range: 'Melebihi RM 100,000',      color: 'text-red-600 font-bold', icon: Landmark },
+              { role: 'Pengurus Cawangan',   range: 'sehingga RM 10,000',       color: 'text-blue-700', icon: Building2 },
+              { role: 'Pengurus Negeri',     range: 'RM 10,001 – RM 50,000',    color: 'text-orange-600 font-bold', icon: Globe },
+              { role: 'Pengurus Besar',      range: 'RM 50,001 – RM 200,000',   color: 'text-red-600 font-bold', icon: Landmark },
+              { role: 'Lembaga Pengarah',    range: 'Melebihi RM 200,000',      color: 'text-red-600 font-bold', icon: Crown },
             ].map(item => {
               const Icon = item.icon;
               return (
