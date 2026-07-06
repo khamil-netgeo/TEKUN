@@ -51,8 +51,8 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module2',
     allowedRoles: ['branch_officer', 'branch_manager', 'credit_officer', 'system_admin'],
     subItems: [
-      { path: '/penilaian-kredit', labelKey: 'module2.creditScore' },
-      { path: '/penilaian-kredit',   labelKey: 'module2.approvalWorkflow' },
+      { path: '/module2/dashboard', labelKey: 'module2.creditScore' },
+      { path: '/module2/approval',  labelKey: 'module2.approvalWorkflow' },
     ],
   },
   {
