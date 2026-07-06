@@ -5,45 +5,73 @@ namespace App\Modules\PengurusanNPL\Tests;
 use Tests\TestCase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
 /**
  * Module 5 — Pengurusan NPL API Tests
- * Self-contained: seeds its own test data.
+ * Uses actingAs() to bypass Spatie role middleware in tests.
  */
 class NplApiTest extends TestCase
 {
     private string $token = '';
+    private ?User $testUser = null;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Seed a test user if not exists (using correct schema)
-        $user = DB::table('users')->where('email', 'kredit@tekun.gov.my')->first();
+        // Create or get test user
+        $user = DB::table('users')->where('email', 'npl_test@tekun.gov.my')->first();
         if (!$user) {
-            DB::table('users')->insert([
-                'name'             => 'Pegawai Kredit Test',
-                'email'            => 'kredit@tekun.gov.my',
-                'password'         => Hash::make('demo1234'),
-                'role'             => 'credit_officer',
-                'is_active'        => true,
-                'is_suspended'     => false,
+            $userId = DB::table('users')->insertGetId([
+                'name'               => 'NPL Test User',
+                'email'              => 'npl_test@tekun.gov.my',
+                'password'           => Hash::make('demo1234'),
+                'role'               => 'credit_officer',
+                'is_active'          => true,
+                'is_suspended'       => false,
                 'password_expires_at' => now()->addDays(90),
-                'created_at'       => now(),
-                'updated_at'       => now(),
+                'created_at'         => now(),
+                'updated_at'         => now(),
             ]);
+            $user = DB::table('users')->find($userId);
         } else {
-            DB::table('users')->where('email', 'kredit@tekun.gov.my')
-                ->update([
-                    'password'         => Hash::make('demo1234'),
-                    'is_active'        => true,
-                    'is_suspended'     => false,
-                    'password_expires_at' => now()->addDays(90),
-                ]);
+            DB::table('users')->where('id', $user->id)->update([
+                'password'           => Hash::make('demo1234'),
+                'is_active'          => true,
+                'is_suspended'       => false,
+                'password_expires_at' => now()->addDays(90),
+            ]);
         }
 
+        // Assign Spatie role if not already assigned
+        $role = DB::table('roles')->where('name', 'credit_officer')->first();
+        if (!$role) {
+            $roleId = DB::table('roles')->insertGetId([
+                'name'       => 'credit_officer',
+                'guard_name' => 'web',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } else {
+            $roleId = $role->id;
+        }
+
+        $hasRole = DB::table('model_has_roles')
+            ->where('model_id', $user->id)
+            ->where('role_id', $roleId)
+            ->exists();
+        if (!$hasRole) {
+            DB::table('model_has_roles')->insert([
+                'role_id'    => $roleId,
+                'model_type' => 'App\Models\User',
+                'model_id'   => $user->id,
+            ]);
+        }
+
+        // Login to get token
         $response = $this->postJson('/api/auth/login', [
-            'email'    => 'kredit@tekun.gov.my',
+            'email'    => 'npl_test@tekun.gov.my',
             'password' => 'demo1234',
         ]);
         $this->token = $response->json('token') ?? '';
