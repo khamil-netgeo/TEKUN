@@ -143,7 +143,7 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module11',
     allowedRoles: ['executive', 'system_admin'],
     subItems: [
-      { path: '/audit', labelKey: 'module11.auditTrail' },
+      { path: '/module11/audit', labelKey: 'module11.auditTrail' },
     ],
   },
   {

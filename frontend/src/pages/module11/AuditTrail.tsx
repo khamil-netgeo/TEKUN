@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import AiBadge from '@/components/ui/AiBadge';
+import StatCard from '@/components/ui/StatCard';
+import PageHeader from '@/components/ui/PageHeader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import AiBadge from '@/components/ui/AiBadge';
+import toast from 'react-hot-toast';
+import {
+  Shield, AlertTriangle, Activity, Users, Download,
+  Filter, Search, Eye, ChevronLeft, ChevronRight,
+  Clock, Globe, Zap, TrendingUp, X
+} from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
 interface AuditLog {
   id: number;
   user_id: number;
@@ -14,7 +24,9 @@ interface AuditLog {
   auditable_type: string;
   auditable_id: number;
   ip_address: string | null;
-  severity: 'critical' | 'high' | 'medium' | 'info';
+  severity: 'info' | 'high' | 'critical';
+  is_anomaly: boolean;
+  anomaly_reason: string | null;
   created_at: string;
 }
 
@@ -23,31 +35,21 @@ interface AuditStats {
   today: number;
   critical: number;
   unique_users: number;
-  by_action: { action: string; count: number }[];
-  by_module: { module: string; count: number }[];
-  daily_trend: { date: string; count: number }[];
+  today_anomalies: number;
+  top_anomaly_type: string | null;
 }
 
 interface Anomaly {
   id: string;
   type: string;
-  severity: 'critical' | 'high' | 'medium' | 'info';
+  severity: 'critical' | 'high' | 'medium';
   description: string;
   user_name: string | null;
   module: string;
   action: string;
   ip_address: string | null;
   detected_at: string;
-  ai_model: string;
-}
-
-interface AnomalyResponse {
-  anomalies: Anomaly[];
-  total: number;
-  critical: number;
-  high: number;
-  medium: number;
-  ai_model: string;
+  log_id: number;
 }
 
 interface PaginatedLogs {
@@ -59,63 +61,69 @@ interface PaginatedLogs {
   anomaly_count: number;
 }
 
-// ─── Severity badge ───────────────────────────────────────────────────────────
+// ─── Severity Badge ───────────────────────────────────────────────────────────
+
 const SeverityBadge: React.FC<{ severity: string }> = ({ severity }) => {
   const map: Record<string, string> = {
-    critical: 'bg-red-100 text-red-700 border border-red-300',
-    high:     'bg-orange-100 text-orange-700 border border-orange-300',
-    medium:   'bg-yellow-100 text-yellow-700 border border-yellow-300',
-    info:     'bg-blue-100 text-blue-600 border border-blue-200',
+    critical: 'bg-red-100 text-red-700 border border-red-200',
+    high:     'bg-orange-100 text-orange-700 border border-orange-200',
+    info:     'bg-blue-100 text-blue-700 border border-blue-200',
+  };
+  const labels: Record<string, string> = {
+    critical: 'Kritikal',
+    high:     'Tinggi',
+    info:     'Maklumat',
   };
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[severity] ?? map.info}`}>
-      {severity.toUpperCase()}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${map[severity] ?? map.info}`}>
+      {labels[severity] ?? severity}
     </span>
   );
 };
 
-// ─── Main component ───────────────────────────────────────────────────────────
-export default function AuditTrail() {
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+const AuditTrail: React.FC = () => {
   const { token } = useAuth();
+  const navigate = useNavigate();
 
-  // State
-  const [logs, setLogs]             = useState<AuditLog[]>([]);
-  const [stats, setStats]           = useState<AuditStats | null>(null);
-  const [anomalies, setAnomalies]   = useState<Anomaly[]>([]);
-  const [anomalyMeta, setAnomalyMeta] = useState<Omit<AnomalyResponse, 'anomalies'> | null>(null);
-  const [loading, setLoading]       = useState(true);
-  const [statsLoading, setStatsLoading] = useState(true);
+  const apiBase = import.meta.env.VITE_API_URL ?? 'http://34.177.95.116:8000';
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  // ── State ──
+  const [logs, setLogs]           = useState<AuditLog[]>([]);
+  const [stats, setStats]         = useState<AuditStats | null>(null);
+  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+
+  const [loading, setLoading]               = useState(true);
+  const [statsLoading, setStatsLoading]     = useState(true);
   const [anomalyLoading, setAnomalyLoading] = useState(true);
-  const [error, setError]           = useState<string | null>(null);
+  const [exporting, setExporting]           = useState(false);
+  const [showAnomalyPanel, setShowAnomalyPanel] = useState(false);
 
-  // Filters
-  const [search, setSearch]         = useState('');
-  const [actionFilter, setActionFilter] = useState('');
-  const [moduleFilter, setModuleFilter] = useState('');
-  const [fromDate, setFromDate]     = useState('');
-  const [toDate, setToDate]         = useState('');
+  // Pagination
   const [page, setPage]             = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalLogs, setTotalLogs]   = useState(0);
   const [anomalyCount, setAnomalyCount] = useState(0);
 
-  // Active tab
-  const [activeTab, setActiveTab]   = useState<'logs' | 'anomalies'>('logs');
+  // Filters
+  const [search, setSearch]             = useState('');
+  const [actionFilter, setActionFilter] = useState('');
+  const [moduleFilter, setModuleFilter] = useState('');
+  const [fromDate, setFromDate]         = useState('');
+  const [toDate, setToDate]             = useState('');
 
-  const apiBase = import.meta.env.VITE_API_URL ?? 'http://34.177.95.116:8000';
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-  // ── Fetch logs ──────────────────────────────────────────────────────────────
-  const fetchLogs = useCallback(async () => {
+  // ── Fetch logs ──
+  const fetchLogs = useCallback(async (p: number = 1) => {
+    if (!token) return;
     setLoading(true);
-    setError(null);
     try {
-      const params = new URLSearchParams({ page: String(page), per_page: '20' });
+      const params = new URLSearchParams({ page: String(p), per_page: '20' });
       if (actionFilter) params.set('action', actionFilter);
       if (moduleFilter) params.set('module', moduleFilter);
       if (fromDate)     params.set('from', fromDate);
       if (toDate)       params.set('to', toDate);
-
       const res = await fetch(`${apiBase}/api/audit-logs?${params}`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: PaginatedLogs = await res.json();
@@ -123,15 +131,17 @@ export default function AuditTrail() {
       setTotalPages(data.last_page);
       setTotalLogs(data.total);
       setAnomalyCount(data.anomaly_count ?? 0);
-    } catch (err) {
-      setError('Gagal memuatkan log audit. Sila cuba semula.');
+      setPage(data.current_page);
+    } catch {
+      toast.error('Gagal memuatkan log audit.');
     } finally {
       setLoading(false);
     }
-  }, [page, actionFilter, moduleFilter, fromDate, toDate, token]);
+  }, [token, actionFilter, moduleFilter, fromDate, toDate]);
 
-  // ── Fetch stats ─────────────────────────────────────────────────────────────
+  // ── Fetch stats ──
   const fetchStats = useCallback(async () => {
+    if (!token) return;
     setStatsLoading(true);
     try {
       const res = await fetch(`${apiBase}/api/audit-logs/stats`, { headers });
@@ -139,50 +149,61 @@ export default function AuditTrail() {
       const data: AuditStats = await res.json();
       setStats(data);
     } catch {
-      // Stats failure is non-critical
+      // Stats only for privileged users — silently skip
     } finally {
       setStatsLoading(false);
     }
   }, [token]);
 
-  // ── Fetch anomalies ─────────────────────────────────────────────────────────
+  // ── Fetch anomalies ──
   const fetchAnomalies = useCallback(async () => {
+    if (!token) return;
     setAnomalyLoading(true);
     try {
       const res = await fetch(`${apiBase}/api/audit-logs/anomalies`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: AnomalyResponse = await res.json();
+      const data: { anomalies: Anomaly[]; total: number } = await res.json();
       setAnomalies(data.anomalies);
-      setAnomalyMeta({ total: data.total, critical: data.critical, high: data.high, medium: data.medium, ai_model: data.ai_model, generated_at: (data as any).generated_at });
     } catch {
-      // Anomaly fetch failure is non-critical
+      // Anomalies only for privileged users — silently skip
     } finally {
       setAnomalyLoading(false);
     }
   }, [token]);
 
-  useEffect(() => { fetchLogs(); },     [fetchLogs]);
-  useEffect(() => { fetchStats(); },    [fetchStats]);
-  useEffect(() => { fetchAnomalies(); }, [fetchAnomalies]);
+  useEffect(() => {
+    fetchLogs(1);
+    fetchStats();
+    fetchAnomalies();
+  }, [fetchLogs, fetchStats, fetchAnomalies]);
 
-  // ── Export handler ──────────────────────────────────────────────────────────
+  // ── Export ──
   const handleExport = async () => {
+    if (!token) return;
+    setExporting(true);
     try {
+      const body = {
+        from:   fromDate || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+        to:     toDate   || new Date().toISOString().slice(0, 10),
+        format: 'pdf',
+      };
       const res = await fetch(`${apiBase}/api/audit-logs/export`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ from: fromDate || undefined, to: toDate || undefined, format: 'pdf' }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.pdf_url) window.open(data.pdf_url, '_blank');
-      alert(`Laporan dijana: ${data.report_id}`);
+      const data: { pdf_url: string; report_id: string } = await res.json();
+      toast.success(`Laporan ${data.report_id} berjaya dijana.`);
+      window.open(data.pdf_url, '_blank');
     } catch {
-      alert('Gagal menjana laporan. Sila cuba semula.');
+      toast.error('Gagal mengeksport laporan. Semak kebenaran anda.');
+    } finally {
+      setExporting(false);
     }
   };
 
-  // ── Filtered logs (client-side search) ─────────────────────────────────────
+  // ── Client-side search filter ──
   const filteredLogs = logs.filter(l =>
     !search ||
     (l.user_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -191,268 +212,346 @@ export default function AuditTrail() {
      l.ip_address?.includes(search))
   );
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // ── Render ──
   return (
-    <div className="space-y-4 p-4">
-      {/* Header */}
-      <div className="sppt-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold" style={{ color: '#1B2B5E' }}>
-              Jejak Audit — Kawalan Dalaman
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Log tidak boleh diubah: siapa, apa, bila, di mana, sebelum dan selepas
-            </p>
-          </div>
+    <div className="flex-1 bg-gray-50 min-h-screen">
+      <PageHeader
+        title="Audit & Kawalan Dalaman"
+        subtitle="Jejak audit tidak boleh diubah — siapa, apa, bila, di mana"
+        action={
           <button
             onClick={handleExport}
-            className="px-4 py-2 text-sm font-medium text-white rounded-lg"
-            style={{ background: '#1B2B5E' }}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1B2B5E] text-white rounded-lg hover:bg-[#162347] transition-colors text-sm font-medium disabled:opacity-60"
           >
-            Eksport Laporan BNM
+            <Download size={16} />
+            {exporting ? 'Menjana...' : 'Eksport Laporan BNM'}
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {statsLoading ? (
-          <div className="col-span-4 flex justify-center py-4"><LoadingSpinner /></div>
-        ) : (
-          <>
-            <div className="sppt-card text-center">
-              <div className="text-xs text-gray-500 mb-1">Log Hari Ini</div>
-              <div className="text-2xl font-bold" style={{ color: '#1B2B5E' }}>
-                {stats?.today ?? 0}
-              </div>
-            </div>
-            <div className="sppt-card text-center">
-              <div className="text-xs text-gray-500 mb-1">Tindakan Kritikal</div>
-              <div className="text-2xl font-bold text-red-600">
-                {stats?.critical ?? 0}
-              </div>
-            </div>
-            <div className="sppt-card text-center">
-              <div className="text-xs text-gray-500 mb-1">Pengguna Unik</div>
-              <div className="text-2xl font-bold text-green-600">
-                {stats?.unique_users ?? 0}
-              </div>
-            </div>
-            <div className="sppt-card text-center">
-              <div className="text-xs text-gray-500 mb-1">Anomali Dikesan AI</div>
-              <div className="text-2xl font-bold" style={{ color: '#673AB7' }}>
-                {anomalyCount}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+      <div className="p-6 space-y-6">
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {(['logs', 'anomalies'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab === 'logs' ? 'Log Audit' : (
-              <span className="flex items-center gap-1">
-                Anomali AI
-                {anomalies.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
-                    {anomalies.length}
-                  </span>
-                )}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Tab: Audit Logs ── */}
-      {activeTab === 'logs' && (
-        <div className="sppt-card">
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Cari pengguna, tindakan, modul, IP..."
-              className="flex-1 min-w-[200px] p-2 border border-gray-300 rounded text-sm"
-            />
-            <select
-              value={actionFilter}
-              onChange={e => { setActionFilter(e.target.value); setPage(1); }}
-              className="p-2 border border-gray-300 rounded text-sm"
-            >
-              <option value="">Semua Tindakan</option>
-              {['login', 'logout', 'create', 'update', 'delete', 'approve', 'reject', 'export', 'view'].map(a => (
-                <option key={a} value={a}>{a.toUpperCase()}</option>
-              ))}
-            </select>
-            <input
-              type="date" value={fromDate}
-              onChange={e => { setFromDate(e.target.value); setPage(1); }}
-              className="p-2 border border-gray-300 rounded text-sm"
-            />
-            <input
-              type="date" value={toDate}
-              onChange={e => { setToDate(e.target.value); setPage(1); }}
-              className="p-2 border border-gray-300 rounded text-sm"
-            />
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          {/* Table */}
-          {loading ? (
-            <div className="flex justify-center py-8"><LoadingSpinner /></div>
+        {/* ── KPI Cards ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {statsLoading ? (
+            <div className="col-span-4 flex justify-center py-8"><LoadingSpinner /></div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b border-gray-200">
-                      <th className="py-2 px-3 font-semibold text-gray-600">Pengguna</th>
-                      <th className="py-2 px-3 font-semibold text-gray-600">Tindakan</th>
-                      <th className="py-2 px-3 font-semibold text-gray-600">Modul</th>
-                      <th className="py-2 px-3 font-semibold text-gray-600">Tahap</th>
-                      <th className="py-2 px-3 font-semibold text-gray-600">IP</th>
-                      <th className="py-2 px-3 font-semibold text-gray-600">Masa</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-gray-400">
-                          Tiada log ditemui.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredLogs.map(log => (
-                        <tr key={log.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="py-2 px-3">
-                            <div className="font-medium text-gray-800">{log.user_name ?? `#${log.user_id}`}</div>
-                            <div className="text-xs text-gray-400">{log.user_email}</div>
-                          </td>
-                          <td className="py-2 px-3">
-                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700">
-                              {log.action.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-gray-600">{log.module ?? '-'}</td>
-                          <td className="py-2 px-3">
-                            <SeverityBadge severity={log.severity} />
-                          </td>
-                          <td className="py-2 px-3 text-gray-500 font-mono text-xs">{log.ip_address ?? '-'}</td>
-                          <td className="py-2 px-3 text-gray-500 text-xs">
-                            {new Date(log.created_at).toLocaleString('ms-MY')}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
-                <span>Jumlah: {totalLogs} log</span>
-                <div className="flex gap-2">
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage(p => p - 1)}
-                    className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                  >
-                    ← Sebelum
-                  </button>
-                  <span className="px-3 py-1">Halaman {page} / {totalPages}</span>
-                  <button
-                    disabled={page >= totalPages}
-                    onClick={() => setPage(p => p + 1)}
-                    className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
-                  >
-                    Seterusnya →
-                  </button>
-                </div>
-              </div>
+              <StatCard
+                title="Jumlah Log"
+                value={stats?.total ?? totalLogs}
+                icon={<Shield size={20} className="text-[#1B2B5E]" />}
+                colour="navy"
+              />
+              <StatCard
+                title="Log Hari Ini"
+                value={stats?.today ?? 0}
+                icon={<Activity size={20} className="text-[#2E7D32]" />}
+                colour="green"
+              />
+              <StatCard
+                title="Tindakan Kritikal"
+                value={stats?.critical ?? 0}
+                icon={<AlertTriangle size={20} className="text-[#C62828]" />}
+                colour="orange"
+              />
+              <StatCard
+                title="Pengguna Unik"
+                value={stats?.unique_users ?? 0}
+                icon={<Users size={20} className="text-[#673AB7]" />}
+                colour="purple"
+              />
             </>
           )}
         </div>
-      )}
 
-      {/* ── Tab: AI Anomalies ── */}
-      {activeTab === 'anomalies' && (
-        <div className="sppt-card">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="font-semibold text-gray-800">Pengesanan Anomali AI</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Dianalisis oleh <span style={{ color: '#673AB7' }}>SPPT-AI</span> — corak luar biasa dalam log audit
-              </p>
+        {/* ── AI Anomaly Summary Panel ── */}
+        {!anomalyLoading && (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#673AB7] flex items-center justify-center flex-shrink-0">
+                  <Zap size={18} className="text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-[#673AB7] text-sm">Enjin AI SPPT — Pengesanan Anomali</span>
+                    <AiBadge label="AI" />
+                  </div>
+                  <div className="flex items-center gap-4 mt-1 flex-wrap">
+                    <span className="text-sm text-gray-700">
+                      <span className="font-bold text-[#C62828]">{stats?.today_anomalies ?? anomalyCount}</span> anomali dikesan hari ini
+                    </span>
+                    {stats?.top_anomaly_type && (
+                      <span className="text-sm text-gray-600">
+                        Paling kerap: <span className="font-medium text-[#673AB7]">{stats.top_anomaly_type}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAnomalyPanel(!showAnomalyPanel)}
+                className="flex items-center gap-2 px-4 py-2 bg-[#673AB7] text-white rounded-lg hover:bg-purple-800 transition-colors text-sm font-medium"
+              >
+                <Eye size={14} />
+                {showAnomalyPanel ? 'Sembunyikan' : 'Lihat Semua Anomali'}
+              </button>
             </div>
-            {anomalyMeta && (
-              <div className="flex gap-2 text-xs">
-                <span className="px-2 py-1 rounded bg-red-100 text-red-700">{anomalyMeta.critical} Kritikal</span>
-                <span className="px-2 py-1 rounded bg-orange-100 text-orange-700">{anomalyMeta.high} Tinggi</span>
-                <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-700">{anomalyMeta.medium} Sederhana</span>
+
+            {showAnomalyPanel && (
+              <div className="mt-4 space-y-2 max-h-72 overflow-y-auto">
+                {anomalies.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">Tiada anomali dikesan.</p>
+                ) : (
+                  anomalies.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border ${
+                        a.severity === 'critical' ? 'bg-red-50 border-red-200'
+                        : a.severity === 'high'   ? 'bg-orange-50 border-orange-200'
+                        : 'bg-yellow-50 border-yellow-200'
+                      }`}
+                    >
+                      <AlertTriangle
+                        size={16}
+                        className={`mt-0.5 flex-shrink-0 ${
+                          a.severity === 'critical' ? 'text-red-600'
+                          : a.severity === 'high'   ? 'text-orange-600'
+                          : 'text-yellow-600'
+                        }`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">{a.description}</p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
+                          <span className="flex items-center gap-1"><Globe size={10} />{a.ip_address ?? 'N/A'}</span>
+                          <span className="flex items-center gap-1"><Clock size={10} />{new Date(a.detected_at).toLocaleString('ms-MY')}</span>
+                          <span className="flex items-center gap-1"><Shield size={10} />{a.module}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/module11/audit/${a.log_id}`)}
+                        className="text-xs text-[#673AB7] hover:underline flex-shrink-0"
+                      >
+                        Lihat Log
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
+        )}
 
-          {anomalyLoading ? (
-            <div className="flex justify-center py-8"><LoadingSpinner /></div>
-          ) : anomalies.length === 0 ? (
-            <div className="py-8 text-center text-gray-400">
-              <div className="text-4xl mb-2">✅</div>
-              <p>Tiada anomali dikesan. Sistem beroperasi secara normal.</p>
+        {/* ── Filters ── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter size={16} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Penapis Log Audit</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="col-span-2 relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Cari pengguna, tindakan, IP..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]"
+              />
+            </div>
+            <input
+              type="text"
+              placeholder="Modul (cth: auth)"
+              value={moduleFilter}
+              onChange={(e) => setModuleFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]"
+            />
+            <select
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E] bg-white"
+            >
+              <option value="">Semua Tindakan</option>
+              <option value="login">Login</option>
+              <option value="logout">Logout</option>
+              <option value="create">Cipta</option>
+              <option value="update">Kemaskini</option>
+              <option value="delete">Padam</option>
+              <option value="export">Eksport</option>
+              <option value="role_change">Tukar Peranan</option>
+              <option value="admin_access">Akses Pentadbir</option>
+            </select>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]"
+            />
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]"
+              />
+              <button
+                onClick={() => { setSearch(''); setActionFilter(''); setModuleFilter(''); setFromDate(''); setToDate(''); }}
+                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-600"
+                title="Kosongkan penapis"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={() => fetchLogs(1)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1B2B5E] text-white rounded-lg hover:bg-[#162347] transition-colors text-sm font-medium"
+            >
+              <Search size={14} />
+              Cari
+            </button>
+          </div>
+        </div>
+
+        {/* ── Audit Log Table ── */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-[#1B2B5E]" />
+              <span className="text-sm font-semibold text-gray-800">
+                Log Audit ({totalLogs.toLocaleString('ms-MY')} rekod)
+              </span>
+              {anomalyCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                  <Zap size={10} />
+                  {anomalyCount} anomali
+                </span>
+              )}
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center py-16">
+              <LoadingSpinner />
+            </div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <Shield size={40} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">Tiada log audit dijumpai.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {anomalies.map(anomaly => (
-                <div
-                  key={anomaly.id}
-                  className="p-4 rounded-lg border"
-                  style={{
-                    borderColor: anomaly.severity === 'critical' ? '#FCA5A5' :
-                                 anomaly.severity === 'high'     ? '#FCD34D' : '#C4B5FD',
-                    background:  anomaly.severity === 'critical' ? '#FEF2F2' :
-                                 anomaly.severity === 'high'     ? '#FFFBEB' : '#F5F3FF',
-                  }}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Masa</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Pengguna</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tindakan</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Modul</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Alamat IP</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tahap</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status AI</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLogs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className={`border-b border-gray-50 transition-colors ${
+                        log.is_anomaly
+                          ? 'bg-purple-50 hover:bg-purple-100'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs">
+                        {new Date(log.created_at).toLocaleString('ms-MY', {
+                          day: '2-digit', month: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-800 text-sm">{log.user_name ?? `#${log.user_id}`}</div>
+                        {log.user_email && (
+                          <div className="text-xs text-gray-400">{log.user_email}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded text-gray-700">
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-sm">{log.module ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 font-mono text-xs">{log.ip_address ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <SeverityBadge severity={log.severity} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {log.is_anomaly ? (
+                          <div className="relative group inline-block">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 border border-red-200 rounded text-xs font-medium cursor-help">
+                              <AlertTriangle size={10} />
+                              ⚠ Anomali Dikesan
+                            </span>
+                            {log.anomaly_reason && (
+                              <div className="absolute bottom-full left-0 mb-1 w-64 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none shadow-lg">
+                                <p className="font-semibold mb-1 text-purple-300">Enjin AI SPPT</p>
+                                <p>{log.anomaly_reason}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => navigate(`/module11/audit/${log.id}`)}
+                          className="text-[#1B2B5E] hover:text-[#162347] transition-colors p-1 rounded hover:bg-blue-50"
+                          title="Lihat butiran log"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+              <span className="text-xs text-gray-500">
+                Halaman {page} daripada {totalPages} ({totalLogs.toLocaleString('ms-MY')} rekod)
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fetchLogs(page - 1)}
+                  disabled={page <= 1}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed text-xs text-gray-600"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <SeverityBadge severity={anomaly.severity} />
-                        <AiBadge label={anomaly.ai_model} />
-                        <span className="text-xs text-gray-500">{anomaly.type.replace(/_/g, ' ').toUpperCase()}</span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-800">{anomaly.description}</p>
-                      <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                        <span>Modul: {anomaly.module}</span>
-                        <span>Tindakan: {anomaly.action}</span>
-                        {anomaly.ip_address && <span>IP: {anomaly.ip_address}</span>}
-                        <span>{new Date(anomaly.detected_at).toLocaleString('ms-MY')}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  <ChevronLeft size={14} /> Sebelum
+                </button>
+                <button
+                  onClick={() => fetchLogs(page + 1)}
+                  disabled={page >= totalPages}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded border border-gray-200 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed text-xs text-gray-600"
+                >
+                  Seterusnya <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
           )}
         </div>
-      )}
+
+      </div>
     </div>
   );
-}
+};
+
+export default AuditTrail;
