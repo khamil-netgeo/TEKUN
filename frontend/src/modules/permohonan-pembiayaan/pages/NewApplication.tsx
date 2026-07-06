@@ -4,10 +4,13 @@ import { useForm } from 'react-hook-form';
 import { PageHeader, LoadingSpinner, Toast } from '@/components/ui';
 import AiBadge from '@/components/ui/AiBadge';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Sparkles, ChevronRight, ChevronLeft, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://34.177.95.116:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? import.meta.env.VITE_API_BASE_URL.replace('/api', '')
+  : 'http://34.177.95.116:8000';
 
 interface Scheme {
   id: number;
@@ -56,7 +59,8 @@ export default function NewApplication() {
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [loadingSchemes, setLoadingSchemes] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [ocrData, setOcrData] = useState<OcrData | null>(null);
   const [ocrApplied, setOcrApplied] = useState(false);
 
@@ -106,18 +110,68 @@ export default function NewApplication() {
     sessionStorage.removeItem('ocr_data');
   };
 
+  // ── Save Draft ──────────────────────────────────────────────────────────────
+  const onSaveDraft = async () => {
+    setSavingDraft(true);
+    setFormError(null);
+    try {
+      const data = getValues();
+      // Build payload — only include filled fields so partial drafts are allowed
+      const payload: Partial<FormData> = {};
+      (Object.keys(data) as (keyof FormData)[]).forEach((key) => {
+        const val = data[key];
+        if (val !== undefined && val !== null && val !== '') {
+          (payload as Record<string, unknown>)[key] = val;
+        }
+      });
+
+      const res = await axios.post(`${API_BASE}/api/applications`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const appId = res.data?.application?.id || res.data?.data?.id || res.data?.id;
+      toast.success(
+        isBM
+          ? `Draf berjaya disimpan. No. Rujukan: ${res.data?.application?.ref_no || appId}`
+          : `Draft saved successfully. Ref: ${res.data?.application?.ref_no || appId}`,
+        { duration: 4000, icon: '💾' }
+      );
+      // Navigate to the application detail after saving
+      if (appId) {
+        setTimeout(() => navigate(`/permohonan/${appId}`), 1500);
+      }
+    } catch (err: unknown) {
+      const apiErr = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
+      const msg = apiErr?.response?.data?.message;
+      const validationErrors = apiErr?.response?.data?.errors;
+      if (validationErrors) {
+        const firstError = Object.values(validationErrors)[0]?.[0];
+        toast.error(firstError || (isBM ? 'Sila lengkapkan maklumat wajib' : 'Please complete required fields'), { duration: 5000 });
+      } else {
+        toast.error(msg || (isBM ? 'Gagal menyimpan draf' : 'Failed to save draft'), { duration: 5000 });
+      }
+      setFormError(msg || (isBM ? 'Gagal menyimpan draf' : 'Failed to save draft'));
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  // ── Final Submit ────────────────────────────────────────────────────────────
   const onSubmit = async (data: FormData) => {
     setSubmitting(true);
-    setError(null);
+    setFormError(null);
     try {
       const res = await axios.post(`${API_BASE}/api/applications`, data, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const appId = res.data?.application?.id || res.data?.data?.id || res.data?.id;
+      toast.success(isBM ? 'Permohonan berjaya dihantar!' : 'Application submitted successfully!', { duration: 3000 });
       navigate(`/permohonan/${appId}/dokumen`);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg || (isBM ? 'Gagal menghantar permohonan' : 'Failed to submit application'));
+      const errMsg = msg || (isBM ? 'Gagal menghantar permohonan' : 'Failed to submit application');
+      toast.error(errMsg, { duration: 5000 });
+      setFormError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -132,7 +186,7 @@ export default function NewApplication() {
         subtitle={isBM ? 'Isi borang permohonan pembiayaan' : 'Fill in the financing application form'}
         breadcrumbs={[{ label: isBM ? 'Permohonan' : 'Applications', href: '/permohonan' }, { label: isBM ? 'Permohonan Baharu' : 'New Application' }]}
       />
-      {error && <Toast type="error" message={error} onClose={() => setError(null)} />}
+      {formError && <Toast type="error" message={formError} onClose={() => setFormError(null)} />}
       {ocrData && !ocrApplied && (
         <div className="mx-6 mt-4 p-4 rounded-lg border-2 border-purple-200 bg-purple-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -154,6 +208,7 @@ export default function NewApplication() {
           <p className="text-sm text-green-700">{isBM ? 'Medan borang telah diisi dari data OCR. Sila semak sebelum menghantar.' : 'Form fields filled from OCR data. Please review before submitting.'}</p>
         </div>
       )}
+      {/* Step indicator */}
       <div className="mx-6 mt-4">
         <div className="flex items-center">
           {STEPS.map((s, i) => (
@@ -169,6 +224,7 @@ export default function NewApplication() {
       </div>
       <form onSubmit={handleSubmit(onSubmit)} className="mx-6 mt-4 mb-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          {/* ── Step 0: Scheme Selection ── */}
           {step === 0 && (
             <div>
               <h3 className="text-base font-semibold text-[#1B2B5E] mb-4">{isBM ? 'Pilih Skim Pembiayaan' : 'Select Financing Scheme'}</h3>
@@ -204,6 +260,7 @@ export default function NewApplication() {
               )}
             </div>
           )}
+          {/* ── Step 1: Applicant Info ── */}
           {step === 1 && (
             <div>
               <h3 className="text-base font-semibold text-[#1B2B5E] mb-4">{isBM ? 'Maklumat Pemohon' : 'Applicant Information'}</h3>
@@ -223,6 +280,7 @@ export default function NewApplication() {
               </div>
             </div>
           )}
+          {/* ── Step 2: Business Info ── */}
           {step === 2 && (
             <div>
               <h3 className="text-base font-semibold text-[#1B2B5E] mb-4">{isBM ? 'Maklumat Perniagaan' : 'Business Information'}</h3>
@@ -251,6 +309,7 @@ export default function NewApplication() {
               </div>
             </div>
           )}
+          {/* ── Step 3: Review & Submit ── */}
           {step === 3 && (
             <div>
               <h3 className="text-base font-semibold text-[#1B2B5E] mb-4">{isBM ? 'Semakan & Pengesahan' : 'Review & Confirm'}</h3>
@@ -271,23 +330,60 @@ export default function NewApplication() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-500 mt-4">{isBM ? 'Dengan menghantar permohonan ini, saya mengesahkan bahawa semua maklumat yang diberikan adalah benar dan tepat.' : 'By submitting this application, I confirm that all information provided is true and accurate.'}</p>
+              <p className="text-xs text-gray-500 mt-4">
+                {isBM
+                  ? 'Dengan menghantar permohonan ini, saya mengesahkan bahawa semua maklumat yang diberikan adalah benar dan tepat.'
+                  : 'By submitting this application, I confirm that all information provided is true and accurate.'}
+              </p>
             </div>
           )}
-          <div className="flex justify-between mt-6 pt-4 border-t border-gray-100">
-            <button type="button" onClick={() => step > 0 ? setStep(s => s - 1) : navigate('/permohonan')} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+
+          {/* ── Navigation Buttons ── */}
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => step > 0 ? setStep(s => s - 1) : navigate('/permohonan')}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+            >
               <ChevronLeft className="w-4 h-4" />
               {step === 0 ? (isBM ? 'Batal' : 'Cancel') : (isBM ? 'Kembali' : 'Back')}
             </button>
-            {step < STEPS.length - 1 ? (
-              <button type="button" onClick={() => setStep(s => s + 1)} className="flex items-center gap-2 px-4 py-2 bg-[#1B2B5E] text-white rounded-lg text-sm hover:bg-blue-900">
-                {isBM ? 'Seterusnya' : 'Next'}<ChevronRight className="w-4 h-4" />
+
+            <div className="flex items-center gap-3">
+              {/* Save Draft button — visible on all steps */}
+              <button
+                type="button"
+                onClick={onSaveDraft}
+                disabled={savingDraft || submitting}
+                className="flex items-center gap-2 px-4 py-2 border border-[#1B2B5E] text-[#1B2B5E] rounded-lg text-sm font-medium hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                {savingDraft
+                  ? (isBM ? 'Menyimpan...' : 'Saving...')
+                  : (isBM ? 'Simpan Draf' : 'Save Draft')}
               </button>
-            ) : (
-              <button type="submit" disabled={submitting} className="flex items-center gap-2 px-6 py-2 bg-[#2E7D32] text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-50">
-                {submitting ? (isBM ? 'Menghantar...' : 'Submitting...') : (isBM ? 'Hantar Permohonan' : 'Submit Application')}
-              </button>
-            )}
+
+              {/* Next / Submit button */}
+              {step < STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(s => s + 1)}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#1B2B5E] text-white rounded-lg text-sm hover:bg-blue-900"
+                >
+                  {isBM ? 'Seterusnya' : 'Next'}<ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={submitting || savingDraft}
+                  className="flex items-center gap-2 px-6 py-2 bg-[#2E7D32] text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting
+                    ? (isBM ? 'Menghantar...' : 'Submitting...')
+                    : (isBM ? 'Hantar Permohonan' : 'Submit Application')}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </form>
