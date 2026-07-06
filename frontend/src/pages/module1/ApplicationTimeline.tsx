@@ -1,12 +1,15 @@
+import React, { useEffect, useState } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { CheckCircle, Clock, Circle, AlertCircle, Bell, Download, MessageSquare } from 'lucide-react';
+import { CheckCircle, Clock, Circle, AlertCircle, Bell, Download, MessageSquare, Loader2 } from 'lucide-react';
+import api from '@/services/api';
 
 type StepStatus = 'completed' | 'current' | 'pending' | 'rejected';
 
 interface TimelineStep {
   id: number;
   title: string;
-  titleEn: string;
+  titleEn?: string;
   description: string;
   date?: string;
   status: StepStatus;
@@ -14,15 +17,29 @@ interface TimelineStep {
   note?: string;
 }
 
-const steps: TimelineStep[] = [
-  { id: 1, title: 'Permohonan Diterima', titleEn: 'Application Received', description: 'Permohonan anda telah berjaya dihantar dan diterima oleh sistem.', date: '1 Jul 2026, 09:15', status: 'completed', officer: 'Sistem Automatik' },
-  { id: 2, title: 'Semakan Kelayakan Awalan', titleEn: 'Initial Eligibility Check', description: 'AI sedang menyemak kelayakan asas: umur, kewarganegaraan, rekod muflis, CCRIS.', date: '1 Jul 2026, 09:16', status: 'completed', officer: 'AI Engine SPPT', note: 'Lulus semua semakan awalan' },
-  { id: 3, title: 'Semakan Dokumen', titleEn: 'Document Screening', description: 'Pegawai sedang menyemak kesempurnaan dokumen yang dimuat naik.', date: '2 Jul 2026, 10:30', status: 'completed', officer: 'Pn. Siti Rahimah', note: 'Semua dokumen lengkap dan sah' },
-  { id: 4, title: 'Penilaian Kredit', titleEn: 'Credit Assessment', description: 'Analisis kredit sedang dijalankan oleh Pegawai Kredit.', date: '3 Jul 2026, 14:00', status: 'current', officer: 'En. Hafiz Azman' },
-  { id: 5, title: 'Kelulusan Pengurus', titleEn: 'Manager Approval', description: 'Menunggu kelulusan daripada Pengurus Cawangan.', status: 'pending' },
-  { id: 6, title: 'Surat Tawaran', titleEn: 'Offer Letter', description: 'Surat tawaran pembiayaan akan dijana dan dihantar untuk ditandatangani.', status: 'pending' },
-  { id: 7, title: 'Pengeluaran Dana', titleEn: 'Fund Disbursement', description: 'Dana pembiayaan akan dikreditkan ke akaun bank anda.', status: 'pending' },
-];
+interface TimelineData {
+  reference_no: string;
+  applicant_name: string;
+  scheme: string;
+  amount: number;
+  steps: TimelineStep[];
+}
+
+const fallbackData: TimelineData = {
+  reference_no: 'SPPT-2026-00847',
+  applicant_name: 'Siti Nurhaliza',
+  scheme: 'TEKUN Micro',
+  amount: 10000,
+  steps: [
+    { id: 1, title: 'Permohonan Diterima', titleEn: 'Application Received', description: 'Permohonan anda telah berjaya dihantar dan diterima oleh sistem.', date: '1 Jul 2026, 09:15', status: 'completed', officer: 'Sistem Automatik' },
+    { id: 2, title: 'Semakan Kelayakan Awalan', titleEn: 'Initial Eligibility Check', description: 'AI sedang menyemak kelayakan asas: umur, kewarganegaraan, rekod muflis, CCRIS.', date: '1 Jul 2026, 09:16', status: 'completed', officer: 'AI Engine SPPT', note: 'Lulus semua semakan awalan' },
+    { id: 3, title: 'Semakan Dokumen', titleEn: 'Document Screening', description: 'Pegawai sedang menyemak kesempurnaan dokumen yang dimuat naik.', date: '2 Jul 2026, 10:30', status: 'completed', officer: 'Pn. Siti Rahimah', note: 'Semua dokumen lengkap dan sah' },
+    { id: 4, title: 'Penilaian Kredit', titleEn: 'Credit Assessment', description: 'Analisis kredit sedang dijalankan oleh Pegawai Kredit.', date: '3 Jul 2026, 14:00', status: 'current', officer: 'En. Hafiz Azman' },
+    { id: 5, title: 'Kelulusan Pengurus', titleEn: 'Manager Approval', description: 'Menunggu kelulusan daripada Pengurus Cawangan.', status: 'pending' },
+    { id: 6, title: 'Surat Tawaran', titleEn: 'Offer Letter', description: 'Surat tawaran pembiayaan akan dijana dan dihantar untuk ditandatangani.', status: 'pending' },
+    { id: 7, title: 'Pengeluaran Dana', titleEn: 'Fund Disbursement', description: 'Dana pembiayaan akan dikreditkan ke akaun bank anda.', status: 'pending' },
+  ]
+};
 
 const statusConfig = {
   completed: { icon: <CheckCircle size={20} className="text-white" />, bg: 'bg-[#2E7D32]', border: 'border-[#2E7D32]', label: 'Selesai', labelColor: 'text-[#2E7D32]' },
@@ -34,9 +51,63 @@ const statusConfig = {
 export default function ApplicationTimeline() {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === 'en';
-  const currentStep = steps.find(s => s.status === 'current');
-  const completedCount = steps.filter(s => s.status === 'completed').length;
-  const progress = Math.round((completedCount / steps.length) * 100);
+  const location = useLocation();
+  const params = useParams();
+  
+  const applicationId = location.state?.applicationId || params.id;
+
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<TimelineData | null>(null);
+
+  useEffect(() => {
+    const fetchTimeline = async () => {
+      if (!applicationId) {
+        setData(fallbackData);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await api.get(`/api/applications/${applicationId}/timeline`);
+        if (response.data && response.data.data) {
+          setData(response.data.data);
+        } else {
+          setData(fallbackData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch timeline, falling back to demo data", error);
+        setData(fallbackData);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTimeline();
+  }, [applicationId]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <Loader2 className="w-8 h-8 text-[#1B2B5E] animate-spin" />
+        <p className="text-sm text-gray-500 font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>
+          Memuatkan garis masa permohonan...
+        </p>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const currentStep = data.steps.find(s => s.status === 'current');
+  const completedCount = data.steps.filter(s => s.status === 'completed').length;
+  const progress = data.steps.length > 0 ? Math.round((completedCount / data.steps.length) * 100) : 0;
+  
+  const formattedAmount = new Intl.NumberFormat('ms-MY', { 
+    style: 'currency', 
+    currency: 'MYR',
+    minimumFractionDigits: 0
+  }).format(data.amount);
 
   return (
     <div className="space-y-6">
@@ -46,7 +117,9 @@ export default function ApplicationTimeline() {
           <h1 className="text-2xl font-bold text-[#1B2B5E]" style={{ fontFamily: 'Inter, sans-serif' }}>
             Penjejak Status Permohonan
           </h1>
-          <p className="text-gray-500 text-sm mt-1">No. Rujukan: <span className="font-semibold text-gray-700">SPPT-2026-00847</span></p>
+          <p className="text-gray-500 text-sm mt-1">
+            No. Rujukan: <span className="font-semibold text-gray-700">{data.reference_no}</span>
+          </p>
         </div>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -61,9 +134,9 @@ export default function ApplicationTimeline() {
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Skim Pembiayaan', value: 'TEKUN Micro', sub: 'Perniagaan Mikro', color: 'text-[#1B2B5E]' },
-          { label: 'Jumlah Dipohon', value: 'RM 10,000', sub: 'Tempoh: 5 Tahun', color: 'text-[#1B2B5E]' },
-          { label: 'Kemajuan', value: `${progress}%`, sub: `${completedCount} / ${steps.length} langkah`, color: 'text-[#2E7D32]' },
+          { label: 'Skim Pembiayaan', value: data.scheme, sub: 'Perniagaan Mikro', color: 'text-[#1B2B5E]' },
+          { label: 'Jumlah Dipohon', value: formattedAmount, sub: 'Tempoh: 5 Tahun', color: 'text-[#1B2B5E]' },
+          { label: 'Kemajuan', value: `${progress}%`, sub: `${completedCount} / ${data.steps.length} langkah`, color: 'text-[#2E7D32]' },
           { label: 'Anggaran Siap', value: '7 Julai 2026', sub: '3 hari bekerja lagi', color: 'text-[#E65100]' },
         ].map(card => (
           <div key={card.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
@@ -87,7 +160,7 @@ export default function ApplicationTimeline() {
           <div className="flex items-center gap-2 mt-3">
             <div className="w-2 h-2 bg-[#E65100] rounded-full animate-pulse" />
             <span className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Peringkat semasa: <span className="font-semibold text-[#E65100]">{currentStep.title}</span>
+              Peringkat semasa: <span className="font-semibold text-[#E65100]">{isEn && currentStep.titleEn ? currentStep.titleEn : currentStep.title}</span>
               {currentStep.officer && ` — ${currentStep.officer}`}
             </span>
           </div>
@@ -100,8 +173,8 @@ export default function ApplicationTimeline() {
           Sejarah Proses Permohonan
         </h2>
         <div className="relative">
-          {steps.map((step, idx) => {
-            const config = statusConfig[step.status];
+          {data.steps.map((step, idx) => {
+            const config = statusConfig[step.status] || statusConfig.pending;
             return (
               <div key={step.id} className="flex gap-4 mb-6 last:mb-0">
                 {/* Icon + Line */}
@@ -109,23 +182,24 @@ export default function ApplicationTimeline() {
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${config.bg}`}>
                     {config.icon}
                   </div>
-                  {idx < steps.length - 1 && (
+                  {idx < data.steps.length - 1 && (
                     <div className={`w-0.5 flex-1 mt-2 ${step.status === 'completed' ? 'bg-[#2E7D32]' : 'bg-gray-200'}`} style={{ minHeight: '24px' }} />
                   )}
                 </div>
 
                 {/* Content */}
-                <div className={`flex-1 pb-6 ${idx === steps.length - 1 ? 'pb-0' : ''}`}>
+                <div className={`flex-1 pb-6 ${idx === data.steps.length - 1 ? 'pb-0' : ''}`}>
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className={`font-bold text-sm ${step.status === 'pending' ? 'text-gray-400' : 'text-gray-800'}`}
                           style={{ fontFamily: 'Inter, sans-serif' }}>
-                          {isEn ? step.titleEn : step.title}
+                          {isEn && step.titleEn ? step.titleEn : step.title}
                         </h3>
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                           step.status === 'completed' ? 'bg-green-100 text-green-700' :
                           step.status === 'current' ? 'bg-orange-100 text-orange-700' :
+                          step.status === 'rejected' ? 'bg-red-100 text-red-700' :
                           'bg-gray-100 text-gray-400'
                         }`} style={{ fontFamily: 'Inter, sans-serif' }}>
                           {config.label}

@@ -85,6 +85,7 @@ const COPY = {
       title: 'Mulakan perjalanan perniagaan anda hari ini',
       sub: 'Sertai lebih 400,000 usahawan yang telah dibantu oleh TEKUN Nasional sejak 1998.',
       btn: 'Mohon Sekarang',
+      btn2: 'Semak Kelayakan Anda',
     },
     footer: {
       about: 'TEKUN Nasional — agensi di bawah Kementerian Pembangunan Usahawan dan Koperasi (KUSKOP) yang menyediakan pembiayaan mikro kepada usahawan Malaysia.',
@@ -172,6 +173,7 @@ const COPY = {
       title: 'Start your business journey today',
       sub: 'Join over 400,000 entrepreneurs assisted by TEKUN Nasional since 1998.',
       btn: 'Apply Now',
+      btn2: 'Check Your Eligibility',
     },
     footer: {
       about: 'TEKUN Nasional — an agency under the Ministry of Entrepreneur Development and Cooperatives (KUSKOP) providing micro-financing to Malaysian entrepreneurs.',
@@ -328,6 +330,7 @@ export default function LandingPage() {
   const goMulaMohon = () => navigate('/mula-mohon');
   const goCaraMohon = () => navigate('/cara-mohon');
   const goLogin = () => navigate('/login');
+  const goSemakKelayakan = () => navigate('/semak-kelayakan');
 
   return (
     <div className="min-h-screen bg-white text-slate-900 antialiased" style={{ fontSize: `${fontScale}rem` }}>
@@ -544,10 +547,10 @@ export default function LandingPage() {
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">{t.cta.title}</h2>
             <p className="text-lg text-white/70 mt-5">{t.cta.sub}</p>
             <button
-              onClick={goMulaMohon}
+              onClick={goSemakKelayakan}
               className="mt-10 inline-flex items-center gap-2 bg-white text-[#1B2B5E] px-8 py-4 rounded-full font-bold hover:bg-slate-100 active:scale-95 transition-all shadow-lg"
             >
-              {t.cta.btn} <ArrowRight size={17} />
+              {t.cta.btn2} <ArrowRight size={17} />
             </button>
           </Reveal>
         </div>
@@ -561,7 +564,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
             <div className="lg:col-span-1">
-              <img src="/images/tekun-icon.png" alt="TEKUN Nasional" className="h-12 w-auto object-contain brightness-0 invert" />
+              <img src="/images/tekun-icon.png" alt="TEKUN Nasional" className="h-12 w-auto object-contain" />
               <p className="text-sm text-slate-400 leading-relaxed mt-5">{t.footer.about}</p>
             </div>
             <div>
