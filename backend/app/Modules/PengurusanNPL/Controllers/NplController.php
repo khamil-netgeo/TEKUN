@@ -5,6 +5,8 @@ namespace App\Modules\PengurusanNPL\Controllers;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Module 5 — Pengurusan NPL & Kutipan Hutang
@@ -97,17 +99,56 @@ class NplController extends Controller
     public function sendDunning(Request $request, string $id)
     {
         $channel = $request->input('channel', 'sms');
+        
+        $account = DB::table('accounts')->where('id', $id)->first();
+        if (!$account) {
+            return response()->json(['error' => 'Account not found'], 404);
+        }
+
+        $message = "Sila ambil maklum bahawa akaun pinjaman anda ({$account->account_no}) mempunyai tunggakan sebanyak RM{$account->arrears_amount}. Sila buat bayaran segera.";
+        $status = 'failed';
+
+        try {
+            $gatewayUrl = config('services.notification.url', 'https://api.notification-gateway.example.com/send');
+            $gatewayKey = config('services.notification.key', 'default-key');
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $gatewayKey,
+                'Accept' => 'application/json'
+            ])->post($gatewayUrl, [
+                'channel' => $channel,
+                'recipient' => $account->ic_no,
+                'message' => $message,
+                'reference_id' => $account->account_no
+            ]);
+
+            if ($response->successful()) {
+                $status = 'sent';
+            } else {
+                Log::error("Failed to send dunning notification via {$channel}", ['response' => $response->body()]);
+            }
+        } catch (\Exception $e) {
+            Log::error("Exception sending dunning notification via {$channel}", ['error' => $e->getMessage()]);
+        }
+
         DB::table('dunning_actions')->insert([
             'account_id'   => (int) $id,
             'action_type'  => 'dunning_notice',
             'channel'      => $channel,
-            'status'       => 'sent',
+            'status'       => $status,
             'is_automated' => true,
             'actioned_at'  => now(),
             'created_at'   => now(),
             'updated_at'   => now(),
         ]);
-        return response()->json(['notis_sent' => 1, 'channel' => $channel, 'account_id' => (int) $id, 'sent_at' => now()->toISOString()]);
+        
+        return response()->json([
+            'notis_sent' => $status === 'sent' ? 1 : 0,
+            'status'     => $status,
+            'channel'    => $channel,
+            'account_id' => (int) $id,
+            'sent_at'    => now()->toISOString()
+        ]);
     }
 
     // Collection Tasks
