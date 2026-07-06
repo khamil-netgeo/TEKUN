@@ -226,7 +226,7 @@ export default function CreditDashboard() {
                           </td>
                           <td className="px-3 py-3">
                             <button
-                              onClick={() => navigate(`/module2/assessment/${row.ref_no}`)}
+                              onClick={() => navigate(`/module2/pre-assessment/${row.id}`)}
                               className="px-3 py-1.5 rounded text-xs font-bold text-white transition-opacity hover:opacity-80 flex items-center gap-1"
                               style={{ background: '#1B2B5E' }}
                             >

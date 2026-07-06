@@ -17,7 +17,7 @@ export const creditRoutes: RouteObject[] = [
     element: (<ProtectedRoute allowedRoles={M2_ROLES}><CreditDashboard /></ProtectedRoute>),
   },
   {
-    path: '/module2/pre-assessment',
+    path: '/module2/pre-assessment/:id',
     element: (<ProtectedRoute allowedRoles={M2_ROLES}><PreAssessment /></ProtectedRoute>),
   },
   {
