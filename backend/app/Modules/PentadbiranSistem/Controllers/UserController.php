@@ -434,6 +434,8 @@ class UserController extends Controller
     private function logAudit(string $action, User $user, array $before, array $after, string $details): void
     {
         AuditTrail::create([
+                'auditable_type' => \App\Models\User::class,
+                'auditable_id'   => Auth::id() ?? 0,
             'user_id'     => Auth::id() ?? 1,
             'module'      => 'Pentadbiran Sistem - Pengguna',
             'action'      => $action,
