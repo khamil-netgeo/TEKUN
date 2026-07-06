@@ -10,6 +10,11 @@ abstract class TestCase extends BaseTestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Whether module migrations have been run in this PHP process.
+     * Static = persists across all test classes in one test run.
+     * Reset to false after each migrate:fresh via setUp.
+     */
     private static bool $modulesMigrated = false;
 
     protected function setUp(): void
@@ -57,15 +62,5 @@ abstract class TestCase extends BaseTestCase
         } catch (\Throwable $e) {
             // Ignore
         }
-    }
-
-    /**
-     * Reset the static flag when the database is refreshed.
-     * This ensures module migrations re-run after a migrate:fresh.
-     */
-    protected function refreshDatabase(): void
-    {
-        self::$modulesMigrated = false;
-        parent::refreshDatabase();
     }
 }
