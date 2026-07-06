@@ -30,16 +30,31 @@ class DashboardApiTest extends TestCase
             'role'       => 'executive',
             'role_label' => 'Eksekutif',
             'permissions' => [
-                'modules' => ['module6'],
+                'modules'        => ['module6'],
                 'approval_limit' => 0,
             ],
         ]);
+
+        // Assign Spatie role so role:Eksekutif middleware passes
+        try {
+            $this->user->assignRole('Eksekutif');
+        } catch (\Exception $e) {
+            // If Spatie roles not seeded, try creating the role on the fly
+            try {
+                $role = \Spatie\Permission\Models\Role::firstOrCreate(
+                    ['name' => 'Eksekutif', 'guard_name' => 'sanctum']
+                );
+                $this->user->assignRole($role);
+            } catch (\Exception $e2) {
+                // If role assignment fails entirely, skip — middleware may still pass
+                // via the 'role' column check in some configurations
+            }
+        }
 
         $response = $this->postJson('/api/auth/login', [
             'email'    => 'eksekutif.m6test@tekun.gov.my',
             'password' => 'demo1234',
         ]);
-
         $this->token = $response->json('data.token') ?? $response->json('token') ?? '';
     }
 
@@ -62,7 +77,6 @@ class DashboardApiTest extends TestCase
                     'as_of',
                 ],
             ]);
-
         $this->assertTrue($response->json('success'));
     }
 
@@ -98,7 +112,6 @@ class DashboardApiTest extends TestCase
                     'summary',
                 ],
             ]);
-
         $branches = $response->json('data.branches');
         $this->assertNotEmpty($branches);
         $this->assertArrayHasKey('rank', $branches[0]);
@@ -163,7 +176,6 @@ class DashboardApiTest extends TestCase
                     'status',
                 ],
             ]);
-
         $this->assertEquals('completed', $response->json('data.status'));
     }
 

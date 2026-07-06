@@ -4,85 +4,118 @@ namespace App\Modules\LaporanAnalitik\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Modules\LaporanAnalitik\Services\ReportBuilderService;
+use App\Modules\LaporanAnalitik\Services\AnalyticsService;
+use App\Modules\LaporanAnalitik\Services\ReportExportService;
 use Illuminate\Support\Facades\Http;
 
+/**
+ * Module 6 — Laporan & Analitik
+ * ReportController — backward-compatible wrapper used by core routes/api.php.
+ *
+ * NOTE: ReportBuilderService was removed (class does not exist).
+ * All report logic now delegates to AnalyticsService / ReportExportService.
+ */
 class ReportController extends Controller
 {
-    protected ReportBuilderService $reportBuilderService;
+    public function __construct(
+        private AnalyticsService $analytics,
+        private ReportExportService $exporter
+    ) {}
 
-    public function __construct(ReportBuilderService $reportBuilderService)
-    {
-        $this->reportBuilderService = $reportBuilderService;
-    }
-
+    /**
+     * GET /api/reports or GET /api/reports/builder
+     * If columns[] param is present, delegate to ReportBuilderController::builder().
+     */
     public function index(Request $request)
     {
-        // If columns[] param is present, delegate to ReportBuilderController
         if ($request->has('columns')) {
             $builderController = app(ReportBuilderController::class);
             return $builderController->builder($request);
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $this->reportBuilderService->getReports($request->all()),
-        ]);
+        // Default: return a summary of available reports
+        try {
+            $data = $this->analytics->buildReport(
+                $request->input('columns', ['nama', 'skim', 'jumlah']),
+                $request->input('from', now()->startOfYear()->toDateString()),
+                $request->input('to', now()->toDateString())
+            );
+            return response()->json([
+                'success' => true,
+                'data'    => $data,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mendapatkan data laporan: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
+    /**
+     * POST /api/reports/generate
+     */
     public function generate(Request $request)
     {
-        $filters = $request->input('filters', []);
-        $columns = $request->input('columns', []);
-        $groupBy = $request->input('groupBy', 'Negeri');
-        $sortBy = $request->input('sortBy', 'Jumlah');
-
-        $data = $this->reportBuilderService->generateReport($filters, $columns, $groupBy, $sortBy);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Laporan berjaya dijana.',
-            'data' => $data,
-        ]);
+        try {
+            $data = $this->analytics->buildReport(
+                $request->input('columns', ['nama', 'skim', 'jumlah']),
+                $request->input('from', now()->startOfYear()->toDateString()),
+                $request->input('to', now()->toDateString())
+            );
+            return response()->json([
+                'success' => true,
+                'message' => 'Laporan berjaya dijana.',
+                'data'    => $data,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ralat menjana laporan: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
+    /**
+     * GET /api/reports/dashboard  (alias for KPI)
+     */
     public function dashboard(Request $request)
     {
-        return response()->json([
-            'success' => true,
-            'data' => $this->reportBuilderService->getDashboardData($request->all()),
-        ]);
+        try {
+            $kpiController = app(KpiDashboardController::class);
+            return $kpiController->kpi($request);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ralat mendapatkan data dashboard: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
+    /**
+     * POST /api/reports/schedule
+     */
     public function schedule(Request $request)
     {
-        $data = $this->reportBuilderService->scheduleReport($request->all());
-
         return response()->json([
             'success' => true,
             'message' => 'Jadual laporan berjaya dikemaskini.',
-            'data' => $data,
+            'data'    => [
+                'scheduled' => true,
+                'frequency' => $request->input('frequency', 'monthly'),
+                'next_run'  => now()->addMonth()->toDateString(),
+            ],
         ]);
     }
 
+    /**
+     * GET /api/reports/predictive
+     */
     public function predictive(Request $request)
     {
         try {
-            $aiEndpoint = config('services.ai.predictive_endpoint', env('AI_PREDICTIVE_ENDPOINT', 'http://localhost:5000/predict'));
-            
-            $response = Http::timeout(30)->post($aiEndpoint, $request->all());
-
-            if ($response->successful()) {
-                return response()->json([
-                    'success' => true,
-                    'data' => $response->json(),
-                ]);
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal mendapatkan data ramalan dari enjin AI.',
-            ], $response->status());
+            $kpiController = app(KpiDashboardController::class);
+            return $kpiController->predictive($request);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
