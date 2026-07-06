@@ -4,8 +4,9 @@ import {
   ArrowLeft, Shield, AlertTriangle, CheckCircle, 
   Activity, FileText, Download, ChevronRight, XCircle
 } from 'lucide-react';
-import { AiBadge } from '@/components/ui/AiBadge';
-import { creditService, CreditAssessment } from '../services/creditService';
+import AiBadge from '@/components/ui/AiBadge';
+import { creditService } from '../services/creditService';
+import type { CreditAssessment } from '../services/creditService';
 import toast from 'react-hot-toast';
 
 export default function CreditScoring() {
@@ -140,7 +141,7 @@ export default function CreditScoring() {
           <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-semibold text-navy-900">Pecahan Faktor Risiko (5C)</h2>
-              <AiBadge>Analisis Algoritma</AiBadge>
+              <AiBadge label="Analisis Algoritma" />
             </div>
             
             <div className="space-y-5">
@@ -169,7 +170,7 @@ export default function CreditScoring() {
                 <Shield className="w-5 h-5 text-purple-700" />
                 <h2 className="text-lg font-semibold text-purple-900">Ulasan & Naratif AI</h2>
               </div>
-              <AiBadge>Generatif AI</AiBadge>
+              <AiBadge label="Generatif AI" />
             </div>
             
             <div className="bg-white p-4 rounded-lg border border-purple-100 text-gray-700 leading-relaxed">

@@ -274,7 +274,7 @@ export default function CreditDashboard() {
                 <XAxis dataKey="time" tick={{ fontSize: 8, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 8, fill: '#9CA3AF' }} axisLine={false} tickLine={false} domain={[0, 14]} />
                 <ReferenceLine y={12} stroke="#E65100" strokeDasharray="4 4" />
-                <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: number) => [`${v} penilaian`, 'Selesai']} />
+                <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: unknown) => [`${v} penilaian`, 'Selesai']} />
                 <Bar dataKey="value" fill="#1B2B5E" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

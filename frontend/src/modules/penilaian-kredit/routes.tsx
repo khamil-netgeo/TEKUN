@@ -1,8 +1,7 @@
 import React from 'react';
-import { RouteObject } from 'react-router-dom';
-import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
+import type { RouteObject } from 'react-router-dom';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
-// Lazy load components
 const CreditDashboard = React.lazy(() => import('./pages/CreditDashboard'));
 const PreAssessment = React.lazy(() => import('./pages/PreAssessment'));
 const CreditScoring = React.lazy(() => import('./pages/CreditScoring'));
@@ -10,19 +9,33 @@ const ApprovalWorkflow = React.lazy(() => import('./pages/ApprovalWorkflow'));
 const AmortizationCalc = React.lazy(() => import('./pages/AmortizationCalc'));
 const OfferLetter = React.lazy(() => import('./pages/OfferLetter'));
 
+const M2_ROLES = ['Pegawai Kredit', 'Pengurus Cawangan', 'Pentadbir Sistem'];
+
 export const creditRoutes: RouteObject[] = [
   {
-    path: 'penilaian-kredit',
-    element: <ProtectedRoute allowedRoles={['Pegawai Kredit', 'Pengurus Cawangan', 'Pentadbir Sistem']} />,
-    children: [
-      { index: true, element: <CreditDashboard /> },
-      { path: 'pre-assessment/:id', element: <PreAssessment /> },
-      { path: 'scoring/:id', element: <CreditScoring /> },
-      { path: 'approval/:id', element: <ApprovalWorkflow /> },
-      { path: 'amortization/:id', element: <AmortizationCalc /> },
-      { path: 'offer-letter/:id', element: <OfferLetter /> }
-    ]
-  }
+    path: '/module2/dashboard',
+    element: (<ProtectedRoute allowedRoles={M2_ROLES}><CreditDashboard /></ProtectedRoute>),
+  },
+  {
+    path: '/module2/pre-assessment',
+    element: (<ProtectedRoute allowedRoles={M2_ROLES}><PreAssessment /></ProtectedRoute>),
+  },
+  {
+    path: '/module2/scoring/:id',
+    element: (<ProtectedRoute allowedRoles={M2_ROLES}><CreditScoring /></ProtectedRoute>),
+  },
+  {
+    path: '/module2/approval',
+    element: (<ProtectedRoute allowedRoles={M2_ROLES}><ApprovalWorkflow /></ProtectedRoute>),
+  },
+  {
+    path: '/module2/amortization/:id',
+    element: (<ProtectedRoute allowedRoles={M2_ROLES}><AmortizationCalc /></ProtectedRoute>),
+  },
+  {
+    path: '/module2/offer-letter/:id',
+    element: (<ProtectedRoute allowedRoles={M2_ROLES}><OfferLetter /></ProtectedRoute>),
+  },
 ];
 
 export default creditRoutes;
