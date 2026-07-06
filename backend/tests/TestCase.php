@@ -2,59 +2,57 @@
 
 namespace Tests;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 abstract class TestCase extends BaseTestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
-    private static bool $modulesMigrated = false;
-    private static bool $rolesSeeded = false;
+    private static bool $dbInitialized = false;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Run module migrations once per test process
-        if (!self::$modulesMigrated) {
-            $this->runModuleMigrations();
-            self::$modulesMigrated = true;
+        if (!self::$dbInitialized) {
+            $this->initializeDatabase();
+            self::$dbInitialized = true;
+        }
+    }
+
+    private function initializeDatabase(): void
+    {
+        // Run core migrations
+        Artisan::call('migrate', ['--force' => true]);
+
+        // Run all module migrations
+        $modulesPath = app_path('Modules');
+        if (is_dir($modulesPath)) {
+            foreach (glob($modulesPath . '/*/Database/Migrations') as $path) {
+                try {
+                    Artisan::call('migrate', [
+                        '--path'  => str_replace(base_path() . '/', '', $path),
+                        '--force' => true,
+                    ]);
+                } catch (\Throwable $e) {
+                    // Ignore already-exists errors
+                }
+            }
         }
 
-        // Seed roles if not present
+        // Seed core roles
         try {
             if (\Spatie\Permission\Models\Role::count() === 0) {
-                $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\CoreRolesOnlySeeder']);
-            }
-        } catch (\Throwable $e) {
-            // Ignore seeding errors
-        }
-    }
-
-    protected function refreshApplication(): void
-    {
-        parent::refreshApplication();
-        self::$modulesMigrated = false;
-        self::$rolesSeeded = false;
-    }
-
-    private function runModuleMigrations(): void
-    {
-        $modulesPath = app_path('Modules');
-        if (!is_dir($modulesPath)) {
-            return;
-        }
-
-        foreach (glob($modulesPath . '/*/Database/Migrations') as $path) {
-            try {
-                $this->artisan('migrate', [
-                    '--path'  => str_replace(base_path() . '/', '', $path),
+                Artisan::call('db:seed', [
+                    '--class' => 'Database\\Seeders\\CoreRolesOnlySeeder',
                     '--force' => true,
                 ]);
-            } catch (\Throwable $e) {
-                // Ignore errors (e.g., column already exists)
             }
+        } catch (\Throwable $e) {
+            // Ignore
         }
     }
 }
