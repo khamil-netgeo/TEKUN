@@ -37,9 +37,9 @@ export default function ApplicationList() {
         scheme: schemeFilter !== 'all' ? schemeFilter as any : undefined,
       };
       const res = await getApplications(params);
-      setApplications(res.data);
-      setTotal(res.total);
-      setTotalPages(res.last_page);
+      setApplications(Array.isArray(res.data) ? res.data : []);
+      setTotal(res.total ?? 0);
+      setTotalPages(res.last_page ?? 1);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Ralat memuat senarai permohonan.');
     } finally {
@@ -52,9 +52,9 @@ export default function ApplicationList() {
     return () => clearTimeout(timer);
   }, [fetchApplications]);
 
-  const submitted = applications.filter(a => a.status === 'submitted').length;
-  const approved  = applications.filter(a => a.status === 'approved').length;
-  const rejected  = applications.filter(a => a.status === 'rejected').length;
+  const submitted = (applications ?? []).filter(a => a.status === 'submitted').length;
+  const approved  = (applications ?? []).filter(a => a.status === 'approved').length;
+  const rejected  = (applications ?? []).filter(a => a.status === 'rejected').length;
 
   const statCards = [
     { label: 'Jumlah Permohonan', value: total,     color: '#1B2B5E' },
@@ -183,7 +183,7 @@ export default function ApplicationList() {
                 </td>
               </tr>
             ) : (
-              applications.map(app => {
+              (applications ?? []).map(app => {
                 const statusCfg = STATUS_CONFIG[app.status] ?? { label: app.status, bg: '#F3F4F6', text: '#6B7280' };
                 const schemeCfg = SCHEME_CONFIG[app.scheme];
                 return (
