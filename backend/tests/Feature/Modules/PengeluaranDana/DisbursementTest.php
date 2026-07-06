@@ -75,6 +75,16 @@ class DisbursementTest extends TestCase
             'twofa_required'   => true,
             'twofa_confirmed'  => false,
         ]);
+        // Create a critical disbursement (aging_days > 2) for aging report tests
+        Disbursement::factory()->create([
+            'application_id' => $this->application->id,
+            'ref_no'         => 'DIS-TEST-CRITICAL-01',
+            'amount'         => 5000,
+            'status'         => 'pending',
+            'esign_status'   => 'pending',
+            'aging_days'     => 3,
+            'sla_breach'     => true,
+        ]);
     }
 
     // ─── 1. Unauthenticated access rejected ───────────────────────────────────

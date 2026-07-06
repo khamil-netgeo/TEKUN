@@ -45,9 +45,20 @@ class DisbursementController extends Controller
         $perPage = (int) $request->get('per_page', 15);
         $data    = $query->paginate($perPage);
 
+        // Build meta stats for the disbursement list
+        $meta = [
+            'total'          => \App\Models\Disbursement::count(),
+            'ready'          => \App\Models\Disbursement::where('status', 'approved')
+                                    ->where('esign_status', 'signed')->count(),
+            'pending_esign'  => \App\Models\Disbursement::where('esign_status', 'pending')->count(),
+            'processed_today'=> \App\Models\Disbursement::whereDate('disbursed_at', today())->count(),
+            'total_amount'   => (float) \App\Models\Disbursement::sum('amount'),
+        ];
+
         return response()->json([
             'success'       => true,
             'data'          => $data->items(),
+            'meta'          => $meta,
             'total_records' => $data->total(),
             'current_page'  => $data->currentPage(),
             'last_page'     => $data->lastPage(),
@@ -154,10 +165,11 @@ class DisbursementController extends Controller
             });
 
         $summary = [
-            'critical' => $disbursements->where('sla_status', 'critical')->count(),
-            'warning'  => $disbursements->where('sla_status', 'warning')->count(),
-            'normal'   => $disbursements->where('sla_status', 'normal')->count(),
-            'total'    => $disbursements->count(),
+            'critical'       => $disbursements->where('sla_status', 'critical')->count(),
+            'warning'        => $disbursements->where('sla_status', 'warning')->count(),
+            'normal'         => $disbursements->where('sla_status', 'normal')->count(),
+            'total'          => $disbursements->count(),
+            'auto_escalated' => $disbursements->where('is_escalated', true)->count(),
         ];
 
         return response()->json([
