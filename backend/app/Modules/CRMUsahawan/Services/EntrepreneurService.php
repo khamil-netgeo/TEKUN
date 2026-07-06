@@ -205,8 +205,37 @@ class EntrepreneurService
      */
     public function semanticSearch(string $query, int $branchId = null): \Illuminate\Support\Collection
     {
-        // For production: generate embedding for query, then do pgvector cosine similarity search.
-        // For POC: use enhanced SQL search with multiple fields.
+        try {
+            $apiKey  = config('services.openai.key', env('OPENAI_API_KEY'));
+            $apiBase = config('services.openai.base_url', env('OPENAI_API_BASE', 'https://api.openai.com/v1'));
+
+            $response = Http::withToken($apiKey)
+                ->timeout(15)
+                ->post("{$apiBase}/embeddings", [
+                    'model' => 'text-embedding-ada-002',
+                    'input' => $query,
+                ]);
+
+            if ($response->successful() && $embedding = $response->json('data.0.embedding')) {
+                $embeddingString = '[' . implode(',', $embedding) . ']';
+
+                $builder = Entrepreneur::query()
+                    ->with(['branch', 'assignedOfficer'])
+                    ->select('*')
+                    ->selectRaw('embedding <=> ? AS distance', [$embeddingString])
+                    ->orderBy('distance');
+
+                if ($branchId) {
+                    $builder->where('branch_id', $branchId);
+                }
+
+                return $builder->limit(20)->get();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('M7 AI semantic search failed: ' . $e->getMessage());
+        }
+
+        // Fallback to SQL ILIKE search if LLM unavailable
         $builder = Entrepreneur::query()
             ->with(['branch', 'assignedOfficer'])
             ->where(function ($q) use ($query) {

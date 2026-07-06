@@ -28,17 +28,20 @@ export default function ScheduleVisitModal({ entrepreneurId, entrepreneurName, o
   const [date, setDate]       = useState('');
   const [time, setTime]       = useState('');
   const [purpose, setPurpose] = useState(PURPOSES[0]);
+  const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) { toast.error('Sila pilih tarikh lawatan.'); return; }
+    if (!location) { toast.error('Sila masukkan lokasi lawatan.'); return; }
     setLoading(true);
     try {
       const result = await scheduleVisit(entrepreneurId, {
         scheduled_date: date,
         scheduled_time: time || undefined,
         purpose,
+        location,
       });
       toast.success('Lawatan lapangan berjaya dijadualkan!');
       onScheduled(result.visit);
@@ -71,6 +74,18 @@ export default function ScheduleVisitModal({ entrepreneurId, entrepreneurName, o
             >
               {PURPOSES.map(p => <option key={p}>{p}</option>)}
             </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Lokasi Lawatan *</label>
+            <input
+              type="text"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              required
+              placeholder="Masukkan lokasi lawatan"
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
