@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Download, Sparkles, TrendingUp, Shield, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface ScoringFactor {
@@ -76,6 +77,7 @@ function GaugeMeter({ score }: { score: number }) {
 }
 
 export default function CreditScoring() {
+  const navigate = useNavigate();
   const [generating, setGenerating] = useState(false);
   const [aiNarrative, setAiNarrative] = useState<string | null>(null);
 
@@ -205,7 +207,7 @@ export default function CreditScoring() {
               ))}
             </div>
 
-            <button className="w-full py-3 bg-[#2E7D32] text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#1B5E20] transition-colors" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <button onClick={() => navigate("/module2/approval")} className="w-full py-3 bg-[#2E7D32] text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#1B5E20] transition-colors" style={{ fontFamily: "Inter, sans-serif" }}>
               <CheckCircle size={16} /> Teruskan ke Kelulusan <ChevronRight size={16} />
             </button>
 

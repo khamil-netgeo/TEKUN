@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Clock, AlertCircle, ChevronRight, Sparkles, User, FileText, Send } from 'lucide-react';
 
 type ApprovalLevel = 'pegawai' | 'pengurus' | 'kredit' | 'eksekutif';
@@ -31,6 +32,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 export default function ApprovalWorkflow() {
+  const navigate = useNavigate();
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -129,7 +131,7 @@ export default function ApprovalWorkflow() {
               ))}
             </div>
           </div>
-          <button className="w-full py-3 bg-[#1B2B5E] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#152348]">
+          <button onClick={() => navigate("/module2/offer-letter")} className="w-full py-3 bg-[#1B2B5E] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#152348]">
             <FileText size={16} /> Jana Surat Tawaran <ChevronRight size={16} />
           </button>
         </div>
