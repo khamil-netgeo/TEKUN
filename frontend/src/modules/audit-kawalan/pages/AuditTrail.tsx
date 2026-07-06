@@ -1,12 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/services/api';
 
-const LOGS = [
-  { id: 1, user: 'Hafiz Bin Ramli', role: 'Pegawai Kredit', action: 'APPROVE', module: 'Permohonan', record: 'APP-2026-00234', before: 'Dalam Semakan', after: 'Lulus', ip: '192.168.1.45', timestamp: '2026-07-04 09:45:32' },
-  { id: 2, user: 'Aminah Bt Yusof', role: 'Pentadbir Sistem', action: 'UPDATE', module: 'Pengguna', record: 'USR-00089', before: 'Aktif', after: 'Tidak Aktif', ip: '192.168.1.12', timestamp: '2026-07-04 09:32:15' },
-  { id: 3, user: 'Ahmad Faizal', role: 'Pegawai Kewangan', action: 'DISBURSE', module: 'Pengeluaran', record: 'DIS-2026-00567', before: 'Menunggu', after: 'Dibayar', ip: '192.168.1.78', timestamp: '2026-07-04 09:18:44' },
-  { id: 4, user: 'Noraini Bt Hassan', role: 'Pengurus Cawangan', action: 'VIEW', module: 'Laporan', record: 'RPT-20260704', before: '-', after: '-', ip: '192.168.1.23', timestamp: '2026-07-04 09:05:11' },
-  { id: 5, user: 'Zulkifli Bin Omar', role: 'Pegawai Kredit', action: 'REJECT', module: 'Permohonan', record: 'APP-2026-00235', before: 'Dalam Semakan', after: 'Tolak', ip: '192.168.1.56', timestamp: '2026-07-04 08:55:22' },
-];
+interface AuditLog {
+  id: number;
+  user: string;
+  role: string;
+  action: string;
+  module: string;
+  record: string;
+  before: string;
+  after: string;
+  ip: string;
+  timestamp: string;
+}
+
+interface AuditStats {
+  todayLogs: number | string;
+  criticalActions: number | string;
+  activeUsers: number | string;
+  aiAnomalies: number | string;
+}
 
 const ACTION_COLORS: Record<string, string> = {
   'APPROVE': 'bg-green-100 text-green-700',
@@ -18,13 +31,48 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 export default function AuditTrail() {
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [stats, setStats] = useState<AuditStats | null>(null);
+  const [anomalies, setAnomalies] = useState<any[] | string>([]);
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('Semua');
+  const [loading, setLoading] = useState(true);
 
-  const filtered = LOGS.filter(l =>
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        const [logsRes, statsRes, anomaliesRes] = await Promise.all([
+          api.get('/api/audit-logs').catch(() => ({ data: { data: [] } })),
+          api.get('/api/audit-stats').catch(() => ({ data: { data: null } })),
+          api.get('/api/audit-anomalies').catch(() => ({ data: { data: [] } }))
+        ]);
+
+        setLogs(logsRes.data?.data || logsRes.data || []);
+        setStats(statsRes.data?.data || statsRes.data || null);
+        setAnomalies(anomaliesRes.data?.data || anomaliesRes.data || []);
+      } catch (error) {
+        console.error('Error fetching audit data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
+
+  const filtered = logs.filter(l =>
     (actionFilter === 'Semua' || l.action === actionFilter) &&
     (l.user.toLowerCase().includes(search.toLowerCase()) || l.record.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const kpis = [
+    { label: 'Log Hari Ini', value: stats?.todayLogs ?? '0', color: '#1B2B5E' },
+    { label: 'Tindakan Kritikal', value: stats?.criticalActions ?? '0', color: '#DC2626' },
+    { label: 'Pengguna Aktif', value: stats?.activeUsers ?? '0', color: '#16A34A' },
+    { label: 'Anomali Dikesan AI', value: stats?.aiAnomalies ?? '0', color: '#7C3AED' },
+  ];
 
   return (
     <div className="space-y-4">
@@ -34,15 +82,12 @@ export default function AuditTrail() {
       </div>
 
       <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'Log Hari Ini', value: '247', color: '#1B2B5E' },
-          { label: 'Tindakan Kritikal', value: '12', color: '#DC2626' },
-          { label: 'Pengguna Aktif', value: '38', color: '#16A34A' },
-          { label: 'Anomali Dikesan AI', value: '3', color: '#7C3AED' },
-        ].map(kpi => (
+        {kpis.map(kpi => (
           <div key={kpi.label} className="sppt-card text-center">
             <div className="text-xs text-gray-500 mb-1">{kpi.label}</div>
-            <div className="text-2xl font-bold" style={{ color: kpi.color }}>{kpi.value}</div>
+            <div className="text-2xl font-bold" style={{ color: kpi.color }}>
+              {loading ? '...' : kpi.value}
+            </div>
           </div>
         ))}
       </div>
@@ -72,22 +117,32 @@ export default function AuditTrail() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(log => (
-              <tr key={log.id} className="border-b hover:bg-gray-50">
-                <td className="p-2 text-gray-400 text-xs">{log.id}</td>
-                <td className="p-2 font-semibold text-xs">{log.user}</td>
-                <td className="p-2 text-xs text-gray-500">{log.role}</td>
-                <td className="p-2">
-                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${ACTION_COLORS[log.action]}`}>{log.action}</span>
-                </td>
-                <td className="p-2 text-xs">{log.module}</td>
-                <td className="p-2 text-xs font-mono text-blue-600">{log.record}</td>
-                <td className="p-2 text-xs text-gray-500">{log.before}</td>
-                <td className="p-2 text-xs font-semibold">{log.after}</td>
-                <td className="p-2 text-xs font-mono text-gray-400">{log.ip}</td>
-                <td className="p-2 text-xs text-gray-400">{log.timestamp}</td>
+            {loading ? (
+              <tr>
+                <td colSpan={10} className="p-4 text-center text-gray-500">Memuatkan data...</td>
               </tr>
-            ))}
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="p-4 text-center text-gray-500">Tiada rekod dijumpai</td>
+              </tr>
+            ) : (
+              filtered.map(log => (
+                <tr key={log.id} className="border-b hover:bg-gray-50">
+                  <td className="p-2 text-gray-400 text-xs">{log.id}</td>
+                  <td className="p-2 font-semibold text-xs">{log.user}</td>
+                  <td className="p-2 text-xs text-gray-500">{log.role}</td>
+                  <td className="p-2">
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${ACTION_COLORS[log.action] || 'bg-gray-100 text-gray-600'}`}>{log.action}</span>
+                  </td>
+                  <td className="p-2 text-xs">{log.module}</td>
+                  <td className="p-2 text-xs font-mono text-blue-600">{log.record}</td>
+                  <td className="p-2 text-xs text-gray-500">{log.before}</td>
+                  <td className="p-2 text-xs font-semibold">{log.after}</td>
+                  <td className="p-2 text-xs font-mono text-gray-400">{log.ip}</td>
+                  <td className="p-2 text-xs text-gray-400">{log.timestamp}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -100,9 +155,23 @@ export default function AuditTrail() {
               Pengesanan Anomali AI
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">✨ AI</span>
             </div>
-            <p className="text-xs text-purple-700 mt-1">
-              3 corak akses luar biasa dikesan: (1) Log masuk dari IP baru pada 3:24 AM, (2) 47 rekod dilihat dalam 5 minit oleh satu pengguna, (3) Percubaan akses ke modul pentadbiran oleh peranan yang tidak dibenarkan.
-            </p>
+            <div className="text-xs text-purple-700 mt-1">
+              {loading ? (
+                'Memuatkan anomali...'
+              ) : typeof anomalies === 'string' ? (
+                <p>{anomalies}</p>
+              ) : Array.isArray(anomalies) && anomalies.length > 0 ? (
+                <ul className="list-disc pl-4 space-y-1">
+                  {anomalies.map((anomaly, index) => (
+                    <li key={anomaly.id || index}>
+                      {anomaly.description || anomaly.message || anomaly}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                'Tiada anomali dikesan buat masa ini.'
+              )}
+            </div>
           </div>
         </div>
       </div>
