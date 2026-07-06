@@ -5,11 +5,10 @@ import {
   FileText, CheckCircle, AlertTriangle, Clock,
   Search, Filter, Eye, Activity, TrendingUp
 } from 'lucide-react';
-import { StatCard } from '@/components/ui/StatCard';
-import { DataTable } from '@/components/ui/DataTable';
-import { AiBadge } from '@/components/ui/AiBadge';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { creditService, DashboardStats } from '../services/creditService';
+import StatCard from '@/components/ui/StatCard';
+import DataTable from '@/components/ui/DataTable';
+import AiBadge from '@/components/ui/AiBadge';
+import { creditService } from '../services/creditService';
 import toast from 'react-hot-toast';
 
 export default function CreditDashboard() {
@@ -52,47 +51,29 @@ export default function CreditDashboard() {
   };
 
   const columns = [
-    {
-      header: 'No. Rujukan',
-      accessor: 'ref_no',
-      cell: (row: any) => <span className="font-medium text-[#1B2B5E]">{row.ref_no}</span>
+    { 
+      header: 'No. Rujukan', 
+      key: 'ref_no',
+      render: (row: any) => <span className="font-medium text-navy-900">{row.ref_no}</span>
     },
-    { header: 'Nama Pemohon', accessor: 'applicant_name' },
-    {
-      header: 'Amaun (RM)',
-      accessor: 'amount_requested',
-      cell: (row: any) => new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(row.amount_requested)
+    { header: 'Nama Pemohon', key: 'applicant_name' },
+    { 
+      header: 'Amaun (RM)', 
+      key: 'amount_requested',
+      render: (row: any) => new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(row.amount_requested)
     },
-    {
-      header: 'Skim',
-      accessor: 'scheme',
-      cell: (row: any) => (
-        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-          {row.scheme || '—'}
-        </span>
-      )
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
-      cell: (row: any) => (
-        <span className={`px-2 py-1 rounded text-xs font-medium ${
-          row.status === 'pending_assessment' ? 'bg-orange-50 text-orange-700' :
-          row.status === 'approved' ? 'bg-green-50 text-green-700' :
-          'bg-red-50 text-red-700'
-        }`}>
-          {row.status === 'pending_assessment' ? 'Menunggu Penilaian' :
-           row.status === 'approved' ? 'Diluluskan' : row.status}
-        </span>
-      )
+    { 
+      header: 'Tarikh Mohon', 
+      key: 'created_at',
+      render: (row: any) => new Date(row.created_at).toLocaleDateString('ms-MY')
     },
     {
       header: 'Tindakan',
-      accessor: 'id',
-      cell: (row: any) => (
-        <button
-          onClick={() => navigate(`/penilaian-kredit/scoring/${row.id}`)}
-          className="flex items-center gap-1 px-3 py-1.5 bg-[#1B2B5E] text-white rounded-lg text-xs font-medium hover:bg-blue-900 transition-colors"
+      key: 'id',
+      render: (row: any) => (
+        <button 
+          onClick={() => navigate(`/penilaian-kredit/pre-assessment/${row.id}`)}
+          className="flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-800"
         >
           <Eye className="w-3.5 h-3.5" />
           Nilai
@@ -117,41 +98,29 @@ export default function CreditDashboard() {
         <AiBadge>Dikuasakan oleh SPPT AI</AiBadge>
       </div>
 
-      {/* KPI Stats — from real DB */}
-      {statsLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white p-5 rounded-xl border border-gray-200 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-3"></div>
-              <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard
-            title="Menunggu Penilaian"
-            value={(stats?.pending_assessment ?? applications.length).toString()}
-            icon={<FileText className="w-5 h-5 text-blue-600" />}
-            trend={{ value: 12, isPositive: true }}
-          />
-          <StatCard
-            title="Purata Skor Kredit"
-            value={stats?.avg_score ? stats.avg_score.toFixed(1) : '—'}
-            icon={<Activity className="w-5 h-5 text-purple-600" />}
-          />
-          <StatCard
-            title="Diluluskan Hari Ini"
-            value={(stats?.approved_today ?? 0).toString()}
-            icon={<CheckCircle className="w-5 h-5 text-green-600" />}
-          />
-          <StatCard
-            title="Kes Sempadan (Borderline)"
-            value={(stats?.borderline_cases ?? 0).toString()}
-            icon={<AlertTriangle className="w-5 h-5 text-orange-600" />}
-          />
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard 
+          title="Tugasan Baharu" 
+          value={applications.length.toString()} 
+          icon={<FileText className="w-5 h-5 text-blue-600" />} 
+          trend={12}
+        />
+        <StatCard 
+          title="Sedang Dinilai" 
+          value="15" 
+          icon={<Clock className="w-5 h-5 text-orange-600" />} 
+        />
+        <StatCard 
+          title="Selesai (Hari Ini)" 
+          value="8" 
+          icon={<CheckCircle className="w-5 h-5 text-green-600" />} 
+        />
+        <StatCard 
+          title="Kes Sempadan (Borderline)" 
+          value="3" 
+          icon={<AlertTriangle className="w-5 h-5 text-yellow-600" />}
+        />
+      </div>
 
       {/* Grade Distribution */}
       {stats?.grade_distribution && Object.keys(stats.grade_distribution).length > 0 && (
@@ -211,12 +180,34 @@ export default function CreditDashboard() {
             <LoadingSpinner />
           </div>
         ) : (
-          <DataTable
-            columns={columns}
-            data={filteredApplications}
-            emptyMessage="Tiada permohonan menunggu penilaian"
+          <DataTable 
+            columns={columns} 
+            data={filteredApps} 
+            pagination={{
+              page: 1,
+              perPage: 10,
+              total: filteredApps.length,
+              onPageChange: () => {}
+            }}
           />
         )}
+      </div>
+      
+      <div className="bg-purple-50 p-6 rounded-xl border border-purple-100">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-purple-100 rounded-lg">
+            <Activity className="w-6 h-6 text-purple-700" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-semibold text-purple-900">Prioriti AI</h3>
+              <AiBadge label="Dikuasakan oleh AI" />
+            </div>
+            <p className="text-sm text-purple-800 mb-3">
+              Sistem AI mencadangkan anda memberi tumpuan kepada 3 permohonan "Borderline" yang memerlukan semakan manual yang teliti hari ini.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

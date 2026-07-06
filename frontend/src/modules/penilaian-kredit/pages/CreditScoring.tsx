@@ -5,7 +5,6 @@ import {
   Activity, FileText, ChevronRight, XCircle, TrendingUp, TrendingDown, Minus
 } from 'lucide-react';
 import AiBadge from '@/components/ui/AiBadge';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { creditService } from '../services/creditService';
 import type { CreditAssessment } from '../services/creditService';
 import toast from 'react-hot-toast';
@@ -250,6 +249,31 @@ export default function CreditScoring() {
 
         {/* ── Right Column ───────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-semibold text-navy-900">Pecahan Faktor Risiko (5C)</h2>
+              <AiBadge label="Analisis Algoritma" />
+            </div>
+            
+            <div className="space-y-5">
+              {assessment.factors.map((factor, index) => (
+                <div key={index}>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium text-gray-700">{factor.name} <span className="text-gray-400 text-sm font-normal">({factor.weight}%)</span></span>
+                    <span className={`font-bold ${factor.score >= 80 ? 'text-green-600' : factor.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {factor.score}/100
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full ${factor.score >= 80 ? 'bg-green-500' : factor.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                      style={{ width: `${factor.score}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Explainability Table (WAJIB) */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -258,7 +282,7 @@ export default function CreditScoring() {
                 <Activity className="w-5 h-5 text-purple-600" />
                 <h2 className="text-base font-semibold text-[#1B2B5E]">Jadual Penentu Skor</h2>
               </div>
-              <AiBadge>Analisis SPPT AI</AiBadge>
+              <AiBadge label="Generatif AI" />
             </div>
             {explainRows.length > 0 ? (
               <div className="overflow-x-auto">

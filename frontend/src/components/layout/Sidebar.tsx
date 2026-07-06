@@ -37,9 +37,9 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module1',
     allowedRoles: ['usahawan', 'branch_officer', 'branch_manager', 'system_admin'],
     subItems: [
-      { path: '/module1/applications', labelKey: 'module1.applicationList' },
+      { path: '/applications', labelKey: 'module1.applicationList' },
       {
-        path: '/module1/new',
+        path: '/applications/new',
         labelKey: 'module1.newApplication',
         allowedRoles: ['usahawan', 'branch_officer', 'system_admin'],
       },
@@ -52,7 +52,7 @@ const MODULES: ModuleItem[] = [
     allowedRoles: ['branch_officer', 'branch_manager', 'credit_officer', 'system_admin'],
     subItems: [
       { path: '/module2/dashboard', labelKey: 'module2.creditScore' },
-      { path: '/module2/dashboard',   labelKey: 'module2.approvalWorkflow' },
+      { path: '/module2/approval',  labelKey: 'module2.approvalWorkflow' },
     ],
   },
   {
@@ -61,8 +61,8 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module3',
     allowedRoles: ['branch_manager', 'credit_officer', 'finance_officer', 'system_admin'],
     subItems: [
-      { path: '/module3/disbursement', labelKey: 'module3.disbursementList' },
-      { path: '/module3/authority', labelKey: 'module3.authorityMatrix' },
+      { path: '/pengeluaran-dana', labelKey: 'module3.disbursementList' },
+      { path: '/pengeluaran-dana/authority-matrix', labelKey: 'module3.authorityMatrix' },
     ],
   },
   {
@@ -71,8 +71,8 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module4',
     allowedRoles: ['usahawan', 'finance_officer', 'system_admin'],
     subItems: [
-      { path: '/module4/accounts', labelKey: 'module4.account360' },
-      { path: '/module4/payments', labelKey: 'module4.paymentChannels' },
+      { path: '/akaun', labelKey: 'module4.account360' },
+      { path: '/akaun', labelKey: 'module4.paymentChannels' },
     ],
   },
   {
@@ -81,8 +81,8 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module5',
     allowedRoles: ['usahawan', 'credit_officer', 'finance_officer', 'system_admin'],
     subItems: [
-      { path: '/module5/npl',     labelKey: 'module5.nplDashboard' },
-      { path: '/module5/dunning', labelKey: 'module5.dunning' },
+      { path: '/npl',     labelKey: 'module5.nplDashboard' },
+      { path: '/dunning', labelKey: 'module5.dunning' },
     ],
   },
   {
@@ -105,8 +105,8 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module7',
     allowedRoles: ['branch_officer', 'branch_manager', 'credit_officer', 'system_admin'],
     subItems: [
-      { path: '/module7/entrepreneurs', labelKey: 'module7.entrepreneurProfile' },
-      { path: '/module7/field-visits',   labelKey: 'module7.fieldVisit' },
+      { path: '/crm/usahawan', labelKey: 'module7.entrepreneurProfile' },
+      { path: '/crm/lawatan',   labelKey: 'module7.fieldVisit' },
     ],
   },
   {
@@ -115,7 +115,7 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module8',
     allowedRoles: ['branch_manager', 'executive', 'system_admin'],
     subItems: [
-      { path: '/module8/branches', labelKey: 'module8.branchManagement' },
+      { path: '/pengurusan-cawangan', labelKey: 'module8.branchManagement' },
     ],
   },
   {
@@ -124,8 +124,8 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module9',
     allowedRoles: ['system_admin'],
     subItems: [
-      { path: '/module9/products', labelKey: 'module9.productConfig' },
-      { path: '/module9/eligibility', labelKey: 'module9.eligibilityChecker' },
+      { path: '/produk', labelKey: 'module9.productConfig' },
+      { path: '/produk', labelKey: 'module9.eligibilityChecker' },
     ],
   },
   {
@@ -134,7 +134,7 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module10',
     allowedRoles: ['system_admin'],
     subItems: [
-      { path: '/module10/api-health', labelKey: 'module10.apiHealth' },
+      { path: '/integrasi-api/health', labelKey: 'module10.apiHealth' },
     ],
   },
   {
@@ -143,7 +143,7 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module11',
     allowedRoles: ['executive', 'system_admin'],
     subItems: [
-      { path: '/module11/audit-trail', labelKey: 'module11.auditTrail' },
+      { path: '/audit', labelKey: 'module11.auditTrail' },
     ],
   },
   {
@@ -152,7 +152,7 @@ const MODULES: ModuleItem[] = [
     labelKey: 'nav.module12',
     allowedRoles: ['system_admin'],
     subItems: [
-      { path: '/module12/users', labelKey: 'module12.userManagement' },
+      { path: '/pentadbiran', labelKey: 'module12.userManagement' },
     ],
   },
 ];

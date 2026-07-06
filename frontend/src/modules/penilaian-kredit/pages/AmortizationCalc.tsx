@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calculator, FileText, Download, Printer } from 'lucide-react';
-import { DataTable } from '@/components/ui/DataTable';
-import { creditService, AmortizationSchedule } from '../services/creditService';
+import DataTable from '@/components/ui/DataTable';
+import { creditService } from '../services/creditService';
+import type { AmortizationSchedule } from '../services/creditService';
 import toast from 'react-hot-toast';
 
 export default function AmortizationCalc() {
@@ -180,7 +181,7 @@ export default function AmortizationCalc() {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500">Jumlah Keuntungan:</span>
                   <span className="font-medium text-gray-900">
-                    RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format(scheduleData.total_interest)}
+                    RM {new Intl.NumberFormat('ms-MY', { minimumFractionDigits: 2 }).format((scheduleData as any).total_profit ?? 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">

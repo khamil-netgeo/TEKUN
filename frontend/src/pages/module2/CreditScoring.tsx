@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Download, Sparkles, TrendingUp, Shield, AlertCircle, CheckCircle } from 'lucide-react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronRight, Download, Sparkles, TrendingUp, Shield, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
 interface ScoringFactor {
   id: number;
@@ -77,9 +77,13 @@ function GaugeMeter({ score }: { score: number }) {
 }
 
 export default function CreditScoring() {
+  const { ref, refNo } = useParams<{ ref?: string; refNo?: string }>();
+  const location = useLocation();
+  const applicant = location.state?.applicant;
   const navigate = useNavigate();
   const [generating, setGenerating] = useState(false);
   const [aiNarrative, setAiNarrative] = useState<string | null>(null);
+  const appRef = ref ? decodeURIComponent(ref) : (refNo ?? 'SPPT-2026-07-00089');
 
   const generateNarrative = async () => {
     setGenerating(true);
@@ -97,10 +101,22 @@ export default function CreditScoring() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-400" style={{ fontFamily: 'Inter, sans-serif' }}>
-        <span>Penilaian</span><ChevronRight size={14} /><span>SPPT-2026-07-00089</span><ChevronRight size={14} />
-        <span className="text-gray-700 font-semibold">Skor Kredit</span>
+      {/* Breadcrumb + Back button */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate('/module2/dashboard')}
+          className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          title="Kembali ke Dashboard"
+        >
+          <ArrowLeft size={16} className="text-gray-500" />
+        </button>
+        <div className="flex items-center gap-2 text-sm text-gray-400" style={{ fontFamily: 'Inter, sans-serif' }}>
+          <button onClick={() => navigate('/module2/dashboard')} className="hover:text-[#1B2B5E] transition-colors">Penilaian</button>
+          <ChevronRight size={14} />
+          <span>{appRef}</span>
+          <ChevronRight size={14} />
+          <span className="text-gray-700 font-semibold">Skor Kredit</span>
+        </div>
       </div>
 
       {/* Applicant Header */}
@@ -111,7 +127,7 @@ export default function CreditScoring() {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Inter, sans-serif' }}>Siti Nurhaliza</h2>
-            <p className="text-sm text-gray-500">No. IC: 850412-14-5678 | SPPT-2026-07-00089</p>
+            <p className="text-sm text-gray-500">No. IC: 850412-14-5678 | {appRef}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Jumlah Dipohon</p>
@@ -207,7 +223,11 @@ export default function CreditScoring() {
               ))}
             </div>
 
-            <button onClick={() => navigate("/module2/approval")} className="w-full py-3 bg-[#2E7D32] text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#1B5E20] transition-colors" style={{ fontFamily: "Inter, sans-serif" }}>
+            <button
+              onClick={() => navigate(`/module2/approval/${encodeURIComponent(appRef)}`, { state: { applicant } })}
+              className="w-full py-3 bg-[#2E7D32] text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#1B5E20] transition-colors"
+              style={{ fontFamily: 'Inter, sans-serif' }}
+            >
               <CheckCircle size={16} /> Teruskan ke Kelulusan <ChevronRight size={16} />
             </button>
 
