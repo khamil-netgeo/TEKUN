@@ -4,7 +4,6 @@ import { TrendingUp, TrendingDown, Minus, Trophy, RefreshCw, ArrowLeft } from 'l
 import PageHeader from '@/components/ui/PageHeader';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import toast from '@/components/ui/Toast';
-import AiBadge from '@/components/ui/AiBadge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import branchService from '../services/branchService';
 import type { BranchPerformanceItem } from '../services/branchService';
@@ -92,7 +91,6 @@ const BranchPerformance: React.FC = () => {
             <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
               <Trophy size={18} className="text-yellow-500" />
               <h2 className="font-bold text-[#1B2B5E]">Ranking Cawangan</h2>
-              <AiBadge label="SPPT AI" size="sm" />
             </div>
             <div className="overflow-y-auto max-h-[520px]">
               <table className="w-full text-sm">

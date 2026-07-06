@@ -45,7 +45,16 @@ const BranchDetail: React.FC = () => {
       toast.success('Maklumat cawangan berjaya dikemaskini.');
       setEditing(false);
       fetchDetail();
-    } catch { toast.error('Gagal mengemaskini maklumat cawangan.'); }
+    } catch (err: any) {
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        Object.keys(errors).forEach((key) => {
+          toast.error(errors[key][0]);
+        });
+      } else {
+        toast.error('Gagal mengemaskini maklumat cawangan.');
+      }
+    }
     finally { setSaving(false); }
   };
 

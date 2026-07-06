@@ -3,6 +3,7 @@
 namespace App\Modules\PengurusanCawangan\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Enums\Role;
 
 /**
  * TEKUN SPPT — Module 8: Pengurusan Cawangan
@@ -15,13 +16,12 @@ class UpdateBranchRequest extends FormRequest
         $user = $this->user();
         if (!$user) return false;
 
-        $role = $user->role ?? '';
         // system_admin and executive can update any branch
-        if (in_array($role, ['system_admin', 'executive'])) {
+        if ($user->hasRole([Role::SYSTEM_ADMIN->value, Role::EXECUTIVE->value])) {
             return true;
         }
         // branch_manager can only update their own branch
-        if ($role === 'branch_manager') {
+        if ($user->hasRole(Role::BRANCH_MANAGER->value)) {
             $branchCode = $user->branch_code ?? null;
             $branch = \App\Models\Branch::find($this->route('id'));
             return $branch && $branch->code === $branchCode;
