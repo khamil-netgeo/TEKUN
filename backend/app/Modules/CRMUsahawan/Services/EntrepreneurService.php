@@ -51,8 +51,8 @@ class EntrepreneurService
 
         // 1. Financing status
         $statusPenalty = match ($entrepreneur->financing_status) {
-            'Perhatian Khusus' => 20,
-            'Tidak Lancar'     => 40,
+            'Perhatian Khusus' => config('crm_usahawan.health_score.penalties.status_perhatian_khusus', 20),
+            'Tidak Lancar'     => config('crm_usahawan.health_score.penalties.status_tidak_lancar', 40),
             default            => 0,
         };
         $score -= $statusPenalty;
@@ -63,8 +63,9 @@ class EntrepreneurService
         // 2. Outstanding balance ratio
         if ($entrepreneur->total_financing > 0) {
             $ratio = $entrepreneur->outstanding_balance / $entrepreneur->total_financing;
-            if ($ratio > 0.9) {
-                $score -= 10;
+            $ratioThreshold = config('crm_usahawan.health_score.thresholds.high_balance_ratio', 0.9);
+            if ($ratio > $ratioThreshold) {
+                $score -= config('crm_usahawan.health_score.penalties.high_balance_ratio', 10);
                 $factors[] = 'baki_tinggi';
             }
         }
@@ -72,26 +73,28 @@ class EntrepreneurService
         // 3. Revenue vs expenses
         if ($entrepreneur->monthly_revenue > 0 && $entrepreneur->monthly_expenses > 0) {
             $margin = ($entrepreneur->monthly_revenue - $entrepreneur->monthly_expenses) / $entrepreneur->monthly_revenue;
+            $lowMarginThreshold = config('crm_usahawan.health_score.thresholds.low_margin', 0.1);
             if ($margin < 0) {
-                $score -= 15;
+                $score -= config('crm_usahawan.health_score.penalties.negative_margin', 15);
                 $factors[] = 'margin_negatif';
-            } elseif ($margin < 0.1) {
-                $score -= 8;
+            } elseif ($margin < $lowMarginThreshold) {
+                $score -= config('crm_usahawan.health_score.penalties.low_margin', 8);
                 $factors[] = 'margin_rendah';
             }
         } elseif (!$entrepreneur->monthly_revenue) {
-            $score -= 5;
+            $score -= config('crm_usahawan.health_score.penalties.no_revenue_data', 5);
             $factors[] = 'tiada_data_pendapatan';
         }
 
         // 4. Business age
         $businessAge = $entrepreneur->business_age_years ?? 0;
+        $establishedAge = config('crm_usahawan.health_score.thresholds.established_business_years', 3);
         if ($businessAge < 1) {
-            $score -= 10;
+            $score -= config('crm_usahawan.health_score.penalties.new_business', 10);
             $factors[] = 'perniagaan_baru';
-        } elseif ($businessAge >= 3) {
+        } elseif ($businessAge >= $establishedAge) {
             // Bonus for established businesses
-            $score = min(100, $score + 5);
+            $score = min(100, $score + config('crm_usahawan.health_score.bonuses.established_business', 5));
         }
 
         // 5. Field visit recency
@@ -99,32 +102,41 @@ class EntrepreneurService
             ->where('status', 'Selesai')
             ->orderByDesc('actual_date')
             ->first();
+            
+        $oldVisitDays = config('crm_usahawan.health_score.thresholds.old_visit_days', 180);
         if (!$lastVisit) {
-            $score -= 5;
+            $score -= config('crm_usahawan.health_score.penalties.no_field_visit', 5);
             $factors[] = 'tiada_lawatan_lapangan';
-        } elseif ($lastVisit->actual_date && $lastVisit->actual_date->diffInDays(now()) > 180) {
-            $score -= 5;
+        } elseif ($lastVisit->actual_date && $lastVisit->actual_date->diffInDays(now()) > $oldVisitDays) {
+            $score -= config('crm_usahawan.health_score.penalties.old_field_visit', 5);
             $factors[] = 'lawatan_lama';
         }
 
         // 6. Employee count
-        if ($entrepreneur->employee_count >= 5) {
-            $score = min(100, $score + 3);
+        $highEmployeeThreshold = config('crm_usahawan.health_score.thresholds.high_employee_count', 5);
+        if ($entrepreneur->employee_count >= $highEmployeeThreshold) {
+            $score = min(100, $score + config('crm_usahawan.health_score.bonuses.high_employee_count', 3));
         }
 
         // Clamp
         $score = max(0, min(100, $score));
 
         // Distress level
+        $thresholdRendah = config('crm_usahawan.health_score.thresholds.distress_rendah', 70);
+        $thresholdSederhana = config('crm_usahawan.health_score.thresholds.distress_sederhana', 50);
+        $thresholdTinggi = config('crm_usahawan.health_score.thresholds.distress_tinggi', 30);
+
         $distressLevel = match (true) {
-            $score >= 70 => 'Rendah',
-            $score >= 50 => 'Sederhana',
-            $score >= 30 => 'Tinggi',
-            default      => 'Kritikal',
+            $score >= $thresholdRendah    => 'Rendah',
+            $score >= $thresholdSederhana => 'Sederhana',
+            $score >= $thresholdTinggi    => 'Tinggi',
+            default                       => 'Kritikal',
         };
 
         // Default probability (sigmoid-like mapping)
-        $defaultProbability = round(1 / (1 + exp(($score - 50) / 15)), 4);
+        $sigmoidOffset = config('crm_usahawan.health_score.sigmoid_offset', 50);
+        $sigmoidScale = config('crm_usahawan.health_score.sigmoid_scale', 15);
+        $defaultProbability = round(1 / (1 + exp(($score - $sigmoidOffset) / $sigmoidScale)), 4);
 
         return [
             'score'               => $score,
@@ -188,13 +200,18 @@ class EntrepreneurService
                 ]);
 
             if ($response->successful()) {
-                return $response->json('choices.0.message.content', $this->fallbackReport($visit, $entrepreneur));
+                $content = $response->json('choices.0.message.content');
+                if ($content) {
+                    return $content;
+                }
+                throw new \Exception('Tiada kandungan dikembalikan oleh AI.');
             }
-        } catch (\Throwable $e) {
-            Log::warning('M7 AI visit report generation failed: ' . $e->getMessage());
-        }
 
-        return $this->fallbackReport($visit, $entrepreneur);
+            throw new \Exception('Ralat API AI: ' . $response->body());
+        } catch (\Throwable $e) {
+            Log::error('M7 AI visit report generation failed: ' . $e->getMessage());
+            throw new \Exception('Gagal menjana laporan AI: ' . $e->getMessage());
+        }
     }
 
     // ── AI Semantic Search ────────────────────────────────────────────────────
@@ -290,21 +307,5 @@ Sila jana laporan lawatan lapangan rasmi berdasarkan maklumat berikut:
 
 Jana laporan formal dalam 3 perenggan: (1) Pemerhatian semasa lawatan, (2) Analisis prestasi perniagaan, (3) Cadangan dan tindakan susulan.
 PROMPT;
-    }
-
-    private function fallbackReport(FieldVisit $visit, Entrepreneur $entrepreneur): string
-    {
-        $date      = $visit->actual_date?->format('d/m/Y') ?? now()->format('d/m/Y');
-        $condition = $visit->business_condition ?? 'Sederhana';
-
-        return "Laporan Lawatan Lapangan — {$date}\n\n" .
-            "Lawatan lapangan telah dijalankan ke premis usahawan {$entrepreneur->name} ({$entrepreneur->ref_no}) " .
-            "bagi tujuan {$visit->purpose}. Keadaan perniagaan semasa lawatan dinilai sebagai {$condition}.\n\n" .
-            "Berdasarkan pemerhatian semasa lawatan, usahawan menunjukkan tahap operasi yang " .
-            ($entrepreneur->health_score >= 70 ? 'memuaskan dan perniagaan berjalan dengan baik.' :
-                ($entrepreneur->health_score >= 50 ? 'sederhana dan memerlukan pemantauan berterusan.' :
-                    'membimbangkan dan memerlukan tindakan segera.')) . "\n\n" .
-            "Pegawai mengesyorkan tindakan susulan dalam tempoh 30 hari bagi memastikan kesinambungan " .
-            "pembiayaan dan prestasi perniagaan usahawan. Laporan ini dijana secara automatik oleh sistem SPPT.";
     }
 }

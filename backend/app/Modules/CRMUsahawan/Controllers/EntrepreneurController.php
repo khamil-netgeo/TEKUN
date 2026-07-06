@@ -158,7 +158,7 @@ class EntrepreneurController extends Controller
         ]);
 
         $user  = Auth::user();
-        $refNo = 'LW-' . strtoupper(substr(uniqid(), -6));
+        $refNo = $this->service->generateVisitRefNo();
 
         $visit = FieldVisit::create(array_merge($validated, [
             'entrepreneur_id' => $entrepreneur->id,

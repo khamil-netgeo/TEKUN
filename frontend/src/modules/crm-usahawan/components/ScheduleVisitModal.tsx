@@ -1,21 +1,9 @@
-/**
- * Module 7 — CRM & Pemantauan Usahawan
- * ScheduleVisitModal — schedule a new field visit
- */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Calendar } from 'lucide-react';
 import { scheduleVisit } from '../services/entrepreneurService';
 import type { FieldVisit } from '../types';
 import toast from 'react-hot-toast';
-
-const PURPOSES = [
-  'Pemantauan Perniagaan',
-  'Tindakan Susulan NPL',
-  'Penilaian Semula',
-  'Lawatan Pertama',
-  'Penilaian Akhir',
-  'Lain-lain',
-];
+import api from '@/services/api';
 
 interface Props {
   entrepreneurId: string | number;
@@ -25,11 +13,34 @@ interface Props {
 }
 
 export default function ScheduleVisitModal({ entrepreneurId, entrepreneurName, onClose, onScheduled }: Props) {
+  const [purposes, setPurposes] = useState<string[]>([]);
   const [date, setDate]       = useState('');
   const [time, setTime]       = useState('');
-  const [purpose, setPurpose] = useState(PURPOSES[0]);
+  const [purpose, setPurpose] = useState('');
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get('/reference/visit-purposes')
+      .then(res => {
+        const data = res.data?.data || res.data || [];
+        const mapped = data.map((item: any) => typeof item === 'string' ? item : item.name || item.label || item.value);
+        setPurposes(mapped);
+        if (mapped.length > 0) setPurpose(mapped[0]);
+      })
+      .catch(() => {
+        const fallback = [
+          'Pemantauan Perniagaan',
+          'Tindakan Susulan NPL',
+          'Penilaian Semula',
+          'Lawatan Pertama',
+          'Penilaian Akhir',
+          'Lain-lain',
+        ];
+        setPurposes(fallback);
+        setPurpose(fallback[0]);
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +83,7 @@ export default function ScheduleVisitModal({ entrepreneurId, entrepreneurName, o
               onChange={e => setPurpose(e.target.value)}
               className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
             >
-              {PURPOSES.map(p => <option key={p}>{p}</option>)}
+              {purposes.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
 
