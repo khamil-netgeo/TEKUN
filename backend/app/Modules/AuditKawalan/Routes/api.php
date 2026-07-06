@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\AuditController;
  */
 Route::middleware(['auth:sanctum'])->group(function () {
     // Static routes first (before {id} wildcard)
-    Route::middleware(['role:system_admin|eksekutif'])->group(function () {
+    Route::middleware(['role:Pentadbir Sistem|eksekutif'])->group(function () {
         Route::get('/audit-logs/anomalies', [AuditController::class, 'anomalies']);
         Route::get('/audit-logs/stats',     [AuditController::class, 'stats']);
         Route::post('/audit-logs/export',   [AuditController::class, 'export']);

@@ -397,6 +397,7 @@ class UserController extends Controller
     public function roles(): JsonResponse
     {
         $roles = Role::with('permissions')
+            ->withCount('permissions') // Add permissions_count
             ->get()
             ->map(function ($role) {
                 try {
@@ -406,10 +407,11 @@ class UserController extends Controller
                 }
                 
                 return [
-                    'id'          => $role->id,
-                    'name'        => $role->name,
-                    'permissions' => $role->permissions->pluck('name'),
-                    'users_count' => $usersCount,
+                    'id'              => $role->id,
+                    'name'            => $role->name,
+                    'permissions'     => $role->permissions->pluck('name'),
+                    'permissions_count' => $role->permissions_count, // Use the counted value
+                    'users_count'     => $usersCount,
                 ];
             });
 
