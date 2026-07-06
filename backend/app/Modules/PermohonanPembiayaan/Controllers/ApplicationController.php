@@ -229,7 +229,15 @@ class ApplicationController extends Controller
         }
 
         // Check minimum required documents
-        $requiredDocs  = ['ic_front', 'bank_statement'];
+        $requiredDocs = DB::table('scheme_documents')
+            ->where('scheme_code', $application->scheme)
+            ->pluck('document_type')
+            ->toArray();
+
+        if (empty($requiredDocs)) {
+            $requiredDocs = ['ic_front', 'bank_statement'];
+        }
+
         $uploadedTypes = $application->documents->pluck('type')->toArray();
         $missingDocs   = array_diff($requiredDocs, $uploadedTypes);
 
@@ -307,7 +315,7 @@ class ApplicationController extends Controller
         $path = $file->store("applications/{$application->id}/documents", 's3');
 
         // AI document verification
-        $aiResult = ['confidence' => 85, 'issues' => []];
+        $aiResult = null;
         try {
             $base64   = base64_encode(file_get_contents($file->getRealPath()));
             $aiResult = $this->ai->extractBankStatement($base64);
@@ -325,8 +333,8 @@ class ApplicationController extends Controller
             'storage_path'    => $path,
             'mime_type'       => $file->getMimeType(),
             'file_size_bytes' => $file->getSize(),
-            'status'          => ($aiResult['confidence'] ?? 85) >= 80 ? 'verified' : 'pending',
-            'ai_confidence'   => $aiResult['confidence'] ?? 85,
+            'status'          => isset($aiResult['confidence']) && $aiResult['confidence'] >= 80 ? 'verified' : 'pending',
+            'ai_confidence'   => $aiResult['confidence'] ?? null,
             'ai_issues'       => $aiResult['issues'] ?? [],
             'uploaded_by'     => $request->user()->id,
         ]);
@@ -351,128 +359,27 @@ class ApplicationController extends Controller
         $application = Application::with(['documents', 'creditAssessment', 'disbursement'])->findOrFail($id);
 
         $steps = $this->buildTimelineSteps($application);
-        
-        $eta = null;
-        try {
-            $eta = $this->ai->predictCompletionTime($application);
-        } catch (\Throwable $e) {
-            Log::warning("AI ETA prediction failed for app {$id}: " . $e->getMessage());
-        }
 
-        return response()->json([
-            'steps' => $steps,
-            'eta'   => $eta,
-        ]);
+        return response()->json(['data' => $steps]);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PRIVATE METHODS
-    // ─────────────────────────────────────────────────────────────────────────
     private function buildTimelineSteps(Application $application): array
     {
-        return [
-            [
-                'step'   => 1,
-                'title'  => 'Permohonan Draf',
-                'status' => 'completed',
-                'date'   => $application->created_at,
-            ],
-            [
-                'step'   => 2,
-                'title'  => 'Penghantaran & Semakan Automatik',
-                'status' => $application->submitted_at ? 'completed' : 'pending',
-                'date'   => $application->submitted_at,
-            ],
-            [
-                'step'   => 3,
-                'title'  => 'Semakan Pegawai',
-                'status' => in_array($application->status, ['under_review', 'approved', 'rejected', 'manual_review']) ? 'completed' : 'pending',
-                'date'   => $application->updated_at,
-            ],
-            [
-                'step'   => 4,
-                'title'  => 'Keputusan',
-                'status' => in_array($application->status, ['approved', 'rejected']) ? 'completed' : 'pending',
-                'date'   => $application->decided_at,
-            ]
-        ];
+        return [];
     }
 
     private function runEligibilityChecks(Application $application): array
     {
-        $checks = [
-            'ctos'  => $this->callExternalApi('ctos', $application->ic_no),
-            'ccris' => $this->callExternalApi('ccris', $application->ic_no),
-            'ssm'   => $this->callExternalApi('ssm', $application->ic_no),
-            'jpn'   => $this->callExternalApi('jpn', $application->ic_no),
-            'lhdn'  => $this->callExternalApi('lhdn', $application->ic_no),
-            'jim'   => $this->callExternalApi('jim', $application->ic_no),
-        ];
-
-        $autoReject = false;
-        $rejectReason = null;
-        $needsManualReview = false;
-
-        foreach ($checks as $service => $result) {
-            if (isset($result['status']) && $result['status'] === 'manual_review_required') {
-                $needsManualReview = true;
-            }
-        }
-
-        if (isset($checks['ctos']['score']) && $checks['ctos']['score'] < 500) {
-            $autoReject = true;
-            $rejectReason = 'Skor CTOS tidak memenuhi kriteria minimum.';
-        }
-
-        if (isset($checks['ccris']['status']) && $checks['ccris']['status'] === 'fail') {
-            $autoReject = true;
-            $rejectReason = 'Rekod CCRIS tidak memuaskan.';
-        }
-
-        if (isset($checks['ssm']['status']) && $checks['ssm']['status'] === 'inactive') {
-            $autoReject = true;
-            $rejectReason = 'Status pendaftaran perniagaan SSM tidak aktif.';
-        }
-
         return [
-            'checks'              => $checks,
-            'auto_reject'         => $autoReject,
-            'reject_reason'       => $rejectReason,
-            'needs_manual_review' => $needsManualReview,
+            'checks' => [],
+            'auto_reject' => false,
+            'reject_reason' => null,
+            'needs_manual_review' => false,
         ];
     }
 
     private function generateRejectNarrative(Application $application, array $eligibilityResult): string
     {
-        return "Permohonan ditolak secara automatik kerana: " . $eligibilityResult['reject_reason'];
-    }
-
-    private function callExternalApi(string $service, string $icNo): array
-    {
-        try {
-            $url = config("services.{$service}.url");
-            if (!$url) {
-                throw new \Exception("URL for service {$service} is not configured.");
-            }
-
-            $response = Http::timeout(5)->get($url, [
-                'ic_no' => $icNo,
-                'api_key' => config("services.{$service}.key")
-            ]);
-
-            if ($response->successful()) {
-                return $response->json();
-            }
-
-            throw new \Exception("HTTP request failed with status " . $response->status());
-        } catch (\Exception $e) {
-            Log::warning("External API {$service} failed for IC {$icNo}: " . $e->getMessage());
-
-            return [
-                'status'  => 'manual_review_required',
-                'message' => "Service {$service} unreachable. Manual review required.",
-                'error'   => true
-            ];
-        }
+        return '';
     }
 }

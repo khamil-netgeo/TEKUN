@@ -234,13 +234,15 @@ class Application extends Model
     /** Scheme max amount */
     public function getSchemeMaxAmount(): int
     {
-        return match ($this->scheme) {
+        $defaultMax = match ($this->scheme) {
             'tekun_micro'    => 10000,
             'tekun_usahawan' => 50000,
             'tekun_wanita'   => 30000,
             'tekun_belia'    => 20000,
             default          => 50000,
         };
+
+        return config('financing.schemes.' . $this->scheme . '.max_amount', $defaultMax);
     }
 
     /** Monthly surplus (income - expense) */
