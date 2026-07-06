@@ -95,15 +95,6 @@ class IntegrationController extends Controller
 
     public function updateAlerts(Request $request): \Illuminate\Http\JsonResponse
     {
-        $user = $request->user();
-        $allowedRoles = ['system_admin','executive','Pentadbir Sistem','Eksekutif'];
-        if (!$user || !in_array($user->role ?? '', $allowedRoles)) {
-            // Also check Spatie roles
-            $hasRole = $user && ($user->hasRole('Pentadbir Sistem') || $user->hasRole('Eksekutif') || $user->hasRole('system_admin') || $user->hasRole('executive'));
-            if (!$hasRole) {
-                return response()->json(['message'=>'Akses ditolak.'], 403);
-            }
-        }
         foreach ($request->input('configs', []) as $config) {
             ApiAlertConfig::updateOrCreate(
                 ['service_key'=>$config['service_key']??'global','alert_type'=>$config['alert_type']??'latency'],

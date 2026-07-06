@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/services/api';
+import toast from 'react-hot-toast';
 
 interface ApiIntegration {
   id: string;
@@ -26,8 +27,9 @@ export default function ApiHealth() {
     try {
       const response = await api.get('/integrations/health');
       setApis(response.data.integrations || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch API health', error);
+      toast.error(error.response?.data?.message || 'Ralat semasa menyemak status API');
     } finally {
       setRefreshing(false);
     }
