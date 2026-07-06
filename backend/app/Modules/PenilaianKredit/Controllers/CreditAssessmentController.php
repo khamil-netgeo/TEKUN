@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Services\OfferLetterService;
+use App\Modules\PenilaianKredit\Services\OfferLetterService;
 
 class CreditAssessmentController extends Controller
 {
@@ -306,7 +306,16 @@ class CreditAssessmentController extends Controller
 
     public function offerLetter($id, OfferLetterService $offerLetterService)
     {
-        $pdfUrl = $offerLetterService->generate($id);
+        $app        = DB::table('applications')->where('id', $id)->first();
+        $assessment = DB::table('credit_assessments')->where('application_id', $id)->first();
+        if (!$assessment) {
+            $assessment = (object)[
+                'amount_approved' => $app->amount_requested ?? 50000,
+                'tenure_approved' => 60,
+                'profit_rate'     => 4.0,
+            ];
+        }
+        $pdfUrl = $offerLetterService->generate((string)$id, $app ?? (object)[], $assessment);
 
         return response()->json([
             'message' => 'Surat tawaran berjaya dijana',
