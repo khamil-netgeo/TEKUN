@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { ms } from 'date-fns/locale';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://34.177.95.116:8000';
+const API_BASE = import.meta.env.VITE_API_URL;
 
 interface Application {
   id: number;

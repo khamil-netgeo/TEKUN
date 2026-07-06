@@ -12,7 +12,7 @@ use App\Http\Controllers\Api\ApplicationController;
  * are already defined in routes/api.php. This file only adds Module 1-specific
  * endpoints that are NOT in the core routes file.
  */
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:credit_officer|system_admin'])->group(function () {
 
     // ─── Eligibility check (preview, without submitting) ─────────────────────
     Route::match(['GET', 'POST'], '/applications/{id}/check-eligibility', [ApplicationController::class, 'checkEligibility']);
