@@ -159,7 +159,7 @@ class UserController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pengesahan gagal.',
+                'message' => __('messages.validation_failed'),
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -185,7 +185,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pengguna berjaya dicipta.',
+            'message' => __('messages.user_created'),
             'data'    => [
                 'id'    => $user->id,
                 'name'  => $user->name,
@@ -220,7 +220,7 @@ class UserController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pengesahan gagal.',
+                'message' => __('messages.validation_failed'),
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -241,7 +241,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pengguna berjaya dikemaskini.',
+            'message' => __('messages.user_updated'),
             'data'    => [
                 'id'    => $user->id,
                 'name'  => $user->name,
@@ -266,7 +266,7 @@ class UserController extends Controller
         if (Auth::id() === $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda tidak boleh menggantung akaun sendiri.',
+                'message' => __('messages.cannot_suspend_self'),
             ], 422);
         }
 
@@ -282,7 +282,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Akaun {$user->name} telah digantung.",
+            'message' => __('messages.user_suspended', ['name' => $user->name]),
             'data'    => ['id' => $user->id, 'is_suspended' => true],
         ]);
     }
@@ -309,7 +309,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Akaun {$user->name} telah diaktifkan.",
+            'message' => __('messages.user_activated', ['name' => $user->name]),
             'data'    => ['id' => $user->id, 'is_active' => true, 'is_suspended' => false],
         ]);
     }
@@ -339,9 +339,9 @@ class UserController extends Controller
 
         return response()->json([
             'success'       => true,
-            'message'       => "Kata laluan sementara telah ditetapkan untuk {$user->name}.",
+            'message'       => __('messages.password_reset_temp', ['name' => $user->name]),
             'temp_password' => $tempPassword,
-            'note'          => 'Kata laluan ini mesti ditukar semasa log masuk pertama.',
+            'note'          => __('messages.password_reset_note'),
         ]);
     }
 
@@ -404,6 +404,7 @@ class UserController extends Controller
                 } catch (\Throwable $e) {
                     $usersCount = 0;
                 }
+                
                 return [
                     'id'          => $role->id,
                     'name'        => $role->name,
@@ -422,40 +423,27 @@ class UserController extends Controller
     // HELPER METHODS
     // ══════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Resolve the status of the user to system keys.
-     */
     private function resolveStatus(User $user): string
     {
         if ($user->is_suspended) {
-            return 'suspended';
+            return 'Digantung';
         }
-        if (!$user->is_active) {
-            return 'inactive';
-        }
-        return 'active';
+        return $user->is_active ? 'Aktif' : 'Tidak Aktif';
     }
 
-    /**
-     * Log an audit trail entry.
-     */
-    private function logAudit(string $action, User $targetUser, array $oldValues = [], array $newValues = [], string $description = ''): void
+    private function logAudit(string $action, User $user, array $before, array $after, string $details): void
     {
-        try {
-            AuditTrail::create([
-                'user_id'     => Auth::id(),
-                'module'      => 'PentadbiranSistem',
-                'action'      => $action,
-                'description' => $description,
-                'old_values'  => $oldValues,
-                'new_values'  => $newValues,
-                'ip_address'  => request()->ip(),
-                'user_agent'  => request()->userAgent(),
-                'target_id'   => $targetUser->id,
-                'target_type' => User::class,
-            ]);
-        } catch (\Throwable $e) {
-            // Ignore audit trail errors
-        }
+        AuditTrail::create([
+            'user_id'     => Auth::id() ?? 1,
+            'module'      => 'Pentadbiran Sistem - Pengguna',
+            'action'      => $action,
+            'target_id'   => $user->id,
+            'target_type' => User::class,
+            'old_values'  => empty($before) ? null : json_encode($before),
+            'new_values'  => empty($after) ? null : json_encode($after),
+            'ip_address'  => request()->ip(),
+            'user_agent'  => request()->userAgent(),
+            'details'     => $details,
+        ]);
     }
 }

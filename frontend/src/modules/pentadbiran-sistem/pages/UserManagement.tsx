@@ -13,9 +13,6 @@ interface User {
   last_login_at?: string;
 }
 
-const NAVY = '#1B2B5E';
-const GREEN = '#2E7D32';
-
 const STATUS_COLORS: Record<string, string> = {
   'active':   'bg-green-100 text-green-700',
   'inactive': 'bg-gray-100 text-gray-500',
@@ -30,6 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('Semua');
@@ -39,6 +37,16 @@ export default function UserManagement() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: '', password: '' });
   const [submitting, setSubmitting] = useState(false);
+
+  const fetchRoles = useCallback(async () => {
+    try {
+      const res = await api.get('/roles');
+      const data = res.data.data ?? res.data;
+      setAvailableRoles(data.map((r: any) => r.name || r));
+    } catch (error) {
+      console.error('Failed to fetch roles', error);
+    }
+  }, []);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -62,13 +70,17 @@ export default function UserManagement() {
   }, [page, search, roleFilter]);
 
   useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       fetchUsers();
     }, 300);
     return () => clearTimeout(timer);
   }, [fetchUsers]);
 
-  const roles = ['Semua', 'Pegawai Cawangan', 'Pengurus Cawangan', 'Pegawai Kredit', 'Eksekutif', 'Pentadbir Sistem'];
+  const filterRoles = ['Semua', ...availableRoles];
 
   const filtered = users;
 
@@ -123,11 +135,11 @@ export default function UserManagement() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: NAVY }}>
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-tekun-navy">
             <Users className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold" style={{ color: NAVY }}>Pengurusan Pengguna</h1>
+            <h1 className="text-xl font-bold text-tekun-navy">Pengurusan Pengguna</h1>
             <p className="text-sm text-gray-500">Urus akaun dan peranan pengguna sistem</p>
           </div>
         </div>
@@ -137,8 +149,7 @@ export default function UserManagement() {
           </button>
           <button
             onClick={() => { setEditUser(null); setForm({ name: '', email: '', role: '', password: '' }); setShowForm(true); }}
-            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium"
-            style={{ background: GREEN }}
+            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium bg-tekun-green"
           >
             <Plus className="w-4 h-4" /> Tambah Pengguna
           </button>
@@ -147,13 +158,13 @@ export default function UserManagement() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Jumlah Pengguna', value: users.length, color: NAVY },
-          { label: 'Aktif', value: users.filter(u => u.status === 'active').length, color: GREEN },
-          { label: 'Tidak Aktif', value: users.filter(u => u.status === 'inactive').length, color: '#6B7280' },
-          { label: 'Digantung', value: users.filter(u => u.status === 'suspended').length, color: '#C62828' },
+          { label: 'Jumlah Pengguna', value: users.length, colorClass: 'text-tekun-navy' },
+          { label: 'Aktif', value: users.filter(u => u.status === 'active').length, colorClass: 'text-tekun-green' },
+          { label: 'Tidak Aktif', value: users.filter(u => u.status === 'inactive').length, colorClass: 'text-gray-500' },
+          { label: 'Digantung', value: users.filter(u => u.status === 'suspended').length, colorClass: 'text-red-700' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl p-4 border shadow-sm text-center">
-            <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</div>
+            <div className={`text-2xl font-bold ${s.colorClass}`}>{s.value}</div>
             <div className="text-xs text-gray-500 mt-1">{s.label}</div>
           </div>
         ))}
@@ -176,7 +187,7 @@ export default function UserManagement() {
             onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
             className="border rounded-lg px-3 py-2 text-sm focus:outline-none"
           >
-            {roles.map(r => <option key={r}>{r}</option>)}
+            {filterRoles.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
       </div>
@@ -191,7 +202,7 @@ export default function UserManagement() {
           <>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-white" style={{ background: NAVY }}>
+                <tr className="text-left text-xs text-white bg-tekun-navy">
                   <th className="px-4 py-3">Pengguna</th>
                   <th className="px-4 py-3">Peranan</th>
                   <th className="px-4 py-3">Cawangan</th>
@@ -268,7 +279,7 @@ export default function UserManagement() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b flex items-center justify-between">
-              <h2 className="font-bold text-lg" style={{ color: NAVY }}>
+              <h2 className="font-bold text-lg text-tekun-navy">
                 {editUser ? 'Kemaskini Pengguna' : 'Tambah Pengguna Baru'}
               </h2>
               <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">✕</button>
@@ -289,8 +300,8 @@ export default function UserManagement() {
                 <select required value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                   className="w-full border rounded-lg px-3 py-2 text-sm">
                   <option value="">-- Pilih Peranan --</option>
-                  {['Pegawai Cawangan','Pengurus Cawangan','Pegawai Kredit','Eksekutif','Pentadbir Sistem'].map(r => (
-                    <option key={r}>{r}</option>
+                  {availableRoles.map(r => (
+                    <option key={r} value={r}>{r}</option>
                   ))}
                 </select>
               </div>
@@ -303,7 +314,7 @@ export default function UserManagement() {
               )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50">Batal</button>
-                <button type="submit" disabled={submitting} className="flex-1 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: GREEN }}>
+                <button type="submit" disabled={submitting} className="flex-1 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-60 bg-tekun-green">
                   {submitting ? 'Menyimpan...' : editUser ? 'Kemaskini' : 'Tambah'}
                 </button>
               </div>
