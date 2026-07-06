@@ -452,7 +452,7 @@ export default function CreditScoring() {
               <Shield className="w-5 h-5 text-purple-700" />
               <h2 className="text-base font-semibold text-purple-900">Ulasan &amp; Naratif SPPT AI</h2>
             </div>
-            <AiBadge>Generatif SPPT AI</AiBadge>
+            <AiBadge label="Generatif SPPT AI" />
           </div>
           <div className="bg-white p-4 rounded-lg border border-purple-100 text-gray-700 leading-relaxed text-sm">
             {assessment.narrative}
