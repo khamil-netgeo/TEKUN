@@ -1,0 +1,64 @@
+#!/bin/bash
+# ============================================================
+# TEKUN SPPT — Git Pre-Commit Hook
+# Blocks commits that modify protected shared infrastructure files.
+# Installed at: /home/ubuntu/sppt/.git/hooks/pre-commit
+# ============================================================
+
+# List of protected files (relative to repo root)
+PROTECTED=(
+  "frontend/src/components/layout/Sidebar.tsx"
+  "frontend/src/components/layout/AppLayout.tsx"
+  "frontend/src/components/layout/TopBar.tsx"
+  "frontend/src/components/auth/ProtectedRoute.tsx"
+  "frontend/src/store/authStore.ts"
+  "frontend/src/App.tsx"
+  "backend/routes/api.php"
+  "backend/routes/web.php"
+)
+
+# Get the current branch name
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# Allow the Orchestrator's hotfix branches and main to bypass the check
+# (Orchestrator is the only one authorised to modify shared files)
+if [[ "$BRANCH" == "main" || "$BRANCH" == hotfix/* || "$BRANCH" == "feature/core-foundation" ]]; then
+  exit 0
+fi
+
+# Get list of staged files
+STAGED=$(git diff --cached --name-only)
+
+VIOLATIONS=()
+
+for PROTECTED_FILE in "${PROTECTED[@]}"; do
+  if echo "$STAGED" | grep -q "^${PROTECTED_FILE}$"; then
+    VIOLATIONS+=("$PROTECTED_FILE")
+  fi
+done
+
+if [ ${#VIOLATIONS[@]} -gt 0 ]; then
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════════════════╗"
+  echo "║  ⛔  COMMIT BLOCKED — Protected Shared File Modified                ║"
+  echo "╠══════════════════════════════════════════════════════════════════════╣"
+  echo "║                                                                      ║"
+  echo "║  The following files are SHARED INFRASTRUCTURE and must NOT be      ║"
+  echo "║  modified by module agents (M1–M12):                                ║"
+  echo "║                                                                      ║"
+  for V in "${VIOLATIONS[@]}"; do
+    printf "║    ❌  %-64s║\n" "$V"
+  done
+  echo "║                                                                      ║"
+  echo "║  What you should do instead:                                         ║"
+  echo "║    • For sidebar nav items: edit your module's routes.tsx only      ║"
+  echo "║    • For App.tsx routes: request Orchestrator to add them           ║"
+  echo "║    • For layout changes: raise a PR to the Orchestrator             ║"
+  echo "║                                                                      ║"
+  echo "║  To override (Orchestrator only): git commit --no-verify            ║"
+  echo "╚══════════════════════════════════════════════════════════════════════╝"
+  echo ""
+  exit 1
+fi
+
+exit 0

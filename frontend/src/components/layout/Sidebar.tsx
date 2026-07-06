@@ -1,3 +1,20 @@
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  ⛔  DO NOT MODIFY — SHARED INFRASTRUCTURE FILE                            ║
+ * ║                                                                              ║
+ * ║  This file is OWNED by the Core Foundation Agent and the Orchestrator.      ║
+ * ║  It is shared across ALL 12 modules.                                        ║
+ * ║                                                                              ║
+ * ║  Module agents (M1–M12) MUST NOT edit this file.                            ║
+ * ║  Any change to this file requires Orchestrator approval.                    ║
+ * ║                                                                              ║
+ * ║  If you need to add module-specific navigation items, add them to           ║
+ * ║  your module's routes.tsx file — NOT here.                                  ║
+ * ║                                                                              ║
+ * ║  Violations will be detected by the pre-commit hook and rejected.           ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
+ */
+
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
