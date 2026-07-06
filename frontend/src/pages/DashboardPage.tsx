@@ -19,7 +19,7 @@ export default function DashboardPage() {
       if (role === "executive") {
         navigate("/module6/executive-dashboard", { replace: true });
       } else if (role === "credit_officer") {
-        navigate("/module2/credit-scoring", { replace: true });
+        navigate("/module2/dashboard", { replace: true });
       } else if (role === "branch_officer" || role === "branch_manager") {
         navigate("/module1/applications", { replace: true });
       } else if (role === "finance_officer") {
