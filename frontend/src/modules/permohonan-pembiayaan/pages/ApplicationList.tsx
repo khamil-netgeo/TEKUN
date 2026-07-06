@@ -65,13 +65,15 @@ export default function ApplicationList() {
     try {
       const params = new URLSearchParams({ page: String(page), per_page: '15', ...(search && { search }), ...(statusFilter && { status: statusFilter }) });
       const res = await axios.get(`${API_BASE}/api/applications?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = res.data?.data || res.data?.applications || [];
-      const meta = res.data?.meta || res.data?.pagination || {};
-      setApplications(Array.isArray(data) ? data : []);
-      setTotalPages(meta.last_page || meta.total_pages || 1);
-      const all = Array.isArray(data) ? data : [];
+      // API returns: { data: [...], total: N, per_page: N, current_page: N, last_page: N }
+      const records = res.data?.data ?? res.data?.applications ?? [];
+      const totalRecords = res.data?.total ?? res.data?.meta?.total ?? 0;
+      const lastPage = res.data?.last_page ?? res.data?.meta?.last_page ?? 1;
+      const all = Array.isArray(records) ? records : [];
+      setApplications(all);
+      setTotalPages(lastPage);
       setStats({
-        total:    meta.total || all.length,
+        total:    totalRecords,
         pending:  all.filter((a: Application) => ['submitted', 'under_review'].includes(a.status)).length,
         approved: all.filter((a: Application) => a.status === 'approved').length,
         rejected: all.filter((a: Application) => a.status === 'rejected').length,
