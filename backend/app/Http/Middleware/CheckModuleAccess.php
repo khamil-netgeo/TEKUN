@@ -40,6 +40,8 @@ class CheckModuleAccess
             'credit_officer'  => ['module1', 'module2', 'module3', 'module4', 'module5', 'module9'],
             'executive'       => ['module1', 'module2', 'module3', 'module4', 'module5', 'module6', 'module7', 'module8', 'module9', 'module10', 'module11'],
             'finance_officer' => ['module4', 'module5', 'module9'],
+            'usahawan'       => ['module1', 'module4'],
+            'applicant'      => ['module1', 'module4'],
         ];
         $roleModules = $roleModuleMap[$user->role] ?? [];
         if (in_array($module, $roleModules)) {

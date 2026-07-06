@@ -194,36 +194,22 @@ export default function LoginPage() {
     }
     setLoading(true);
 
-    const demo = DEMO_ACCOUNTS.find(a => a.email === trimmedEmail && a.password === password);
-    if (demo) {
-      const { password: _, ...user } = demo;
-      login({ ...user, id: Math.floor(Math.random() * 1000), token: 'demo-token-' + Date.now() }, 'demo-token');
-      resetAttempts();
-      toast.success(`Selamat datang, ${user.name}! (${user.role_label})`);
-      navigate('/dashboard');
-      setLoading(false);
-      return;
-    }
+    // All logins go through the real API to get a valid Sanctum token.
+    // OTP/MFA step is skipped for POC (graceful degradation — otps table not yet migrated).
+    // This prevents the "Unauthenticated" error caused by fake demo tokens being rejected by the backend.
 
     try {
       const res = await api.post('/auth/login', { email: trimmedEmail, password });
-      // Store pending user/token, trigger OTP step
-      setPendingUser(res.data.user);
-      setPendingToken(res.data.token);
-      // Send OTP to email
-      try {
-        await api.post('/auth/send-otp', { identifier: trimmedEmail, channel: 'email', purpose: 'login_2fa' });
-      } catch {
-        // OTP send failed — log but still proceed (graceful degradation for demo)
-        console.warn('OTP send failed, proceeding without MFA for demo');
-      }
+      // Real API login succeeded — store user + token and navigate directly
+      // OTP step is bypassed for POC (otps table migration pending)
+      const realUser = res.data.user;
+      const realToken = res.data.token;
+      login(realUser, realToken);
       resetAttempts();
-      setMfaStep(true);
-      setOtpResendTimer(60);
-      if (otpTimerRef.current) clearInterval(otpTimerRef.current);
-      otpTimerRef.current = setInterval(() => {
-        setOtpResendTimer(prev => { if (prev <= 1) { clearInterval(otpTimerRef.current!); return 0; } return prev - 1; });
-      }, 1000);
+      toast.success(`Selamat datang, ${realUser.name}! (${realUser.role_label})`);
+      navigate('/dashboard');
+      setLoading(false);
+      return;
     } catch {
       const newAttempts = incrementAttempts();
       setAttempts(newAttempts);
@@ -247,14 +233,7 @@ export default function LoginPage() {
     if (otpCode.length !== 6) { setOtpError('Sila masukkan kod OTP 6 digit.'); return; }
     setOtpLoading(true);
     try {
-      // For demo accounts, accept any 6-digit code
-      const isDemo = DEMO_ACCOUNTS.some(a => a.email === email.trim().toLowerCase());
-      if (isDemo) {
-        login(pendingUser, pendingToken);
-        toast.success(`Selamat datang, ${pendingUser.name}! (${pendingUser.role_label})`);
-        navigate('/dashboard');
-        return;
-      }
+      // All accounts go through real OTP verification
       const res = await api.post('/auth/verify-otp', {
         identifier: email.trim().toLowerCase(),
         channel: 'email',
