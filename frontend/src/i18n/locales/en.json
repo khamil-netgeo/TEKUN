@@ -20,7 +20,15 @@
     "module9": "Financing Products",
     "module10": "API Integration",
     "module11": "Audit & Control",
-    "module12": "System Administration"
+    "module12": "System Administration",
+    "usahawanPortal": "Entrepreneur Portal"
+  },
+  "usahawan": {
+    "dashboard": "My Dashboard",
+    "myApplications": "My Applications",
+    "myAccount": "Financing Account",
+    "makePayment": "Make Payment",
+    "moratoriumRequest": "Moratorium Request"
   },
   "auth": {
     "login": "Login",

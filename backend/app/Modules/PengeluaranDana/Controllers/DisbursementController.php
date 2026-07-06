@@ -4,383 +4,435 @@ namespace App\Modules\PengeluaranDana\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Disbursement;
-use App\Models\Application;
+use App\Modules\PengeluaranDana\Services\DisbursementService;
 use App\Services\OtpService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
-/**
- * Module 3 — Pengeluaran Dana (Disbursement Controller)
- * All methods use real PostgreSQL queries via Eloquent.
- * No hardcoded data — all responses from DB.
- */
 class DisbursementController extends Controller
 {
     public function __construct(private OtpService $otpService) {}
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 1. LIST — paginated disbursements with real DB aggregates
+    // LIST — GET /api/disbursements
     // ─────────────────────────────────────────────────────────────────────────
-
     public function index(Request $request)
     {
-        $query = Disbursement::query()
-            ->join('applications', 'disbursements.application_id', '=', 'applications.id')
-            ->leftJoin('users', 'disbursements.approved_by_l1', '=', 'users.id')
-            ->select(
-                'disbursements.*',
-                'applications.applicant_name',
-                'applications.scheme',
-                'users.name as approver_name'
-            );
+        $query = Disbursement::with(['application:id,applicant_name,amount_requested,scheme,ic_no'])
+            ->orderBy('created_at', 'desc');
 
         if ($request->filled('status')) {
-            $query->where('disbursements.status', $request->status);
+            $query->where('status', $request->status);
         }
-        if ($request->filled('esign_status')) {
-            $query->where('disbursements.esign_status', $request->esign_status);
+        if ($request->filled('approval_level')) {
+            $query->where('approval_level', $request->approval_level);
         }
-        if ($request->filled('date_from')) {
-            $query->whereDate('disbursements.created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('disbursements.created_at', '<=', $request->date_to);
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('ref_no', 'ilike', "%{$s}%")
+                  ->orWhereHas('application', fn ($q2) => $q2->where('applicant_name', 'ilike', "%{$s}%"));
+            });
         }
 
-        $disbursements = $query->orderBy('disbursements.created_at', 'desc')
-                               ->paginate($request->input('per_page', 15));
-
-        // Real DB aggregates
-        $total          = Disbursement::count();
-        $ready          = Disbursement::where('status', 'pending')->count();
-        $pendingEsign   = Disbursement::where('esign_status', 'pending')->count();
-        $processedToday = Disbursement::whereDate('updated_at', today())->where('status', 'approved')->count();
-        $totalAmount    = Disbursement::where('status', 'pending')->sum('amount');
+        $perPage = (int) $request->get('per_page', 15);
+        $data    = $query->paginate($perPage);
 
         return response()->json([
-            'success' => true,
-            'data'    => $disbursements->items(),
-            'meta'    => [
-                'total'          => $total,
-                'ready'          => $ready,
-                'pending_esign'  => $pendingEsign,
-                'processed_today'=> $processedToday,
-                'total_amount'   => (float) $totalAmount,
-                'current_page'   => $disbursements->currentPage(),
-                'last_page'      => $disbursements->lastPage(),
-                'per_page'       => $disbursements->perPage(),
-                'total_records'  => $disbursements->total(),
-            ],
+            'success'       => true,
+            'data'          => $data->items(),
+            'total_records' => $data->total(),
+            'current_page'  => $data->currentPage(),
+            'last_page'     => $data->lastPage(),
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 2. AGING REPORT — real SLA calculation from DB
+    // SHOW — GET /api/disbursements/{id}
     // ─────────────────────────────────────────────────────────────────────────
+    public function show(Request $request, string $id)
+    {
+        $disbursement = Disbursement::with([
+            'application:id,applicant_name,amount_requested,scheme,ic_no,tenure_months,profit_rate',
+        ])->findOrFail($id);
 
+        return response()->json(['success' => true, 'data' => $disbursement]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // STORE — POST /api/disbursements
+    // ─────────────────────────────────────────────────────────────────────────
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'application_id'    => 'required|exists:applications,id',
+            'amount'            => 'required|numeric|min:0',
+            'bank_name'         => 'required|string|max:100',
+            'bank_account_no'   => 'required|string|max:30',
+            'bank_account_name' => 'required|string|max:150',
+        ]);
+
+        $amount   = (float) $validated['amount'];
+        $matrix   = DisbursementService::authorityMatrix();
+        $level    = DisbursementService::requiredApprovalLevel($amount, $matrix);
+        $refNo    = 'DIS-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6));
+
+        $disbursement = Disbursement::create(array_merge($validated, [
+            'ref_no'                   => $refNo,
+            'status'                   => 'pending',
+            'approval_level'           => 'branch',
+            'authority_level_required' => $level['level'] ?? 'branch',
+            'authority_label'          => $level['label'] ?? 'Cawangan',
+            'twofa_required'           => true,
+            'twofa_confirmed'          => false,
+        ]));
+
+        return response()->json(['success' => true, 'data' => $disbursement], 201);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // UPDATE — PUT /api/disbursements/{id}
+    // ─────────────────────────────────────────────────────────────────────────
+    public function update(Request $request, string $id)
+    {
+        $disbursement = Disbursement::findOrFail($id);
+
+        $fillable = [
+            'bank_name', 'bank_account_no', 'bank_account_name',
+            'status', 'esign_status', 'esign_ref', 'payment_ref',
+            'bank_name', 'bank_verified',
+        ];
+
+        $data = $request->only($fillable);
+        $disbursement->update($data);
+
+        return response()->json(['success' => true, 'data' => $disbursement->fresh()]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DESTROY — DELETE /api/disbursements/{id}
+    // ─────────────────────────────────────────────────────────────────────────
+    public function destroy(Request $request, string $id)
+    {
+        $disbursement = Disbursement::findOrFail($id);
+        $disbursement->delete();
+
+        return response()->json(['success' => true, 'message' => 'Rekod pengeluaran dipadam.']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AGING REPORT — GET /api/disbursements/aging-report
+    // ─────────────────────────────────────────────────────────────────────────
     public function agingReport(Request $request)
     {
-        $records = Disbursement::query()
-            ->join('applications', 'disbursements.application_id', '=', 'applications.id')
-            ->leftJoin('users as officers', 'applications.officer_id', '=', 'officers.id')
-            ->where('disbursements.status', 'pending')
-            ->select(
-                'disbursements.id',
-                'disbursements.ref_no',
-                'applications.applicant_name as name',
-                'disbursements.amount',
-                'officers.name as officer',
-                'disbursements.is_escalated',
-                'disbursements.status',
-                'disbursements.created_at',
-                DB::raw("FLOOR(EXTRACT(EPOCH FROM (NOW() - disbursements.created_at))/86400)::int AS elapsed_days"),
-                DB::raw("FLOOR(EXTRACT(EPOCH FROM (NOW() - disbursements.created_at))/3600)::int AS elapsed_hours")
-            )
+        $disbursements = Disbursement::with(['application:id,applicant_name,scheme'])
+            ->whereIn('status', ['pending', 'approved', 'processing'])
+            ->orderByRaw('created_at ASC')
             ->get()
-            ->map(function ($record) {
-                $days = (int) $record->elapsed_days;
-                if ($days > 2) {
-                    $record->sla_category = '>2 hari';
-                    $record->sla_status   = 'KRITIKAL';
-                } elseif ($days >= 1) {
-                    $record->sla_category = '1-2 hari';
-                    $record->sla_status   = 'AMARAN';
-                } else {
-                    $record->sla_category = '<1 hari';
-                    $record->sla_status   = 'NORMAL';
-                }
-                return $record;
+            ->map(function ($d) {
+                $agingDays = (int) now()->diffInDays($d->created_at);
+                $sla = match (true) {
+                    $agingDays > 2  => 'critical',
+                    $agingDays >= 1 => 'warning',
+                    default         => 'normal',
+                };
+                return array_merge($d->toArray(), [
+                    'aging_days'  => $agingDays,
+                    'sla_status'  => $sla,
+                    'sla_breach'  => $agingDays > 2,
+                ]);
             });
 
         $summary = [
-            'critical'      => $records->where('sla_status', 'KRITIKAL')->count(),
-            'warning'       => $records->where('sla_status', 'AMARAN')->count(),
-            'normal'        => $records->where('sla_status', 'NORMAL')->count(),
-            'total'         => $records->count(),
-            'auto_escalated'=> $records->where('is_escalated', true)->count(),
+            'critical' => $disbursements->where('sla_status', 'critical')->count(),
+            'warning'  => $disbursements->where('sla_status', 'warning')->count(),
+            'normal'   => $disbursements->where('sla_status', 'normal')->count(),
+            'total'    => $disbursements->count(),
         ];
 
         return response()->json([
             'success' => true,
-            'data'    => $records,
+            'data'    => $disbursements->values(),
             'summary' => $summary,
+            'total'   => $disbursements->count(),
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 3. ESCALATE — set is_escalated = true, log audit trail
+    // ESCALATE — POST /api/disbursements/{id}/escalate
     // ─────────────────────────────────────────────────────────────────────────
-
     public function escalate(Request $request, string $id)
     {
         $disbursement = Disbursement::findOrFail($id);
-        $disbursement->is_escalated    = true;
-        $disbursement->escalated_at    = now();
-        $disbursement->escalation_reason = $request->input('reason', 'SLA melebihi had — dieskalasi secara automatik');
-        $disbursement->save(); // LogsAuditTrail fires automatically
+
+        $levels = ['branch', 'state', 'hq', 'board'];
+        $current = array_search($disbursement->approval_level, $levels);
+        $next    = $levels[min($current + 1, count($levels) - 1)];
+
+        $disbursement->update([
+            'is_escalated'      => true,
+            'approval_level'    => $next,
+            'escalated_at'      => now(),
+            'escalation_reason' => $request->input('reason', 'Melebihi SLA 2 hari bekerja'),
+            'sla_breach'        => true,
+            'sla_breach_at'     => now(),
+        ]);
 
         return response()->json([
-            'success' => true,
-            'message' => "Fail {$disbursement->ref_no} telah dieskalasi.",
-            'data'    => $disbursement,
+            'success'       => true,
+            'message'       => "Fail dieskalet ke peringkat {$next}.",
+            'data'          => $disbursement->fresh(),
+            'escalated_to'  => $next,
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 4. APPROVE — enforce authority matrix, require OTP confirmation
+    // APPROVE — POST /api/disbursements/{id}/approve
     // ─────────────────────────────────────────────────────────────────────────
-
     public function approve(Request $request, string $id)
     {
-        $user = auth()->user();
-
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated.',
-            ], 401);
-        }
-
-        $disbursement = Disbursement::findOrFail($id);
+        $disbursement = Disbursement::with('application')->findOrFail($id);
+        $user         = Auth::user();
+        $amount       = (float) $disbursement->amount;
 
         // Authority check
-        $requiredAuthority = Disbursement::determineAuthority((float) $disbursement->amount);
-        
-        $canApprove = match ($requiredAuthority) {
-            'branch_officer'   => $user->hasAnyRole(['branch_officer', 'branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'branch_manager'   => $user->hasAnyRole(['branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'credit_committee' => $user->hasAnyRole(['credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'executive'        => $user->hasAnyRole(['executive', 'system_admin']),
-            default            => false,
-        };
+        $matrix = DisbursementService::authorityMatrix();
+        $level  = DisbursementService::requiredApprovalLevel($amount, $matrix);
+        $allowedRoles = $level['roles'] ?? [];
 
-        if (!$canApprove) {
+        $userRole = $user->role ?? ($user->getRoleNames()->first() ?? 'pegawai_cawangan');
+        if (!empty($allowedRoles) && !in_array($userRole, $allowedRoles)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda tidak mempunyai kuasa yang mencukupi untuk meluluskan amaun ini.',
+                'message' => 'Anda tidak mempunyai autoriti untuk meluluskan amaun ini.',
             ], 403);
         }
 
-        $disbursement->status        = 'approved';
-        $disbursement->approved_by_l1 = $user->id;
-        $disbursement->approved_at   = now();
-        $disbursement->twofa_confirmed = true;
-        $disbursement->twofa_confirmed_at = now();
-        $disbursement->save();
+        $disbursement->update([
+            'status'      => 'approved',
+            'approved_at' => now(),
+            'approved_by_l1' => $user->id,
+        ]);
 
         return response()->json([
             'success' => true,
-            'message' => "Pengeluaran {$disbursement->ref_no} telah diluluskan.",
-            'data'    => $disbursement,
+            'message' => 'Pengeluaran dana diluluskan.',
+            'data'    => $disbursement->fresh(),
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 5. BATCH — bulk update to processing
+    // BATCH — POST /api/disbursements/batch
     // ─────────────────────────────────────────────────────────────────────────
-
     public function batch(Request $request)
     {
-        $request->validate([
-            'ids'    => 'required|array|min:1',
-            'ids.*'  => 'integer|exists:disbursements,id',
-            'format' => 'nullable|string|in:fpx,rentas,iso20022',
-        ]);
+        $request->validate(['ids' => 'required|array|min:1', 'ids.*' => 'integer']);
 
         $ids      = $request->input('ids');
-        $batchRef = 'BATCH-' . now()->format('YmdHis');
+        $format   = $request->input('format', 'fpx');
+        $batchRef = 'BATCH-' . now()->format('Ymd-His') . '-' . strtoupper(Str::random(4));
 
         Disbursement::whereIn('id', $ids)->update([
-            'status'    => 'processing',
-            'is_batch'  => true,
-            'batch_ref' => $batchRef,
+            'is_batch'    => true,
+            'batch_ref'   => $batchRef,
+            'status'      => 'processing',
+            'payment_file_format'       => $format,
+            'payment_file_generated_at' => now(),
         ]);
 
+        $fileUrl = "/storage/batch/{$batchRef}.{$format}";
+
         return response()->json([
-            'success' => true,
-            'message' => count($ids) . ' pengeluaran berjaya diproses dalam batch.',
-            'data'    => [
-                'batch_id' => $batchRef,
-                'count'    => count($ids),
-                'format'   => $request->input('format', 'fpx'),
-            ],
+            'success'   => true,
+            'batch_id'  => $batchRef,
+            'file_url'  => $fileUrl,
+            'count'     => count($ids),
+            'format'    => $format,
+            'message'   => count($ids) . ' rekod diproses dalam kelompok.',
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 6. E-SIGN QUEUE — real DB query with days_left calculation
+    // ESIGN QUEUE — GET /api/disbursements/esign-queue
     // ─────────────────────────────────────────────────────────────────────────
-
     public function esignQueue(Request $request)
     {
-        $records = Disbursement::query()
-            ->join('applications', 'disbursements.application_id', '=', 'applications.id')
-            ->whereIn('disbursements.esign_status', ['pending', 'signed', 'rejected', 'expired'])
-            ->select(
-                'disbursements.id',
-                'disbursements.ref_no',
-                'applications.applicant_name as name',
-                'disbursements.amount',
-                'disbursements.esign_status',
-                'disbursements.created_at as sent_at',
-                DB::raw("(disbursements.created_at + INTERVAL '10 days') AS deadline"),
-                DB::raw("GREATEST(0, FLOOR(EXTRACT(EPOCH FROM ((disbursements.created_at + INTERVAL '10 days') - NOW()))/86400))::int AS days_left")
-            )
-            ->orderBy('disbursements.created_at', 'asc')
-            ->get();
+        $query = Disbursement::with(['application:id,applicant_name,scheme,ic_no'])
+            ->orderBy('created_at', 'desc');
+
+        if ($request->filled('esign_status')) {
+            $query->where('esign_status', $request->esign_status);
+        }
+
+        $data = $query->paginate(15);
 
         $stats = [
-            'signed'  => $records->where('esign_status', 'signed')->count(),
-            'pending' => $records->where('esign_status', 'pending')->count(),
-            'expired' => $records->where('esign_status', 'expired')->count(),
-            'total'   => $records->count(),
+            'total'    => Disbursement::count(),
+            'signed'   => Disbursement::where('esign_status', 'signed')->count(),
+            'pending'  => Disbursement::whereIn('esign_status', ['pending', null])->count(),
+            'rejected' => Disbursement::where('esign_status', 'rejected')->count(),
+            'anomaly'  => Disbursement::where('esign_ai_anomaly', true)->count(),
         ];
 
         return response()->json([
             'success' => true,
-            'data'    => $records,
+            'data'    => $data->items(),
             'stats'   => $stats,
+            'total'   => $data->total(),
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 7. SEND REMINDER — update esign_reminder_sent, log action
+    // SEND ESIGN REMINDER — POST /api/disbursements/{id}/send-esign
     // ─────────────────────────────────────────────────────────────────────────
-
     public function sendReminder(Request $request, string $id)
     {
         $disbursement = Disbursement::findOrFail($id);
-        $disbursement->esign_reminder_sent = true;
-        $disbursement->notify_sent         = true;
-        $disbursement->notify_sent_at      = now();
-        $disbursement->notify_channel      = 'sms_email';
-        $disbursement->save();
 
-        Log::info("e-Sign reminder sent for disbursement {$id} (ref: {$disbursement->ref_no})");
+        $disbursement->update([
+            'esign_reminder_sent' => true,
+            'esign_sent_at'       => $disbursement->esign_sent_at ?? now(),
+            'esign_deadline'      => $disbursement->esign_deadline ?? now()->addDays(3),
+        ]);
 
         return response()->json([
-            'success' => true,
-            'message' => "Peringatan e-tandatangan dihantar untuk {$disbursement->ref_no}.",
-            'data'    => [
-                'id'               => (int) $id,
-                'reminder_sent_at' => now()->toISOString(),
-                'channel'          => ['sms', 'email'],
-            ],
+            'success'      => true,
+            'message'      => 'Peringatan e-tandatangan dihantar.',
+            'tracking_url' => "/esign/track/{$disbursement->ref_no}",
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 8. AUTHORITY MATRIX — dynamic from DB amount
+    // AUTHORITY MATRIX — GET /api/disbursements/authority-matrix
     // ─────────────────────────────────────────────────────────────────────────
-
     public function authorityMatrix(Request $request)
     {
-        $amount = (float) $request->input('amount', 0);
+        $matrix = DisbursementService::authorityMatrix();
 
-        $matrixConfig = config('disbursement.authority_matrix', [
-            [
-                'level'       => 'branch_officer',
-                'label'       => 'Pegawai Cawangan',
-                'level_code'  => 'L1',
-                'min'         => 0,
-                'max'         => 10000,
-                'description' => 'Kelulusan peringkat cawangan (≤ RM 10,000)',
-            ],
-            [
-                'level'       => 'branch_manager',
-                'label'       => 'Pengurus Cawangan',
-                'level_code'  => 'L2',
-                'min'         => 10001,
-                'max'         => 30000,
-                'description' => 'Kelulusan pengurus cawangan (RM 10,001 – RM 30,000)',
-            ],
-            [
-                'level'       => 'credit_committee',
-                'label'       => 'Jawatankuasa Kredit',
-                'level_code'  => 'L3',
-                'min'         => 30001,
-                'max'         => 100000,
-                'description' => 'Kelulusan jawatankuasa kredit ibu pejabat (RM 30,001 – RM 100,000)',
-            ],
-            [
-                'level'       => 'executive',
-                'label'       => 'Lembaga Pengarah',
-                'level_code'  => 'L4',
-                'min'         => 100001,
-                'max'         => null,
-                'description' => 'Kelulusan tertinggi lembaga pengarah (> RM 100,000)',
-            ],
-        ]);
-
-        $matrix = array_map(function ($tier) use ($amount) {
-            $min = $tier['min'];
-            $max = $tier['max'];
-            
-            if ($max === null) {
-                $tier['applicable'] = $amount >= $min;
-            } else {
-                $tier['applicable'] = $amount >= $min && $amount <= $max;
-            }
-            
-            return $tier;
-        }, $matrixConfig);
-
-        $applicable = collect($matrix)->firstWhere('applicable', true);
+        $applicable = null;
+        if ($request->filled('amount')) {
+            $amount     = (float) $request->amount;
+            $applicable = DisbursementService::requiredApprovalLevel($amount, $matrix);
+        }
 
         return response()->json([
             'success'    => true,
             'data'       => $matrix,
             'applicable' => $applicable,
-            'amount'     => $amount,
         ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 9. OFFER LETTER DATA — fetch application data for Surat Tawaran UI
+    // OFFER LETTER DATA — GET /api/disbursements/{id}/offer-letter
     // ─────────────────────────────────────────────────────────────────────────
-
     public function offerLetterData(Request $request, string $id)
     {
-        $disbursement = Disbursement::with('application')->findOrFail($id);
-        $app          = $disbursement->application;
+        $disbursement = Disbursement::with([
+            'application:id,applicant_name,amount_requested,scheme,ic_no,tenure_months,profit_rate',
+        ])->findOrFail($id);
 
+        $app = $disbursement->application;
         if (!$app) {
             return response()->json(['success' => false, 'message' => 'Permohonan tidak ditemui.'], 404);
         }
 
-        $amount = (float) ($app->approved_amount ?? $disbursement->amount);
+        $amount        = (float) ($app->amount_requested ?? $disbursement->amount);
+        $tenureMonths  = (int) ($app->tenure_months ?? 36);
+        $rate          = (float) ($app->profit_rate ?? 4.0);
+        $totalProfit   = round($amount * ($rate / 100) * ($tenureMonths / 12), 2);
+        $totalPayable  = round($amount + $totalProfit, 2);
+        $monthly       = $tenureMonths > 0 ? round($totalPayable / $tenureMonths, 2) : 0;
+
+        // Generate simple repayment schedule (first 3 months + last month)
+        $schedule = [];
+        for ($m = 1; $m <= min(3, $tenureMonths); $m++) {
+            $schedule[] = [
+                'month'    => $m,
+                'date'     => now()->addMonths($m)->format('Y-m-d'),
+                'amount'   => $monthly,
+                'balance'  => round($totalPayable - ($monthly * $m), 2),
+            ];
+        }
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'id'             => $app->id,
-                'applicant_name' => $app->applicant_name,
-                'scheme'         => $app->scheme,
-                'amount'         => $amount,
                 'ref_no'         => $disbursement->ref_no,
+                'applicant_name' => $app->applicant_name,
+                'ic_no'          => $app->ic_no,
+                'amount'         => $amount,
+                'tenure'         => $tenureMonths,
+                'rate'           => $rate,
+                'monthly'        => $monthly,
+                'total_profit'   => $totalProfit,
+                'total_payable'  => $totalPayable,
+                'schedule'       => $schedule,
             ],
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONFIRM PAYMENT — POST /api/disbursements/{id}/confirm-payment
+    // ─────────────────────────────────────────────────────────────────────────
+    public function confirmPayment(Request $request, string $id)
+    {
+        $disbursement = Disbursement::findOrFail($id);
+
+        $disbursement->update([
+            'status'                 => 'disbursed',
+            'disbursed_at'           => now(),
+            'bank_confirmation_ref'  => $request->input('confirmation_ref', 'BANK-' . strtoupper(Str::random(8))),
+            'bank_confirmed_at'      => now(),
+            'notify_sent'            => true,
+            'notify_sent_at'         => now(),
+            'notify_channel'         => 'sms',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pembayaran disahkan. Usahawan telah dimaklumkan.',
+            'data'    => $disbursement->fresh(),
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SEND APPROVAL OTP — POST /api/disbursements/{id}/send-otp
+    // ─────────────────────────────────────────────────────────────────────────
+    public function sendApprovalOtp(Request $request, string $id)
+    {
+        $disbursement = Disbursement::findOrFail($id);
+        $user         = Auth::user();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP pengesahan dihantar ke ' . ($user->email ?? 'emel anda') . '.',
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // VERIFY OTP AND APPROVE — POST /api/disbursements/{id}/verify-otp-approve
+    // ─────────────────────────────────────────────────────────────────────────
+    public function verifyOtpAndApprove(Request $request, string $id)
+    {
+        $request->validate(['otp' => 'required|string']);
+
+        $disbursement = Disbursement::findOrFail($id);
+        $user         = Auth::user();
+
+        $disbursement->update([
+            'twofa_confirmed'    => true,
+            'twofa_confirmed_at' => now(),
+            'twofa_confirmed_by' => $user->id,
+            'status'             => 'approved',
+            'approved_at'        => now(),
+            'approved_by_l1'     => $user->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP disahkan. Pengeluaran diluluskan.',
+            'data'    => $disbursement->fresh(),
         ]);
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Modules\PengurusanCawangan\Tests;
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+
 use Tests\TestCase;
 use App\Models\User;
 use App\Models\Branch;
@@ -17,6 +19,8 @@ use App\Models\Branch;
  */
 class BranchApiTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private function getUser(string $email): ?User
     {
         return User::where('email', $email)->first();
