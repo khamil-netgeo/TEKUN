@@ -11,28 +11,19 @@ abstract class TestCase extends BaseTestCase
     use RefreshDatabase;
 
     /**
-     * Whether module migrations have been run in this PHP process.
-     * Static = persists across all test classes in one test run.
-     * Reset to false after each migrate:fresh via setUp.
+     * Called by the RefreshDatabase trait after every migrate:fresh.
+     * This is the correct hook to run module migrations.
      */
-    private static bool $modulesMigrated = false;
-
-    protected function setUp(): void
+    protected function afterRefreshingDatabase(): void
     {
-        parent::setUp();
-        $this->runModuleMigrationsOnce();
+        $this->runModuleMigrations();
         $this->seedCoreRoles();
     }
 
-    private function runModuleMigrationsOnce(): void
+    private function runModuleMigrations(): void
     {
-        if (self::$modulesMigrated) {
-            return;
-        }
-
         $modulesPath = app_path('Modules');
         if (!is_dir($modulesPath)) {
-            self::$modulesMigrated = true;
             return;
         }
 
@@ -46,8 +37,6 @@ abstract class TestCase extends BaseTestCase
                 // Ignore already-exists errors
             }
         }
-
-        self::$modulesMigrated = true;
     }
 
     private function seedCoreRoles(): void
