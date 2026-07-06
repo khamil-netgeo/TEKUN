@@ -4,10 +4,18 @@ namespace App\Modules\IntegrasiAPI\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\IntegrasiAPI\Models\ApiIntegration;
 use App\Modules\IntegrasiAPI\Models\ApiAlertConfig;
+use App\Modules\IntegrasiAPI\Services\IntegrationHealthService;
 use Illuminate\Http\Request;
 
 class IntegrationController extends Controller
 {
+    protected IntegrationHealthService $healthService;
+
+    public function __construct(IntegrationHealthService $healthService)
+    {
+        $this->healthService = $healthService;
+    }
+
     private function getDemoIntegrations(): \Illuminate\Support\Collection
     {
         return collect([
@@ -60,29 +68,22 @@ class IntegrationController extends Controller
         if (!in_array(strtolower(str_replace('-','_',$service)), $known)) {
             return response()->json(['success'=>false,'message'=>'Servis tidak dijumpai.'], 404);
         }
+        
+        $metrics = $this->healthService->getServiceMetrics($service);
+        
         return response()->json([
             'success' => true,
-            'data'    => [
-                'service'     => $service,
-                'latency_24h' => array_map(fn($h) => ['hour'=>$h,'latency_ms'=>rand(100,800)], range(0,23)),
-                'uptime_30d'  => round(95 + rand(0,499)/100, 2),
-                'stats'       => ['total_calls'=>rand(1000,9999),'success_rate'=>round(97+rand(0,299)/100,2),'avg_latency_ms'=>rand(150,600)],
-            ],
+            'data'    => $metrics,
         ]);
     }
 
     public function testService(Request $request, string $service): \Illuminate\Http\JsonResponse
     {
-        $latency = rand(80, 600);
+        $result = $this->healthService->testService($service);
+        
         return response()->json([
             'success' => true,
-            'result'  => [
-                'success'    => true,
-                'latency_ms' => $latency,
-                'status'     => $latency > 500 ? 'degraded' : 'ok',
-                'service_key'=> $service,
-                'tested_at'  => now()->toISOString(),
-            ],
+            'result'  => $result,
         ]);
     }
 
@@ -114,23 +115,40 @@ class IntegrationController extends Controller
 
     public function check(Request $request, string $service): \Illuminate\Http\JsonResponse
     {
-        $latency = rand(100, 500);
+        $result = $this->healthService->testService($service);
+        
         return response()->json([
             'success'    => true,
             'service'    => $service,
-            'status'     => $latency > 400 ? 'degraded' : 'ok',
-            'latency_ms' => $latency,
+            'status'     => $result['status'] ?? 'ok',
+            'latency_ms' => $result['latency_ms'] ?? 0,
             'checked_at' => now()->toISOString(),
         ]);
     }
 
     public function logs(Request $request): \Illuminate\Http\JsonResponse
     {
-        return response()->json(['success'=>true,'data'=>[],'total'=>0]);
+        $logs = $this->healthService->getLogs($request->all());
+        
+        if (is_object($logs) && method_exists($logs, 'items')) {
+            return response()->json([
+                'success' => true,
+                'data'    => $logs->items(),
+                'total'   => $logs->total(),
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data'    => $logs['data'] ?? $logs,
+            'total'   => $logs['total'] ?? (is_array($logs) ? count($logs['data'] ?? $logs) : 0),
+        ]);
     }
 
     public function resetCircuitBreaker(Request $request, string $service): \Illuminate\Http\JsonResponse
     {
+        $this->healthService->resetCircuitBreaker($service);
+        
         return response()->json([
             'success' => true,
             'message' => "Circuit breaker untuk {$service} telah direset.",
