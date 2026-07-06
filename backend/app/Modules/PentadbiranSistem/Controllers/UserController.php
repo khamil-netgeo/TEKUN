@@ -37,8 +37,23 @@ class UserController extends Controller
      * GET /api/users
      * Paginated user list with Spatie roles, search & filter support.
      */
+    private function requireAdmin(): ?JsonResponse
+    {
+        $user = Auth::user();
+        // Flush Spatie permission cache to ensure fresh role check
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        // Check Spatie role first (primary RBAC), then fall back to role column
+        $hasSpatieRole = $user->hasRole('Pentadbir Sistem') || $user->hasRole('system_admin');
+        $hasColumnRole = in_array($user->role ?? '', ['system_admin', 'Pentadbir Sistem']);
+        if (!$hasSpatieRole && !$hasColumnRole) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak. Hanya Pentadbir Sistem dibenarkan.'], 403);
+        }
+        return null;
+    }
+
     public function index(Request $request): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $perPage = min((int) $request->get('per_page', 15), 100);
         $search  = $request->get('search', '');
         $role    = $request->get('role', '');
@@ -113,6 +128,7 @@ class UserController extends Controller
      */
     public function show(int $id): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $user = User::with('roles', 'permissions')->findOrFail($id);
 
         return response()->json([
@@ -145,6 +161,7 @@ class UserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $validator = Validator::make($request->all(), [
             'name'         => 'required|string|max:255',
             'email'        => 'required|email|unique:users,email',
@@ -205,6 +222,7 @@ class UserController extends Controller
      */
     public function update(Request $request, int $id): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $user = User::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
@@ -261,6 +279,7 @@ class UserController extends Controller
      */
     public function suspend(int $id): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $user = User::findOrFail($id);
 
         if (Auth::id() === $user->id) {
@@ -297,6 +316,7 @@ class UserController extends Controller
      */
     public function activate(int $id): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $user = User::findOrFail($id);
 
         $before = ['is_suspended' => $user->is_suspended, 'is_active' => $user->is_active];
@@ -324,6 +344,7 @@ class UserController extends Controller
      */
     public function resetPassword(int $id): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $user = User::findOrFail($id);
 
         $tempPassword = Str::password(16, true, true, true, false);
@@ -355,6 +376,7 @@ class UserController extends Controller
      */
     public function stats(): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $total     = User::count();
         $active    = User::where('is_active', true)->where('is_suspended', false)->count();
         $suspended = User::where('is_suspended', true)->count();
@@ -396,6 +418,7 @@ class UserController extends Controller
      */
     public function roles(): JsonResponse
     {
+        if ($deny = $this->requireAdmin()) return $deny;
         $roles = Role::with('permissions')
             ->get()
             ->map(function ($role) {

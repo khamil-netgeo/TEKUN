@@ -13,7 +13,7 @@ use App\Modules\PentadbiranSistem\Controllers\UserController;
  * NOTE: This file is auto-loaded by AppServiceProvider dynamic route loader.
  * Do NOT add these routes to routes/api.php directly.
  */
-Route::middleware(['auth:sanctum', 'role:Pentadbir Sistem'])->group(function () {
+Route::middleware(['auth:sanctum'])->group(function () {
 
     // ── User Management ──────────────────────────────────────────────────────
     Route::get('/users',                         [UserController::class, 'index']);
