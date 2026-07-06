@@ -24,6 +24,11 @@ class DisbursementTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Run M3 module migrations (adds ai_anomaly_flag, twofa_required, etc.)
+        $this->artisan('migrate', [
+            '--path' => 'app/Modules/PengeluaranDana/Database/Migrations',
+            '--force' => true,
+        ]);
 
         $this->artisan('db:seed', ['--class' => 'Database\\Seeders\\CoreRbacSeeder']);
 

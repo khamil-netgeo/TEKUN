@@ -182,7 +182,7 @@ class DisbursementController extends Controller
         $disbursement->update([
             'is_escalated'      => true,
             'approval_level'    => $next,
-            'escalated_to'      => $next,
+            // escalated_to is a user FK - set via separate assignment if needed
             'escalated_at'      => now(),
             'escalation_reason' => $request->input('reason', 'Melebihi SLA 2 hari bekerja'),
             'sla_breach'        => true,
