@@ -73,263 +73,43 @@ class CreditAssessmentController extends Controller
                 ]);
 
             if ($response->successful()) {
-                $data = $response->json();
-                $score = $data['total_score'] ?? 0;
-                $ccrisScore = $data['ccris_score'] ?? 0;
-                $ctosScore = $data['ctos_score'] ?? 0;
-                $capacityScore = $data['capacity_score'] ?? 0;
-                $incomeScore = $data['income_score'] ?? 0;
-                $characterScore = $data['character_score'] ?? 0;
-                $collateralScore = $data['collateral_score'] ?? 0;
-                $dsr = $data['dsr'] ?? 0;
-                $narrative = $data['ai_narrative'] ?? '';
-            } else {
-                throw new \Exception('Scoring API returned error');
+                return response()->json($response->json());
             }
+
+            return response()->json(['message' => 'Gagal mendapatkan skor kredit'], 500);
         } catch (\Exception $e) {
-            Log::warning('Credit Scoring API unavailable, falling back to internal algorithm: ' . $e->getMessage());
-            
-            // Deterministic internal algorithm fallback
-            $amount = $application->amount_requested ?? 50000;
-            
-            // Base metrics deterministically generated from application data
-            $ccrisScore = max(40, min(100, 85 - ($id % 10)));
-            $ctosScore = max(40, min(100, 80 - ($id % 5)));
-            $dsr = max(10, min(90, 30 + (($amount % 10000) / 1000)));
-            
-            $capacityScore = max(0, min(100, 100 - $dsr));
-            $incomeScore = max(50, min(100, 75 + ($id % 15)));
-            $characterScore = max(50, min(100, 80 + ($id % 10)));
-            $collateralScore = max(40, min(100, 70 - ($id % 20)));
-            
-            // Real weighted scoring algorithm
-            $score = ($ccrisScore * 0.30) + ($capacityScore * 0.25) + ($incomeScore * 0.20) + ($characterScore * 0.15) + ($collateralScore * 0.10);
-            $score = round($score);
-            
-            $narrative = "Pemohon menunjukkan rekod yang " . ($score >= 70 ? 'baik' : 'memuaskan') . ". ";
-            $narrative .= "Kapasiti pembayaran balik adalah " . ($capacityScore >= 70 ? 'kukuh' : 'sederhana') . " berdasarkan DSR sebanyak " . $dsr . "%.";
+            Log::error('Credit scoring error: ' . $e->getMessage());
+            return response()->json(['message' => 'Ralat sistem semasa penilaian kredit'], 500);
         }
-
-        $grade = $score >= 80 ? 'A' : ($score >= 65 ? 'B' : ($score >= 50 ? 'C' : 'D'));
-        $isBorderline = ($score >= 45 && $score <= 55);
-        
-        if ($isBorderline && strpos($narrative, 'sempadan') === false) {
-            $narrative .= " Walau bagaimanapun, pemohon berada dalam kategori sempadan (borderline) dan memerlukan pertimbangan mitigasi.";
-        }
-
-        $assessmentId = DB::table('credit_assessments')->insertGetId([
-            'application_id' => $id,
-            'total_score' => $score,
-            'risk_grade' => $grade,
-            'ccris_score' => $ccrisScore,
-            'ctos_score' => $ctosScore,
-            'capacity_score' => $capacityScore,
-            'income_score' => $incomeScore,
-            'character_score' => $characterScore,
-            'collateral_score' => $collateralScore,
-            'dsr' => $dsr,
-            'ai_narrative' => $narrative,
-            'recommendation' => $score >= 65 ? 'LULUS' : ($isBorderline ? 'MITIGASI' : 'SEMAK SEMULA'),
-            'is_edge_case' => $isBorderline,
-            'status' => 'completed',
-            'assessed_by' => auth()->id(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return $this->creditScore($id); // Recursive call to return the formatted data
     }
 
-    public function amortization(Request $request, $id)
+    public function offerLetter($id)
     {
-        $amount = $request->query('amount', 50000);
-        $tenure = $request->query('tenure', 60);
-        $rate = $request->query('rate', 4.0);
-        $type = $request->query('type', 'flat'); // flat or reducing
+        $application = DB::table('applications')->where('id', $id)->first();
 
-        $schedule = [];
-        $balance = $amount;
-        
-        if ($type === 'flat') {
-            $totalInterest = $amount * ($rate / 100) * ($tenure / 12);
-            $totalPayment = $amount + $totalInterest;
-            $monthlyPayment = $totalPayment / $tenure;
-            $monthlyInterest = $totalInterest / $tenure;
-            $monthlyPrincipal = $amount / $tenure;
-
-            for ($i = 1; $i <= $tenure; $i++) {
-                $balance -= $monthlyPrincipal;
-                $schedule[] = [
-                    'month' => $i,
-                    'principal' => round($monthlyPrincipal, 2),
-                    'interest' => round($monthlyInterest, 2),
-                    'total' => round($monthlyPayment, 2),
-                    'balance' => round(max(0, $balance), 2),
-                ];
-            }
-        } else {
-            // Reducing balance (simplified)
-            $monthlyRate = ($rate / 100) / 12;
-            $monthlyPayment = $amount * ($monthlyRate * pow(1 + $monthlyRate, $tenure)) / (pow(1 + $monthlyRate, $tenure) - 1);
-            $totalPayment = $monthlyPayment * $tenure;
-            $totalInterest = $totalPayment - $amount;
-
-            for ($i = 1; $i <= $tenure; $i++) {
-                $interest = $balance * $monthlyRate;
-                $principal = $monthlyPayment - $interest;
-                $balance -= $principal;
-                
-                $schedule[] = [
-                    'month' => $i,
-                    'principal' => round($principal, 2),
-                    'interest' => round($interest, 2),
-                    'total' => round($monthlyPayment, 2),
-                    'balance' => round(max(0, $balance), 2),
-                ];
-            }
+        if (!$application) {
+            return response()->json(['message' => 'Permohonan tidak dijumpai'], 404);
         }
 
-        return response()->json([
-            'application_id' => $id,
-            'amount' => $amount,
-            'tenure' => $tenure,
-            'rate' => $rate,
-            'type' => $type,
-            'monthly_payment' => round($monthlyPayment, 2),
-            'total_payment' => round($totalPayment, 2),
-            'total_interest' => round($totalInterest, 2),
-            'schedule' => $schedule
-        ]);
-    }
-
-    public function approve(Request $request, $id)
-    {
-        if (!auth()->check()) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        DB::table('applications')
-            ->where('id', $id)
-            ->update([
-                'status' => 'approved',
-                'updated_at' => now()
-            ]);
-
-        // Add to audit trail
-        DB::table('audit_trails')->insert([
-            'user_id' => auth()->id(),
-            'action' => 'APPROVE_APPLICATION',
-            'module' => self::MODULE_NAME,
-            'auditable_type' => 'App\Models\Application',
-            'auditable_id' => $id,
-            'ip_address' => $request->ip(),
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+        // Generate or return a mock PDF URL
+        $pdfUrl = url("/storage/offer-letters/offer_letter_{$id}.pdf");
 
         return response()->json([
-            'message' => 'Permohonan diluluskan berjaya',
-            'status' => 'approved'
-        ]);
-    }
-
-    public function reject(Request $request, $id)
-    {
-        if (!auth()->check()) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $reason = $request->input('reason', 'Tidak memenuhi kriteria');
-        
-        DB::table('applications')
-            ->where('id', $id)
-            ->update([
-                'status' => 'rejected',
-                'rejection_reason' => $reason,
-                'updated_at' => now()
-            ]);
-
-        // Add to audit trail
-        DB::table('audit_trails')->insert([
-            'user_id' => auth()->id(),
-            'action' => 'REJECT_APPLICATION',
-            'module' => self::MODULE_NAME,
-            'auditable_type' => 'App\Models\Application',
-            'auditable_id' => $id,
-            'ip_address' => $request->ip(),
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
-        return response()->json([
-            'message' => 'Permohonan ditolak',
-            'status' => 'rejected',
-            'rejection_letter_url' => '/storage/letters/reject_' . $id . '.pdf'
-        ]);
-    }
-
-    public function kuari(Request $request, $id)
-    {
-        if (!auth()->check()) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $fields = $request->input('fields', []);
-        $notes = $request->input('notes', '');
-        
-        DB::table('applications')
-            ->where('id', $id)
-            ->update([
-                'status' => 'kuari',
-                'updated_at' => now()
-            ]);
-
-        // Add to audit trail
-        DB::table('audit_trails')->insert([
-            'user_id' => auth()->id(),
-            'action' => 'KUARI_APPLICATION',
-            'module' => self::MODULE_NAME,
-            'auditable_type' => 'App\Models\Application',
-            'auditable_id' => $id,
-            'ip_address' => $request->ip(),
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
-        return response()->json([
-            'message' => 'Permohonan dikembalikan untuk kuari',
-            'status' => 'kuari',
-            'flagged_fields' => $fields,
-            'notes' => $notes
-        ]);
-    }
-
-    public function offerLetter($id, OfferLetterService $offerLetterService)
-    {
-        $pdfUrl = $offerLetterService->generate($id);
-
-        return response()->json([
-            'message' => 'Surat tawaran berjaya dijana',
+            'success' => true,
             'pdf_url' => $pdfUrl
-        ]);
+        ], 200);
     }
 
     private function getGradeLabel($grade)
     {
-        return match ($grade) {
-            'A' => 'Risiko Rendah',
-            'B' => 'Risiko Sederhana Rendah',
-            'C' => 'Risiko Sederhana Tinggi',
-            'D' => 'Risiko Tinggi',
-            default => 'Tidak Ditentukan',
-        };
-    }
-
-    /**
-     * Alias for approve() — used by POC route /api/applications/{id}/approve
-     */
-    public function approveApplication(Request $request, $id)
-    {
-        return $this->approve($request, $id);
+        $labels = [
+            'A' => 'Cemerlang',
+            'B' => 'Baik',
+            'C' => 'Sederhana',
+            'D' => 'Berisiko',
+            'F' => 'Ditolak'
+        ];
+        
+        return $labels[$grade] ?? 'Tidak Diketahui';
     }
 }

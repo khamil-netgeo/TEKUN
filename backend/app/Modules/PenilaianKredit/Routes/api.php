@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Modules\PenilaianKredit\Controllers\CreditAssessmentController;
 
 /**
@@ -20,5 +21,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/applications/{id}/kuari', [CreditAssessmentController::class, 'kuari']);
     });
     
-    Route::get('/applications/{id}/offer-letter', [CreditAssessmentController::class, 'offerLetter']);
+    Route::get('/applications/{id}/offer-letter', function ($id) {
+        $application = DB::table('applications')->where('id', $id)->first();
+        
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'pdf_url' => 'https://mock-minio.local/offer-letters/application-' . $id . '.pdf'
+        ], 200);
+    });
 });

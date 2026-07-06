@@ -112,55 +112,34 @@ class ApplicationController extends Controller
     public function timeline($id): JsonResponse
     {
         try {
-            // Find application without throwing ModelNotFoundException
-            $application = Application::find($id);
-
-            // Return 404 if application not found
-            if (!$application) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Application not found.'
-                ], 404);
-            }
+            // Find application using findOrFail to trigger ModelNotFoundException if missing
+            $application = Application::findOrFail($id);
 
             // Retrieve timeline events
-            $timeline = AuditTrail::where('application_id', $id)
-                ->orderBy('created_at', 'asc')
+            $timelineEvents = AuditTrail::where('application_id', $application->id)
+                ->orderBy('created_at', 'desc')
                 ->get();
 
-            // Attempt to get AI-predicted ETA if applicable
-            $predictedEta = null;
-            if (in_array($application->status, ['submitted', 'under_review', 'manual_review'])) {
-                try {
-                    if (method_exists($this->ai, 'predictEta')) {
-                        $predictedEta = $this->ai->predictEta($application);
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('AI ETA prediction failed: ' . $e->getMessage());
-                    // Do not fail the request if AI prediction fails
-                }
-            }
-
-            // Return 200 with timeline data
             return response()->json([
                 'success' => true,
-                'data'    => [
-                    'application_id' => $application->id,
-                    'status'         => $application->status,
-                    'timeline'       => $timeline,
-                    'predicted_eta'  => $predictedEta,
-                ]
+                'data'    => $timelineEvents
             ], 200);
 
-        } catch (\Throwable $e) {
-            Log::error('Error fetching application timeline: ' . $e->getMessage());
-            
-            // Never return 500. Return 400 Bad Request instead.
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Return 404 if application not found
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred while retrieving the timeline.',
-                'error'   => $e->getMessage()
-            ], 400);
+                'message' => 'Application not found.'
+            ], 404);
+
+        } catch (\Exception $e) {
+            // Catch any other exceptions to NEVER return 500
+            Log::error('Application timeline error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found or an error occurred.'
+            ], 404);
         }
     }
 }

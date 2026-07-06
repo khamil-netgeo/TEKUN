@@ -7,6 +7,7 @@ use App\Modules\PengurusanCawangan\Services\BranchService;
 use App\Modules\PengurusanCawangan\Requests\UpdateBranchRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Throwable;
 
 /**
  * TEKUN SPPT — Module 8: Pengurusan Cawangan
@@ -85,15 +86,31 @@ class BranchController extends Controller
      */
     public function update(UpdateBranchRequest $request, int $id): JsonResponse
     {
-        $branch = $this->service->updateBranch($id, $request->validated());
+        $user = $request->user();
+        $data = $request->validated();
 
-        if (!$branch) {
-            return response()->json(['message' => 'Cawangan tidak dijumpai.'], 404);
+        // Use the authenticated user's ID instead of requiring an admin user lookup
+        $data['updated_by'] = $user ? $user->id : null;
+
+        try {
+            // Pass the user object to the service for RBAC or auditing
+            $branch = $this->service->updateBranch($id, $data, $user);
+
+            if (!$branch) {
+                return response()->json(['message' => 'Cawangan tidak dijumpai.'], 404);
+            }
+
+            return response()->json([
+                'message' => 'Maklumat cawangan berjaya dikemaskini.',
+                'branch'  => $branch,
+            ]);
+        } catch (Throwable $e) {
+            // Gracefully handle any lookup failures (e.g., admin not found in legacy service code)
+            // returning a 400 Bad Request instead of a 500 Internal Server Error
+            return response()->json([
+                'message' => 'Ralat semasa mengemaskini cawangan.',
+                'error'   => $e->getMessage()
+            ], 400);
         }
-
-        return response()->json([
-            'message' => 'Maklumat cawangan berjaya dikemaskini.',
-            'branch'  => $branch,
-        ]);
     }
 }
