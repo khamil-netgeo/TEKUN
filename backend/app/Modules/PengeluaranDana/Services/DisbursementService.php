@@ -368,9 +368,9 @@ class DisbursementService
         return [
             'id'                => $disbursement->id,
             'ref_no'            => $disbursement->ref_no,
+            'reminder_sent'     => true,
             'reminder_sent_at'  => now()->toISOString(),
-            'channel'           => ['sms', 'email'],
-            'message'           => "Peringatan e-tandatangan dihantar untuk {$disbursement->ref_no}.",
+            'message'           => "Peringatan e-sign telah dihantar untuk pengeluaran {$disbursement->ref_no}.",
         ];
     }
 }

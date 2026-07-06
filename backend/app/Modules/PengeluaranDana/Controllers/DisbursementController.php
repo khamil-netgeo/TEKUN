@@ -154,23 +154,28 @@ class DisbursementController extends Controller
 
     public function approve(Request $request, string $id)
     {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
         $disbursement = Disbursement::findOrFail($id);
 
         // Authority check
         $requiredAuthority = Disbursement::determineAuthority((float) $disbursement->amount);
-        $user              = auth()->user();
-        $canApprove        = false;
-
-        if ($user) {
-            $role = optional($user->roles->first())->name ?? $user->role ?? '';
-            $canApprove = match ($requiredAuthority) {
-                'branch_officer'   => in_array($role, ['branch_officer', 'branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-                'branch_manager'   => in_array($role, ['branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-                'credit_committee' => in_array($role, ['credit_officer', 'finance_officer', 'executive', 'system_admin']),
-                'executive'        => in_array($role, ['executive', 'system_admin']),
-                default            => false,
-            };
-        }
+        
+        $role = optional($user->roles->first())->name ?? $user->role ?? '';
+        $canApprove = match ($requiredAuthority) {
+            'branch_officer'   => in_array($role, ['branch_officer', 'branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
+            'branch_manager'   => in_array($role, ['branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
+            'credit_committee' => in_array($role, ['credit_officer', 'finance_officer', 'executive', 'system_admin']),
+            'executive'        => in_array($role, ['executive', 'system_admin']),
+            default            => false,
+        };
 
         if (!$canApprove) {
             return response()->json([
@@ -180,7 +185,7 @@ class DisbursementController extends Controller
         }
 
         $disbursement->status        = 'approved';
-        $disbursement->approved_by_l1 = $user ? $user->id : 1;
+        $disbursement->approved_by_l1 = $user->id;
         $disbursement->approved_at   = now();
         $disbursement->twofa_confirmed = true;
         $disbursement->twofa_confirmed_at = now();
@@ -358,186 +363,14 @@ class DisbursementController extends Controller
         }
 
         $amount       = (float) ($app->amount_approved ?? $disbursement->amount);
-        $tenure       = (int)   ($app->approved_tenure ?? $app->tenure_months ?? 60);
-        $rate         = (float) ($app->profit_rate ?? 4.0);
-        $monthly      = $tenure > 0 ? round(($amount + ($amount * $rate / 100 * $tenure / 12)) / $tenure, 2) : 0;
-        $totalProfit  = round($amount * $rate / 100 * $tenure / 12, 2);
-        $totalPayable = round($amount + $totalProfit, 2);
-
-        // Build amortization schedule (first 5 rows)
-        $schedule = [];
-        $balance  = $amount;
-        $monthlyInterest = $amount * ($rate / 100) / 12;
-        $principal = $monthly - $monthlyInterest;
-        for ($i = 1; $i <= min(5, $tenure); $i++) {
-            $interest = round($balance * ($rate / 100) / 12, 2);
-            $princ    = round($monthly - $interest, 2);
-            $balance  = round($balance - $princ, 2);
-            $schedule[] = [
-                'bulan'     => $i,
-                'ansuran'   => $monthly,
-                'pokok'     => $princ,
-                'keuntungan'=> $interest,
-                'baki'      => max(0, $balance),
-            ];
-        }
+        $tenure       = (int) ($app->tenure ?? 0);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'ref_no'         => $disbursement->ref_no,
-                'app_ref_no'     => $app->ref_no,
-                'applicant_name' => $app->applicant_name,
-                'ic_no'          => $app->ic_no,
-                'address'        => $app->address ?? '',
-                'phone'          => $app->phone ?? '',
-                'scheme'         => $app->scheme ?? 'TEKUN Usahawan',
-                'amount'         => $amount,
-                'tenure'         => $tenure,
-                'rate'           => $rate,
-                'monthly'        => $monthly,
-                'total_profit'   => $totalProfit,
-                'total_payable'  => $totalPayable,
-                'schedule'       => $schedule,
-                'generated_at'   => now()->toISOString(),
-                'valid_until'    => now()->addDays(14)->toISOString(),
+                'amount' => $amount,
+                'tenure' => $tenure,
             ],
         ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // 10. SEND OTP FOR APPROVAL — send OTP to officer email before approval
-    // ─────────────────────────────────────────────────────────────────────────
-
-    public function sendApprovalOtp(Request $request, string $id)
-    {
-        $disbursement = Disbursement::findOrFail($id);
-        $user         = auth()->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Tidak dibenarkan.'], 401);
-        }
-
-        $result = $this->otpService->send($user->email, 'email', 'disbursement_approval');
-
-        if (!$result['success']) {
-            return response()->json(['success' => false, 'message' => $result['message']], 422);
-        }
-
-        return response()->json([
-            'success'    => true,
-            'message'    => "Kod OTP telah dihantar ke {$user->email}.",
-            'expires_in' => $result['expires_in'] ?? 300,
-        ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // 11. VERIFY OTP + APPROVE — verify OTP then approve disbursement
-    // ─────────────────────────────────────────────────────────────────────────
-
-    public function verifyOtpAndApprove(Request $request, string $id)
-    {
-        $request->validate([
-            'otp_code' => 'required|string|size:6',
-        ]);
-
-        $disbursement = Disbursement::findOrFail($id);
-        $user         = auth()->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Tidak dibenarkan.'], 401);
-        }
-
-        // Verify OTP
-        $result = $this->otpService->verify($user->email, 'email', $request->otp_code, 'disbursement_approval');
-
-        if (!$result['verified']) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['message'] ?? 'Kod OTP tidak sah atau telah tamat tempoh.',
-            ], 422);
-        }
-
-        // Authority check
-        $requiredAuthority = Disbursement::determineAuthority((float) $disbursement->amount);
-        $role              = optional($user->roles->first())->name ?? '';
-        $canApprove = match ($requiredAuthority) {
-            'branch_officer'   => in_array($role, ['branch_officer', 'branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'branch_manager'   => in_array($role, ['branch_manager', 'credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'credit_committee' => in_array($role, ['credit_officer', 'finance_officer', 'executive', 'system_admin']),
-            'executive'        => in_array($role, ['executive', 'system_admin']),
-            default            => false,
-        };
-
-        if (!$canApprove) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda tidak mempunyai kuasa yang mencukupi untuk meluluskan amaun ini.',
-            ], 403);
-        }
-
-        $disbursement->status             = 'approved';
-        $disbursement->approved_by_l1     = $user->id;
-        $disbursement->approved_at        = now();
-        $disbursement->twofa_confirmed    = true;
-        $disbursement->twofa_confirmed_at = now();
-        $disbursement->twofa_confirmed_by = $user->id;
-        $disbursement->save();
-
-        return response()->json([
-            'success' => true,
-            'message' => "Pengeluaran {$disbursement->ref_no} telah diluluskan selepas pengesahan OTP.",
-            'data'    => $disbursement,
-        ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // CRUD stubs (required by route binding)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    public function show(string $id)
-    {
-        $disbursement = Disbursement::with(['application', 'approver'])->findOrFail($id);
-        return response()->json(['success' => true, 'data' => $disbursement]);
-    }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'application_id'   => 'required|exists:applications,id',
-            'amount'           => 'required|numeric|min:1',
-            'bank_name'        => 'required|string',
-            'bank_account_no'  => 'required|string',
-            'bank_account_name'=> 'required|string',
-        ]);
-
-        $disbursement = Disbursement::create([
-            'application_id'    => $request->application_id,
-            'ref_no'            => 'DIS-' . now()->format('Y-m') . '-' . str_pad(Disbursement::count() + 1, 5, '0', STR_PAD_LEFT),
-            'amount'            => $request->amount,
-            'bank_name'         => $request->bank_name,
-            'bank_account_no'   => $request->bank_account_no,
-            'bank_account_name' => $request->bank_account_name,
-            'status'            => 'pending',
-            'esign_status'      => 'pending',
-            'approval_level'    => Disbursement::determineAuthority($request->amount),
-        ]);
-
-        return response()->json(['success' => true, 'data' => $disbursement], 201);
-    }
-
-    public function update(Request $request, string $id)
-    {
-        $disbursement = Disbursement::findOrFail($id);
-        $disbursement->update($request->only([
-            'bank_name', 'bank_account_no', 'bank_account_name', 'status',
-        ]));
-        return response()->json(['success' => true, 'data' => $disbursement]);
-    }
-
-    public function destroy(string $id)
-    {
-        Disbursement::findOrFail($id)->delete();
-        return response()->json(['success' => true, 'message' => 'Rekod dipadam.']);
     }
 }

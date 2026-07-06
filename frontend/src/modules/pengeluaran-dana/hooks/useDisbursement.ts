@@ -226,11 +226,11 @@ export const disbursementApi = {
     api.post(`/disbursements/${id}/escalate`, { reason }),
 
   sendReminder: (id: number) =>
-    api.post(`/disbursements/${id}/escalate`, { reason: 'Peringatan e-sign' }),
+    api.post(`/disbursements/${id}/send-esign`),
 
   batchDisbursement: (ids: number[], format = 'iso20022') =>
     api.post('/disbursements/batch', { ids, format }),
 
   twofaConfirm: (id: number, otp: string) =>
-    api.post(`/disbursements/${id}/escalate`, { otp, reason: '2FA confirmation' }),
+    api.post(`/disbursements/${id}/verify-otp-approve`, { otp_code: otp }),
 };
