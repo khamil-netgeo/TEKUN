@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use OpenAI\Laravel\Facades\OpenAI;
 use Carbon\Carbon;
 use App\Models\Application;
 use App\Models\Account;
@@ -87,17 +88,52 @@ class UsahawanPortalController extends Controller
                     'monthly_instalment'  => $account->monthly_instalment,
                 ];
                 $aiPrediction = $this->aiPredictionService->predictFromData($accountData);
-                $aiInsight    = $aiPrediction['recommendation'] ?? 'Rekod pembayaran anda dalam keadaan baik.';
-                $aiRiskLevel  = strtolower($aiPrediction['risk_level'] ?? 'rendah');
                 $probability  = $aiPrediction['probability'] ?? 0.05;
                 $creditScore  = max(0, min(100, (int) round(100 - ($probability * 100))));
             } catch (\Exception $e) {
-                // Rule-based fallback
+                // Rule-based fallback for score
                 $creditScore = $account->arrears_days === 0 ? 85 : max(20, 85 - ($account->arrears_days * 2));
-                $aiInsight   = $account->arrears_days === 0
-                    ? 'Rekod pembayaran anda konsisten. Teruskan pembayaran mengikut jadual.'
-                    : 'Terdapat tunggakan pada akaun anda. Sila hubungi pegawai akaun untuk bantuan.';
-                $aiRiskLevel = $account->arrears_days === 0 ? 'rendah' : 'sederhana';
+            }
+
+            if ($creditScore >= 70) {
+                $aiRiskLevel = 'rendah';
+            } elseif ($creditScore >= 50) {
+                $aiRiskLevel = 'sederhana';
+            } else {
+                $aiRiskLevel = 'tinggi';
+            }
+
+            $totalPayments = $account->payments()->count();
+            $onTimePayments = $account->payments()->whereIn('status', ['successful', 'paid', 'completed'])->count();
+
+            $prompt = "Berdasarkan skor kredit {$creditScore}, baki tertunggak RM {$outstandingBalance}, dan rekod pembayaran {$onTimePayments}/{$totalPayments} bulan tepat masa, berikan satu ayat ringkasan risiko pembiayaan untuk usahawan ini dalam Bahasa Melayu yang mesra dan profesional.";
+
+            try {
+                $response = OpenAI::chat()->create([
+                    'model' => 'gpt-5-mini',
+                    'messages' => [
+                        ['role' => 'user', 'content' => $prompt]
+                    ],
+                ]);
+                $aiInsight = trim($response->choices[0]->message->content);
+            } catch (\Exception $e) {
+                try {
+                    $response = OpenAI::chat()->create([
+                        'model' => 'gpt-4o-mini',
+                        'messages' => [
+                            ['role' => 'user', 'content' => $prompt]
+                        ],
+                    ]);
+                    $aiInsight = trim($response->choices[0]->message->content);
+                } catch (\Exception $e) {
+                    if ($creditScore >= 70) {
+                        $aiInsight = 'Rekod pembayaran anda konsisten. Risiko lalai adalah rendah.';
+                    } elseif ($creditScore >= 50) {
+                        $aiInsight = 'Terdapat beberapa kelewatan pembayaran. Sila pastikan bayaran dibuat tepat masa.';
+                    } else {
+                        $aiInsight = 'Rekod kredit memerlukan perhatian. Hubungi pegawai TEKUN untuk bantuan.';
+                    }
+                }
             }
         }
 

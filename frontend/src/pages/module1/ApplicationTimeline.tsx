@@ -25,16 +25,18 @@ interface TimelineData {
   steps: TimelineStep[];
 }
 
+const todayDate = new Date().toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+
 const fallbackData: TimelineData = {
-  reference_no: 'SPPT-2026-00847',
-  applicant_name: 'Siti Nurhaliza',
-  scheme: 'TEKUN Micro',
-  amount: 10000,
+  reference_no: 'SPPT-2026-DEMO',
+  applicant_name: 'Demo Usahawan',
+  scheme: 'TEKUN Usahawan',
+  amount: 35000,
   steps: [
-    { id: 1, title: 'Permohonan Diterima', titleEn: 'Application Received', description: 'Permohonan anda telah berjaya dihantar dan diterima oleh sistem.', date: '1 Jul 2026, 09:15', status: 'completed', officer: 'Sistem Automatik' },
-    { id: 2, title: 'Semakan Kelayakan Awalan', titleEn: 'Initial Eligibility Check', description: 'AI sedang menyemak kelayakan asas: umur, kewarganegaraan, rekod muflis, CCRIS.', date: '1 Jul 2026, 09:16', status: 'completed', officer: 'AI Engine SPPT', note: 'Lulus semua semakan awalan' },
-    { id: 3, title: 'Semakan Dokumen', titleEn: 'Document Screening', description: 'Pegawai sedang menyemak kesempurnaan dokumen yang dimuat naik.', date: '2 Jul 2026, 10:30', status: 'completed', officer: 'Pn. Siti Rahimah', note: 'Semua dokumen lengkap dan sah' },
-    { id: 4, title: 'Penilaian Kredit', titleEn: 'Credit Assessment', description: 'Analisis kredit sedang dijalankan oleh Pegawai Kredit.', date: '3 Jul 2026, 14:00', status: 'current', officer: 'En. Hafiz Azman' },
+    { id: 1, title: 'Permohonan Diterima', titleEn: 'Application Received', description: 'Permohonan anda telah berjaya dihantar dan diterima oleh sistem.', date: todayDate, status: 'completed', officer: 'Sistem Automatik' },
+    { id: 2, title: 'Semakan Kelayakan Awalan', titleEn: 'Initial Eligibility Check', description: 'AI sedang menyemak kelayakan asas: umur, kewarganegaraan, rekod muflis, CCRIS.', date: todayDate, status: 'completed', officer: 'AI Engine SPPT', note: 'Lulus semua semakan awalan' },
+    { id: 3, title: 'Semakan Dokumen', titleEn: 'Document Screening', description: 'Pegawai sedang menyemak kesempurnaan dokumen yang dimuat naik.', date: todayDate, status: 'completed', officer: 'Pegawai Cawangan', note: 'Semua dokumen lengkap dan sah' },
+    { id: 4, title: 'Penilaian Kredit', titleEn: 'Credit Assessment', description: 'Analisis kredit sedang dijalankan oleh Pegawai Kredit.', date: todayDate, status: 'current', officer: 'Pegawai Kredit' },
     { id: 5, title: 'Kelulusan Pengurus', titleEn: 'Manager Approval', description: 'Menunggu kelulusan daripada Pengurus Cawangan.', status: 'pending' },
     { id: 6, title: 'Surat Tawaran', titleEn: 'Offer Letter', description: 'Surat tawaran pembiayaan akan dijana dan dihantar untuk ditandatangani.', status: 'pending' },
     { id: 7, title: 'Pengeluaran Dana', titleEn: 'Fund Disbursement', description: 'Dana pembiayaan akan dikreditkan ke akaun bank anda.', status: 'pending' },
@@ -130,6 +132,13 @@ export default function ApplicationTimeline() {
           </button>
         </div>
       </div>
+
+      {/* Demo Data Banner */}
+      {!applicationId && (
+        <div className="bg-[#E65100] text-white px-4 py-3 rounded-lg text-sm font-medium flex items-center justify-center shadow-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
+          Data Demonstrasi — Masukkan ID permohonan untuk data sebenar
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">

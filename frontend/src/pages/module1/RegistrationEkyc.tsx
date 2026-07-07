@@ -1,14 +1,3 @@
-/**
- * TEKUN SPPT — Module 1: Registration & eKYC (Usahawan)
- *
- * File: RegistrationEkyc.tsx
- * Path: @/pages/public/RegistrationEkyc.tsx
- *
- * Description: Expanded 6-step registration process for Usahawan borrowers.
- * Includes personal details, eKYC (MyKad + Liveness), business info,
- * bank details, automated integration checks, and completion.
- */
-
 import { useState, useRef, useCallback, useEffect, ChangeEvent, DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -415,20 +404,41 @@ export default function RegistrationEkyc() {
         return newState;
       });
 
+      let results: any = null;
+      let apiError = false;
+
+      try {
+        const response = await api.get(`/integrations/check/${personalForm.ic}`);
+        results = response.data;
+      } catch (error) {
+        apiError = true;
+      }
+
+      const getApiStatus = (key: keyof IntegrationStatus) => {
+        if (!results) return null;
+        if (key === 'insolvensi') return results.muflis?.status;
+        return results[key]?.status;
+      };
+
+      const isSuccess = (status: string | undefined) => {
+        if (!status) return false;
+        const s = status.toLowerCase();
+        return s === 'clear' || s === 'ok' || s === 'registered';
+      };
+
       for (const check of checks) {
-        try {
-          // Demo fallback: all pass after a short delay
-          await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
-          // In a real app:
-          // const response = await api.post(`/integrations/check/${check}`, { ic: personalForm.ic });
-          // if (response.data.status === 'pass') {
-          //   setIntegrationStatus(prev => ({ ...prev, [check]: 'success' }));
-          // } else {
-          //   setIntegrationStatus(prev => ({ ...prev, [check]: 'failed' }));
-          // }
-          setIntegrationStatus(prev => ({ ...prev, [check]: 'success' }));
-        } catch (error) {
+        // Keep the visual staggered animation
+        await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
+        
+        if (apiError || !results) {
           setIntegrationStatus(prev => ({ ...prev, [check]: 'failed' }));
+        } else {
+          const status = getApiStatus(check);
+          if (isSuccess(status)) {
+            setIntegrationStatus(prev => ({ ...prev, [check]: 'success' }));
+          } else {
+            setIntegrationStatus(prev => ({ ...prev, [check]: 'failed' }));
+          }
         }
       }
       setIntegrationsComplete(true);
@@ -445,30 +455,28 @@ export default function RegistrationEkyc() {
     setLoading(true);
     setError(null);
 
-    const formData = new FormData();
-    
-    // Append all form data as JSON strings
-    formData.append('personalData', JSON.stringify(personalForm));
-    formData.append('businessData', JSON.stringify(businessForm));
-    formData.append('bankData', JSON.stringify(bankForm));
-    formData.append('ekycResult', JSON.stringify(ekycResult));
-
-    // Append files
-    bankStatements.forEach((file, index) => {
-      formData.append(`bankStatement_${index}`, file);
-    });
-
     try {
-      // Demo fallback
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log("Form submitted:", { personalForm, businessForm, bankForm, ekycResult, bankStatements });
-      // In a real app:
-      // await api.post('/register/usahawan', formData, {
-      //   headers: { 'Content-Type': 'multipart/form-data' }
-      // });
+      // 1. Register User
+      await api.post('/auth/register', {
+        name: personalForm.fullName,
+        email: personalForm.email,
+        phone: personalForm.phone,
+        ic_no: personalForm.ic,
+        password: personalForm.password,
+        password_confirmation: personalForm.confirmPassword,
+        role: 'usahawan'
+      });
+
+      // 2. Request OTP
+      await api.post('/auth/otp/send', {
+        identifier: personalForm.email,
+        channel: 'email'
+      });
+
+      // 3. Navigate to Verification
       navigate('/otp-verification', { state: { email: personalForm.email, purpose: 'registration' } });
-    } catch (err) {
-      setError("Pendaftaran gagal. Sila cuba sebentar lagi.");
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Pendaftaran gagal. Sila cuba sebentar lagi.");
       console.error(err);
     } finally {
       setLoading(false);
