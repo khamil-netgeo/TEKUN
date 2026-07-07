@@ -226,7 +226,7 @@ const UsahawanApplications: React.FC = () => {
                 </div>
                 <div className="mt-4">
                   <button
-                    onClick={() => navigate(`/module1/timeline/${app.id}`)}
+                    onClick={() => navigate('/module1/timeline', { state: { applicationId: app.id } })}
                     className="w-full px-4 py-2 rounded-md text-white font-medium"
                     style={{ backgroundColor: '#1B2B5E' }}
                   >

@@ -273,7 +273,7 @@ const UsahawanDashboard: React.FC = () => {
                   <p className="text-sm text-gray-600">Status: {data.latest_application_status}</p>
                 </div>
                 <button
-                  onClick={() => navigate(`/module1/timeline/${data.latest_application_ref}`)}
+                  onClick={() => navigate('/module1/timeline', { state: { applicationId: data.latest_application_ref } })}
                   className="text-sm text-navy-600 hover:underline"
                   style={{ color: '#1B2B5E' }}
                 >
