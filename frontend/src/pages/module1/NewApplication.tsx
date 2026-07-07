@@ -36,6 +36,8 @@ export default function NewApplication() {
   const watchedScheme = watch('scheme');
   const watchedAll = watch();
   const selectedScheme = SCHEMES.find(s => s.key === watchedScheme);
+  const amountValue = Number(watchedAll.amount_requested) || 0;
+  const amountError = !!selectedScheme && amountValue > 0 && (amountValue > selectedScheme.max || amountValue < 1000);
   const inputClass = "w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-100";
   const labelClass = "block text-xs font-semibold mb-1";
 
@@ -163,17 +165,25 @@ export default function NewApplication() {
               ))}
             </div>
             {watchedScheme && (
-              <div className="p-4 rounded-xl border" style={{ background: '#F0FDF4', borderColor: '#BBF7D0' }}>
-                <label className={labelClass} style={{ color: '#15803D' }}>Jumlah Pembiayaan Dipohon (RM)</label>
-                <input type="number" className={inputClass} style={{ borderColor: '#D1FAE5' }}
+              <div className="p-4 rounded-xl border" style={{ background: amountError ? '#FEF2F2' : '#F0FDF4', borderColor: amountError ? '#FECACA' : '#BBF7D0' }}>
+                <label className={labelClass} style={{ color: amountError ? '#B91C1C' : '#15803D' }}>Jumlah Pembiayaan Dipohon (RM)</label>
+                <input type="number" className={inputClass} style={{ borderColor: amountError ? '#FCA5A5' : '#D1FAE5' }}
+                  min={1000} max={selectedScheme?.max}
                   placeholder={`Min RM1,000 — Maks RM${selectedScheme?.max.toLocaleString()}`}
                   {...register('amount_requested', { required: 'Sila masukkan jumlah', min: { value: 1000, message: 'Minimum RM1,000' }, max: { value: selectedScheme?.max ?? 50000, message: `Maksimum RM${selectedScheme?.max.toLocaleString()}` } })} />
-                {errors.amount_requested && <p className="text-xs mt-1" style={{ color: '#DC2626' }}>{errors.amount_requested.message}</p>}
+                {amountError && (
+                  <p className="text-xs mt-1 font-semibold" style={{ color: '#DC2626' }}>
+                    {Number(watchedAll.amount_requested) > (selectedScheme?.max ?? 0)
+                      ? `Jumlah melebihi had maksimum ${selectedScheme?.label} (RM ${selectedScheme?.max.toLocaleString()}). Sila kurangkan jumlah atau pilih skim lain.`
+                      : 'Minimum RM1,000'}
+                  </p>
+                )}
+                {!amountError && errors.amount_requested && <p className="text-xs mt-1" style={{ color: '#DC2626' }}>{errors.amount_requested.message}</p>}
               </div>
             )}
             <div className="flex justify-end">
-              <button type="button" onClick={() => watchedScheme && watchedAll.amount_requested > 0 && setStep(2)}
-                disabled={!watchedScheme || !watchedAll.amount_requested}
+              <button type="button" onClick={() => watchedScheme && !amountError && Number(watchedAll.amount_requested) > 0 && setStep(2)}
+                disabled={!watchedScheme || !watchedAll.amount_requested || amountError}
                 className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
                 style={{ background: '#1B2B5E' }}>
                 Seterusnya <ChevronRight size={16} />

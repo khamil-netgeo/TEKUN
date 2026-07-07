@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, ChangeEvent, DragEvent } from 'react';
+import React, { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User, Phone, Mail, Eye, EyeOff, CheckCircle, AlertCircle,
@@ -175,13 +175,13 @@ export default function RegistrationEkyc() {
 
   // Step 3: Business
   const [businessForm, setBusinessForm] = useState<BusinessData>({
-    businessName: '', ssmNumber: '', businessType: '', businessSector: '', startDate: '',
-    businessAddress: '', state: '', monthlyIncome: '', employeeCount: '',
+    businessName: '', ssmNumber: '', businessType: 'Milikan Tunggal', businessSector: 'Makanan & Minuman', startDate: '',
+    businessAddress: '', state: 'Selangor', monthlyIncome: '', employeeCount: '',
   });
 
   // Step 4: Bank
   const [bankForm, setBankForm] = useState<BankData>({
-    bankName: '', accountNumber: '', accountHolderName: '', accountType: '',
+    bankName: 'Maybank', accountNumber: '', accountHolderName: '', accountType: '',
   });
   const [bankStatements, setBankStatements] = useState<File[]>([]);
   const [bankFileError, setBankFileError] = useState<string | null>(null);
@@ -210,7 +210,7 @@ export default function RegistrationEkyc() {
     setPasswordStrength(score);
   };
 
-  const handlePersonalSubmit = (e: React.FormEvent) => {
+  const handlePersonalSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (personalForm.password !== personalForm.confirmPassword) {
       setError("Kata laluan dan pengesahan kata laluan tidak sepadan.");
@@ -483,7 +483,7 @@ export default function RegistrationEkyc() {
       });
 
       // 3. Navigate to Verification
-      navigate('/otp-verification', { state: { email: personalForm.email, purpose: 'registration' } });
+      navigate('/otp', { state: { email: personalForm.email, purpose: 'registration' } });
     } catch (err: any) {
       setError(err.response?.data?.message || "Pendaftaran gagal. Sila cuba sebentar lagi.");
       console.error(err);

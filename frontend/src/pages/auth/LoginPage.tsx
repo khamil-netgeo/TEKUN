@@ -146,6 +146,16 @@ export default function LoginPage() {
   const emailRef     = useRef<HTMLInputElement>(null);
   const lockoutTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Redirect already-authenticated users away from /login.
+  // Usahawan role goes straight to the borrower portal; other roles to /dashboard.
+  useEffect(() => {
+    const { isAuthenticated: authed, user: authedUser } = useAuthStore.getState();
+    if (authed && authedUser) {
+      navigate(authedUser.role === 'usahawan' ? '/usahawan/dashboard' : '/dashboard', { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (lockoutRemaining > 0) {
       lockoutTimer.current = setInterval(() => {
@@ -207,7 +217,7 @@ export default function LoginPage() {
       login(realUser, realToken);
       resetAttempts();
       toast.success(`Selamat datang, ${realUser.name}! (${realUser.role_label})`);
-      navigate('/dashboard');
+      navigate(realUser.role === 'usahawan' ? '/usahawan/dashboard' : '/dashboard');
       setLoading(false);
       return;
     } catch {
@@ -243,7 +253,7 @@ export default function LoginPage() {
       if (res.data.verified) {
         login(pendingUser, pendingToken);
         toast.success(`Selamat datang, ${pendingUser.name}!`);
-        navigate('/dashboard');
+        navigate(pendingUser?.role === 'usahawan' ? '/usahawan/dashboard' : '/dashboard');
       } else {
         setOtpError(res.data.message ?? 'Kod OTP tidak sah atau telah tamat tempoh.');
       }

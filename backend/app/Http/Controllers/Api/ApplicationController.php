@@ -11,6 +11,7 @@ use App\Models\Document;
 use App\Models\Branch;
 use App\Models\AuditTrail;
 use App\Services\AiService;
+use App\Services\DocumentIntelligenceService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,20 @@ use Illuminate\Support\Facades\Http;
  */
 class ApplicationController extends Controller
 {
-    public function __construct(private AiService $ai) {}
+    public function __construct(private AiService $ai, private DocumentIntelligenceService $docAi) {}
+
+    /**
+     * Resolve an application by numeric ID or application ref number
+     * (e.g. "SPPT-2026-07-00089"). Fixes 500 errors when the frontend
+     * passes the human-readable ref_no in the URL.
+     */
+    private function resolveApplication(string $id): Application
+    {
+        if (ctype_digit($id)) {
+            return $this->resolveApplication($id);
+        }
+        return Application::where('ref_no', $id)->firstOrFail();
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET /api/applications
@@ -190,7 +204,7 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function update(UpdateApplicationRequest $request, string $id): JsonResponse
     {
-        $application = Application::findOrFail($id);
+        $application = $this->resolveApplication($id);
 
         if ($application->status !== 'draft') {
             return response()->json(['message' => 'Permohonan yang telah dihantar tidak boleh diubah.'], 422);
@@ -216,7 +230,7 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function destroy(Request $request, string $id): JsonResponse
     {
-        $application = Application::findOrFail($id);
+        $application = $this->resolveApplication($id);
 
         if ($application->status !== 'draft') {
             return response()->json(['message' => 'Hanya permohonan draf boleh dipadam.'], 422);
@@ -310,7 +324,7 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function uploadDocument(StoreDocumentRequest $request, string $id): JsonResponse
     {
-        $application = Application::findOrFail($id);
+        $application = $this->resolveApplication($id);
 
         if (!in_array($application->status, ['draft', 'submitted', 'under_review'])) {
             return response()->json(['message' => 'Dokumen tidak boleh dimuat naik untuk permohonan ini.'], 422);
@@ -319,33 +333,73 @@ class ApplicationController extends Controller
         $file = $request->file('file');
         $type = $request->input('type');
 
-        // Store to MinIO S3
-        $path = $file->store("applications/{$application->id}/documents", config('filesystems.default', 'local'));
-
-        // AI document verification
-        $aiResult = ['confidence' => 85, 'issues' => []];
+        // Store file — try S3/MinIO first, fall back to local disk
         try {
-            $base64   = base64_encode(file_get_contents($file->getRealPath()));
-            $aiResult = $this->ai->extractBankStatement($base64);
+            $path = $file->store("applications/{$application->id}/documents", config('filesystems.default', 'local'));
         } catch (\Throwable $e) {
-            Log::warning("AI document check failed for app {$id}: " . $e->getMessage());
+            Log::warning("S3 store failed, falling back to local: " . $e->getMessage());
+            $path = $file->store("applications/{$application->id}/documents", 'local');
         }
+
+        // Map frontend doc IDs → AI extraction types
+        $aiTypeMap = [
+            'mykad' => 'mykad', 'ic_front' => 'mykad', 'ic_back' => 'mykad',
+            'ssm' => 'ssm', 'ssm_cert' => 'ssm',
+            'bank3' => 'bank_statement', 'bank_statement' => 'bank_statement',
+            'income' => 'payslip',
+            'premise' => 'premises', 'business_photo' => 'premises',
+            'other' => 'other', 'others' => 'other',
+        ];
+        $aiType = $aiTypeMap[$type] ?? 'other';
+
+        // AI OCR extraction via Gemini 3.1 Pro (native vision call)
+        $extraction = [];
+        try {
+            $base64     = base64_encode(file_get_contents($file->getRealPath()));
+            $mime       = $file->getMimeType() ?: 'image/jpeg';
+            $extraction = $this->docAi->extractDocument($base64, $mime, $aiType);
+        } catch (\Throwable $e) {
+            Log::warning("AI OCR failed for app {$id}: " . $e->getMessage());
+            $extraction = ['confidence' => 0, 'issues' => ['Analisis AI gagal dijalankan.'], 'fields' => []];
+        }
+
+        $confidence = (float) ($extraction['confidence'] ?? 0);
+        $typeMatch  = $extraction['document_matches_expected_type'] ?? true;
+        $isValid    = $extraction['is_valid_document'] ?? false;
+        $status     = ($confidence >= 70 && $typeMatch && $isValid) ? 'verified' : 'pending';
 
         // Replace existing document of same type
         Document::where('application_id', $application->id)->where('type', $type)->delete();
 
-        $document = Document::create([
-            'application_id'  => $application->id,
-            'type'            => $type,
-            'original_name'   => $file->getClientOriginalName(),
-            'storage_path'    => $path,
-            'mime_type'       => $file->getMimeType(),
-            'file_size_bytes' => $file->getSize(),
-            'status'          => ($aiResult['confidence'] ?? 85) >= 80 ? 'verified' : 'pending',
-            'ai_confidence'   => $aiResult['confidence'] ?? 85,
-            'ai_issues'       => $aiResult['issues'] ?? [],
-            'uploaded_by'     => $request->user()->id,
-        ]);
+        $labelMap = [
+            'mykad' => 'Salinan MyKad', 'ic_front' => 'MyKad (Depan)', 'ic_back' => 'MyKad (Belakang)',
+            'ssm' => 'Sijil SSM', 'ssm_cert' => 'Sijil SSM',
+            'bank3' => 'Penyata Bank 3 Bulan', 'bank_statement' => 'Penyata Bank',
+            'income' => 'Bukti Pendapatan / Slip Gaji',
+            'premise' => 'Gambar Premis Perniagaan', 'business_photo' => 'Gambar Premis',
+            'other' => 'Dokumen Sokongan Lain', 'others' => 'Dokumen Lain',
+        ];
+
+        $document = new Document();
+        $document->application_id    = $application->id;
+        $document->type              = $type;
+        $document->label             = $labelMap[$type] ?? ucfirst($type);
+        $document->file_path         = $path;
+        $document->file_name         = $file->getClientOriginalName();
+        $document->original_name     = $file->getClientOriginalName();
+        $document->storage_path      = $path;
+        $document->mime_type         = $file->getMimeType();
+        $document->file_size         = $file->getSize();
+        $document->file_size_bytes   = $file->getSize();
+        $document->status            = $status;
+        $document->ai_status         = $status === 'verified' ? 'verified' : 'needs_review';
+        $document->ai_confidence     = $confidence;
+        $document->ai_issues         = $extraction['issues'] ?? [];
+        $document->ai_extracted_data = json_encode($extraction, JSON_UNESCAPED_UNICODE);
+        $document->ocr_status        = 'completed';
+        $document->is_verified       = $status === 'verified';
+        $document->uploaded_by       = $request->user()->id;
+        $document->save();
 
         AuditTrail::log('upload_document', 'module1', $document, null, [
             'type'          => $type,
@@ -354,8 +408,9 @@ class ApplicationController extends Controller
         ]);
 
         return response()->json([
-            'message'  => 'Dokumen berjaya dimuat naik.',
-            'document' => $document->append(['type_label', 'file_size_kb', 'is_ai_approved']),
+            'message'    => 'Dokumen berjaya dimuat naik.',
+            'document'   => $document->append(['type_label', 'file_size_kb', 'is_ai_approved']),
+            'extraction' => $extraction,
         ], 201);
     }
 
@@ -364,7 +419,9 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function timeline(Request $request, string $id): JsonResponse
     {
-        $application = Application::with(['documents', 'creditAssessment', 'disbursement'])->findOrFail($id);
+        $application = ctype_digit($id)
+            ? Application::with(['documents', 'creditAssessment', 'disbursement'])->findOrFail($id)
+            : Application::with(['documents', 'creditAssessment', 'disbursement'])->where('ref_no', $id)->firstOrFail();
 
         $steps = $this->buildTimeline($application);
         $eta   = null;
@@ -386,7 +443,7 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function checkEligibility(Request $request, string $id): JsonResponse
     {
-        $application = Application::findOrFail($id);
+        $application = $this->resolveApplication($id);
         $result      = $this->runEligibilityChecks($application);
 
         return response()->json([
@@ -603,11 +660,15 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function getDocuments(Request $request, string $id): JsonResponse
     {
-        $application = Application::findOrFail($id);
+        $application = $this->resolveApplication($id);
         $documents   = Document::where('application_id', $application->id)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(fn ($d) => $d->append(['type_label', 'file_size_kb', 'is_ai_approved']));
+            ->map(function ($d) {
+                $d->append(['type_label', 'file_size_kb', 'is_ai_approved']);
+                $d->setAttribute('extraction', $d->ai_extracted_data ? json_decode($d->ai_extracted_data, true) : null);
+                return $d;
+            });
 
         return response()->json([
             'data'  => $documents,
@@ -620,7 +681,7 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function verifyDocuments(Request $request, string $id): JsonResponse
     {
-        $application = Application::findOrFail($id);
+        $application = $this->resolveApplication($id);
         $documents   = Document::where('application_id', $application->id)->get();
 
         $allVerified = $documents->every(fn ($d) => $d->status === 'verified');
@@ -639,7 +700,7 @@ class ApplicationController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function deleteDocument(Request $request, string $id, string $docId): JsonResponse
     {
-        $application = Application::findOrFail($id);
+        $application = $this->resolveApplication($id);
         $document    = Document::where('application_id', $application->id)
             ->where('id', $docId)
             ->firstOrFail();
@@ -732,6 +793,112 @@ class ApplicationController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $result,
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/applications/{id}/ai-decision — AI Eligibility Decision Engine
+    // Combines OCR extractions + mandatory policy checks + Gemini 3.1 Pro
+    // Decision: auto_reject | accept | recommend_lower | recommend_higher
+    // ─────────────────────────────────────────────────────────────────────────
+    public function aiDecision(Request $request, string $id): JsonResponse
+    {
+        $application = $this->resolveApplication($id);
+
+        // 1. Gather OCR extractions from uploaded documents
+        $documents   = Document::where('application_id', $application->id)->get();
+        $extractions = [];
+        foreach ($documents as $doc) {
+            $data = $doc->ai_extracted_data ? json_decode($doc->ai_extracted_data, true) : null;
+            if ($data) {
+                $extractions[$doc->type] = $data;
+            }
+        }
+
+        // 2. Mandatory policy checks (auto-reject rules)
+        $policy     = $this->runEligibilityChecks($application);
+        $violations = [];
+        if ($policy['auto_reject'] ?? false) {
+            $violations[] = $policy['reject_reason'] ?? 'Pelanggaran dasar mandatori dikesan.';
+        }
+
+        // Age check from IC
+        $age = null;
+        $ic  = preg_replace('/[^0-9]/', '', (string) $application->ic_no);
+        if (strlen($ic) === 12) {
+            $yy  = (int) substr($ic, 0, 2);
+            $yob = $yy > 26 ? 1900 + $yy : 2000 + $yy;
+            $age = 2026 - $yob;
+            if ($age < 18 || $age > 60) {
+                $violations[] = "Umur pemohon ({$age} tahun) di luar julat mandatori 18-60 tahun.";
+            }
+        }
+
+        $policyChecks = [
+            'checks'     => $policy['checks'] ?? [],
+            'violations' => $violations,
+            'age'        => $age,
+        ];
+
+        // 3. Application data snapshot
+        $appData = [
+            'applicant_name'      => $application->applicant_name,
+            'ic_no'               => $application->ic_no,
+            'age'                 => $age,
+            'scheme'              => $application->scheme,
+            'amount_requested'    => (float) $application->amount_requested,
+            'tenure_months'       => $application->tenure_months,
+            'purpose'             => $application->purpose ?? $application->loan_purpose,
+            'business_name'       => $application->business_name,
+            'business_type'       => $application->business_type,
+            'business_age_months' => $application->business_age_months,
+            'monthly_income'      => (float) ($application->monthly_income ?? 0),
+            'monthly_expense'     => (float) ($application->monthly_expense ?? 0),
+        ];
+
+        // 4. Call Gemini 3.1 Pro Decision Engine
+        $decision = $this->docAi->makeDecision($appData, $extractions, $policyChecks);
+
+        // 5. Persist decision to application
+        try {
+            $application->ai_score          = (int) ($decision['confidence'] ?? 0);
+            $application->ai_risk_grade     = $decision['risk_grade'] ?? null;
+            $application->ai_recommendation = json_encode($decision, JSON_UNESCAPED_UNICODE);
+            if (($decision['decision'] ?? '') === 'auto_reject') {
+                $application->auto_rejected         = true;
+                $application->auto_reject_reason    = implode(' ', $decision['mandatory_violations'] ?? []);
+                $application->auto_reject_narrative = $decision['narrative_bm'] ?? null;
+            }
+            $application->save();
+        } catch (\Throwable $e) {
+            Log::warning('aiDecision persist failed: ' . $e->getMessage());
+        }
+
+        AuditTrail::log('ai_decision', 'module1', $application, null, [
+            'decision'           => $decision['decision'] ?? 'unknown',
+            'recommended_amount' => $decision['recommended_amount'] ?? null,
+        ]);
+
+        return response()->json([
+            'success'     => true,
+            'application' => ['id' => $application->id, 'ref_no' => $application->ref_no],
+            'decision'    => $decision,
+            'policy'      => $policyChecks,
+            'documents_analyzed' => count($extractions),
+        ]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/applications/{id}/ai-decision — fetch saved decision
+    // ─────────────────────────────────────────────────────────────────────────
+    public function getAiDecision(Request $request, string $id): JsonResponse
+    {
+        $application = $this->resolveApplication($id);
+        $saved = $application->ai_recommendation ? json_decode($application->ai_recommendation, true) : null;
+
+        return response()->json([
+            'success'  => true,
+            'decision' => is_array($saved) ? $saved : null,
         ]);
     }
 }
