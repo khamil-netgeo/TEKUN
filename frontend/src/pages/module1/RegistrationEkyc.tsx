@@ -341,6 +341,14 @@ export default function RegistrationEkyc() {
     setLivenessStep(1);
   };
 
+  const advanceStep = (next: Step) => {
+    setError(null);
+    setCameraActive(false);
+    setLivenessStep(0);
+    stopCamera();
+    setStep(next);
+  };
+
   // --- Business & Bank Form Handlers ---
 
   const handleBusinessChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -470,7 +478,8 @@ export default function RegistrationEkyc() {
       // 2. Request OTP
       await api.post('/auth/otp/send', {
         identifier: personalForm.email,
-        channel: 'email'
+        channel: 'email',
+        purpose: 'registration'
       });
 
       // 3. Navigate to Verification
@@ -596,6 +605,16 @@ export default function RegistrationEkyc() {
                   </button>
                 )}
               </div>
+              {/* DEMO MODE: Skip eKYC for POC testing */}
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-700 mb-2">⚠️ <strong>Demo Mode:</strong> Untuk tujuan demonstrasi POC, anda boleh langkau pengesahan eKYC.</p>
+                <button
+                  onClick={() => advanceStep('business')}
+                  className="w-full text-sm bg-amber-500 text-white py-2 px-4 rounded-md hover:bg-amber-600"
+                >
+                  Langkau eKYC (Demo Mode)
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -616,7 +635,7 @@ export default function RegistrationEkyc() {
             <button onClick={() => setLivenessStep(0)} className="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
               Kembali
             </button>
-            <button onClick={() => setStep('business')} className="bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700">
+            <button onClick={() => advanceStep('business')} className="bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700">
               Selesai & Teruskan
             </button>
           </div>
@@ -626,7 +645,7 @@ export default function RegistrationEkyc() {
   );
 
   const renderBusinessForm = () => (
-    <form onSubmit={(e) => { e.preventDefault(); setStep('bank'); }} className="space-y-4">
+    <form onSubmit={(e) => { e.preventDefault(); advanceStep('bank'); }} className="space-y-4">
       <div className="relative">
         <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
         <input type="text" name="businessName" placeholder="Nama Perniagaan" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={businessForm.businessName} onChange={handleBusinessChange} />

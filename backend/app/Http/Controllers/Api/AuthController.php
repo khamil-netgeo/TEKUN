@@ -136,7 +136,7 @@ class AuthController extends Controller
         $request->validate([
             'identifier' => ['required', 'string'],
             'channel'    => ['required', 'in:sms,email'],
-            'purpose'    => ['sometimes', 'in:verification,password_reset,login_2fa'],
+            'purpose'    => ['sometimes', 'in:verification,password_reset,login_2fa,registration'],
         ]);
 
         $result = $this->otpService->send(
@@ -154,7 +154,7 @@ class AuthController extends Controller
             'identifier' => ['required', 'string'],
             'channel'    => ['required', 'in:sms,email'],
             'code'       => ['required', 'string', 'size:6'],
-            'purpose'    => ['sometimes', 'in:verification,password_reset,login_2fa'],
+            'purpose'    => ['sometimes', 'in:verification,password_reset,login_2fa,registration'],
         ]);
 
         $result = $this->otpService->verify(
