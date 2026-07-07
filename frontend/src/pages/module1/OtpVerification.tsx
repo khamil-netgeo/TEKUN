@@ -2,7 +2,7 @@
  * TEKUN SPPT — Module 1: OTP Verification
  * Real implementation: calls POST /api/auth/otp/verify and POST /api/auth/otp/send
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, KeyboardEvent, ClipboardEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, RefreshCw, Phone, Mail, AlertCircle } from 'lucide-react';
 import api from '@/services/api';
@@ -21,7 +21,7 @@ export default function OtpVerification() {
   const channel: 'email' | 'sms' = state.email ? 'email' : 'sms';
   const purpose = state.purpose || 'verification';
 
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [status, setStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [countdown, setCountdown] = useState(120);
@@ -45,11 +45,11 @@ export default function OtpVerification() {
     if (val && idx < 5) inputs.current[idx + 1]?.focus();
   };
 
-  const handleKeyDown = (idx: number, e: React.KeyboardEvent) => {
+  const handleKeyDown = (idx: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !otp[idx] && idx > 0) inputs.current[idx - 1]?.focus();
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
     const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
     if (text.length === 6) {
       setOtp(text.split(''));
@@ -72,13 +72,13 @@ export default function OtpVerification() {
       setStatus('success');
       setTimeout(() => {
         if (purpose === 'registration') {
-          navigate('/login', { state: { verified: true } });
+          navigate('/usahawan/dashboard', { replace: true });
         } else if (purpose === 'password_reset') {
           navigate('/reset-password', { state: { email: identifier, otp: code } });
         } else {
           navigate('/dashboard');
         }
-      }, 1500);
+      }, 2500);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
       setErrorMsg(e?.response?.data?.message ?? 'Kod OTP tidak sah. Sila cuba semula.');
@@ -96,7 +96,7 @@ export default function OtpVerification() {
     try {
       await api.post('/auth/otp/send', { identifier, channel, purpose });
     } catch {
-      // Non-critical
+      // Non-critical error, user can try again
     }
   };
 
@@ -156,8 +156,10 @@ export default function OtpVerification() {
           {status === 'success' && (
             <div className="flex items-center gap-2 justify-center mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
               <CheckCircle size={18} className="text-green-600" />
-              <span className="text-sm font-semibold text-green-700" style={{ fontFamily: 'Inter, sans-serif' }}>
-                Pengesahan berjaya! Mengalihkan...
+              <span className="text-sm font-semibold text-green-700 text-center" style={{ fontFamily: 'Inter, sans-serif' }}>
+                {purpose === 'registration'
+                  ? 'Akaun anda telah berjaya disahkan! Selamat datang ke portal Usahawan TEKUN.'
+                  : 'Pengesahan berjaya! Mengalihkan...'}
               </span>
             </div>
           )}

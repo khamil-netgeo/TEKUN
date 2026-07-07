@@ -25,7 +25,7 @@ export default function DashboardPage() {
       } else if (role === "finance_officer") {
         navigate("/module3/disbursement", { replace: true });
       } else if (role === "usahawan") {
-        navigate("/module1/applications", { replace: true });
+        navigate("/usahawan/dashboard", { replace: true });
       } else if (role === "system_admin") {
         navigate("/module12/users", { replace: true });
       } else {
