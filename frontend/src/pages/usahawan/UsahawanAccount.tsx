@@ -1,320 +1,255 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Wallet, Calendar, AlertCircle, TrendingUp, CreditCard, Download, Shield, Clock, Lightbulb } from 'lucide-react';
 import api from '@/services/api';
-import {
-  Wallet, Landmark, Calendar, TrendingUp, TrendingDown, Hash,
-  FileText, ShieldQuestion, CreditCard, Sparkles, ChevronDown, ChevronRight, AlertCircle, LoaderCircle
-} from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import AiBadge from '@/components/ui/AiBadge';
 
-// --- TYPE DEFINITIONS ---
-interface TransactionItem {
-  id: string;
-  date: string;
-  amount: number;
-  channel: string;
-  receipt_no: string;
-}
-
-interface PaymentScheduleItem {
-  id: string;
-  month: string;
-  principal: number;
-  profit: number;
-  balance: number;
-}
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(amount);
 
 interface AccountData {
-  account_number: string;
-  scheme: string;
-  total_financing: number;
-  balance_remaining: number;
-  monthly_payment: number;
-  next_due_date: string;
-  health_score: number;
-  ai_forecast: string;
-  payment_schedule: PaymentScheduleItem[];
-  payment_history: TransactionItem[];
+  account_no: string;
+  borrower_name: string;
+  principal: number;
+  profit_rate: number;
+  tenure_months: number;
+  monthly_instalment: number;
+  outstanding_balance: number;
+  total_paid: number;
+  arrears_amount: number;
+  arrears_days: number;
+  classification: string;
+  moratorium_active: boolean;
+  status: string;
+  ai_prediction: {
+    probability: number;
+    risk_level: 'rendah' | 'sederhana' | 'tinggi';
+    factors: string[];
+    recommendation: string;
+  };
 }
 
-// --- DEMO FALLBACK DATA ---
-const demoAccountData: AccountData = {
-  account_number: "TKN-2024-001234",
-  scheme: "TEKUN USAHAWAN",
-  total_financing: 50000,
-  balance_remaining: 23456.78,
-  monthly_payment: 763.89,
-  next_due_date: "2026-08-01",
-  health_score: 87,
-  ai_forecast: "Akaun anda dijangka kekal LANCAR sepanjang tempoh pembiayaan berdasarkan corak pembayaran semasa.",
-  payment_schedule: [
-    { id: 's1', month: 'Ogos 2026', principal: 650.11, profit: 113.78, balance: 22806.67 },
-    { id: 's2', month: 'September 2026', principal: 652.34, profit: 111.55, balance: 22154.33 },
-    { id: 's3', month: 'Oktober 2026', principal: 654.58, profit: 109.31, balance: 21499.75 },
-    { id: 's4', month: 'November 2026', principal: 656.83, profit: 107.06, balance: 20842.92 },
-    { id: 's5', month: 'Disember 2026', principal: 659.09, profit: 104.80, balance: 20183.83 },
-    { id: 's6', month: 'Januari 2027', principal: 661.36, profit: 102.53, balance: 19522.47 },
-    { id: 's7', month: 'Februari 2027', principal: 663.64, profit: 100.25, balance: 18858.83 },
-  ],
-  payment_history: [
-    { id: 'h1', date: '2026-07-01', amount: 763.89, channel: 'JomPAY', receipt_no: 'JP987654321' },
-    { id: 'h2', date: '2026-06-01', amount: 763.89, channel: 'Kaunter TEKUN', receipt_no: 'KT123456789' },
-    { id: 'h3', date: '2026-05-01', amount: 763.89, channel: 'Perbankan Internet', receipt_no: 'PI543216789' },
-    { id: 'h4', date: '2026-04-01', amount: 763.89, channel: 'JomPAY', receipt_no: 'JP987654123' },
-    { id: 'h5', date: '2026-03-01', amount: 763.89, channel: 'JomPAY', receipt_no: 'JP987654321' },
-    { id: 'h6', date: '2026-02-01', amount: 763.89, channel: 'Kaunter TEKUN', receipt_no: 'KT123456789' },
-  ],
+const DEMO_ACCOUNT_DATA: AccountData = {
+  account_no: 'ACC-2026-00123',
+  borrower_name: 'Demo Usahawan',
+  principal: 35000,
+  profit_rate: 4.0,
+  tenure_months: 48,
+  monthly_instalment: 875,
+  outstanding_balance: 26250,
+  total_paid: 8750,
+  arrears_amount: 0,
+  arrears_days: 0,
+  classification: 'Prestasi Baik',
+  moratorium_active: false,
+  status: 'Aktif',
+  ai_prediction: {
+    probability: 12,
+    risk_level: 'rendah',
+    factors: [
+      'Pembayaran konsisten selama 10 bulan',
+      'Tiada rekod tunggakan',
+      'Aliran tunai perniagaan stabil'
+    ],
+    recommendation: 'Teruskan pembayaran mengikut jadual. Anda layak untuk tawaran pembiayaan tambahan pada masa hadapan.'
+  }
 };
 
-// --- HELPER FUNCTIONS & COMPONENTS ---
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(amount);
-};
-
-const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('ms-MY', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-const getHealthScoreProps = (score: number): { color: string; label: string; ringColor: string } => {
-  if (score > 70) return { color: 'text-green-600', label: 'Baik', ringColor: 'ring-green-600' };
-  if (score >= 40) return { color: 'text-orange-500', label: 'Sederhana', ringColor: 'ring-orange-500' };
-  return { color: 'text-red-600', label: 'Berisiko', ringColor: 'ring-red-600' };
-};
-
-const InfoItem: React.FC<{ icon: React.ElementType; label: string; value: string | number; isCurrency?: boolean }> = ({ icon: Icon, label, value, isCurrency = false }) => (
-  <div className="flex items-start space-x-3">
-    <div className="mt-1 flex-shrink-0">
-      <Icon className="h-5 w-5 text-navy-600" />
-    </div>
-    <div>
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-lg font-semibold text-navy-900">{isCurrency ? formatCurrency(Number(value)) : value}</p>
-    </div>
-  </div>
-);
-
-const AiBadge: React.FC = () => (
-  <div className="inline-flex items-center rounded-full bg-purple-600 px-2.5 py-0.5 text-xs font-semibold text-white">
-    <Sparkles className="-ml-0.5 mr-1.5 h-3 w-3" />
-    Analisis AI
-  </div>
-);
-
-// --- MAIN COMPONENT ---
 const UsahawanAccount: React.FC = () => {
-  const { user } = useAuthStore();
-  const [accountData, setAccountData] = useState<AccountData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const navigate = useNavigate();
+  const [data, setData] = useState<AccountData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAllSchedule, setShowAllSchedule] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchAccountData = async () => {
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
       try {
-        // In a real app, the API call would be:
-        // const response = await api.get<AccountData>('/api/accounts/my');
-        // setAccountData(response.data);
-        
-        // Simulating API call with a delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        // To test error state, uncomment the line below
-        // throw new Error("Gagal memuatkan data akaun.");
-        setAccountData(demoAccountData);
-
-      } catch (err) {
-        console.error("Failed to fetch account data:", err);
-        setError("Gagal memuatkan data akaun. Memaparkan data demo.");
-        setAccountData(demoAccountData); // Use fallback data on error
+        const response = await api.get('/api/usahawan/account');
+        setData(response.data.data);
+      } catch (err: any) {
+        if (err.response?.status === 401 || err.response?.status === 404) {
+          console.warn('API /api/usahawan/account failed, using demo fallback.', err);
+          setData(DEMO_ACCOUNT_DATA);
+        } else {
+          setError('Ralat memuatkan data akaun.');
+          console.error('Failed to fetch account data:', err);
+        }
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
     fetchAccountData();
   }, []);
 
-  const healthScoreProps = useMemo(() => accountData ? getHealthScoreProps(accountData.health_score) : getHealthScoreProps(0), [accountData]);
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex h-full w-full items-center justify-center p-8">
-        <div className="flex flex-col items-center space-y-4">
-          <LoaderCircle className="h-12 w-12 animate-spin text-navy-600" />
-          <p className="text-lg text-gray-600">Memuatkan maklumat akaun...</p>
-        </div>
+      <div className="p-6">
+        <PageHeader title="Maklumat Akaun" description="Butiran terperinci pembiayaan anda." />
+        <div className="text-center py-10">Memuatkan data akaun...</div>
       </div>
     );
   }
 
-  if (!accountData) {
+  if (error || !data) {
     return (
-      <div className="p-4 md:p-6">
-        <div className="rounded-lg border border-red-300 bg-red-50 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Tiada Data Akaun</h3>
-              <div className="mt-2 text-sm text-red-700">
-                <p>Kami tidak dapat mencari maklumat akaun pembiayaan aktif untuk anda. Sila hubungi cawangan TEKUN yang berdekatan.</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="p-6">
+        <PageHeader title="Maklumat Akaun" description="Butiran terperinci pembiayaan anda." />
+        <div className="text-center py-10 text-red-600">{error || 'Tiada data akaun ditemui.'}</div>
       </div>
     );
   }
-
-  const visibleSchedule = showAllSchedule ? accountData.payment_schedule : accountData.payment_schedule.slice(0, 6);
-  const visibleHistory = accountData.payment_history.slice(0, 5);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 bg-gray-50 min-h-screen">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-navy-900">Akaun Pembiayaan</h1>
-        <p className="text-gray-600 mt-1">Selamat datang, {user?.name || 'Usahawan TEKUN'}. Berikut adalah ringkasan akaun anda.</p>
-      </header>
-
-      {error && (
-        <div className="mb-6 rounded-md bg-orange-50 p-4 border border-orange-200">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <AlertCircle className="h-5 w-5 text-orange-400" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-orange-800">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="p-6">
+      <div className="mb-6 flex items-center gap-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <PageHeader
+          title={`Akaun: ${data.account_no}`}
+          description="Butiran terperinci pembiayaan anda."
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content Column */}
+        {/* Main Account Details */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Account Summary Card */}
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h2 className="text-xl font-semibold text-navy-900 mb-4">Ringkasan Akaun</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              <InfoItem icon={Hash} label="No. Akaun" value={accountData.account_number} />
-              <InfoItem icon={Landmark} label="Skim Pembiayaan" value={accountData.scheme} />
-              <InfoItem icon={Wallet} label="Jumlah Pembiayaan" value={accountData.total_financing} isCurrency />
-              <InfoItem icon={TrendingDown} label="Baki Terkini" value={accountData.balance_remaining} isCurrency />
-              <InfoItem icon={CreditCard} label="Bayaran Bulanan" value={accountData.monthly_payment} isCurrency />
-              <InfoItem icon={Calendar} label="Tarikh Akhir Bayaran" value={formatDate(accountData.next_due_date)} />
-            </div>
-          </div>
-
-          {/* AI Forecast Panel */}
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 flex items-start space-x-4">
-            <div className="flex-shrink-0">
-              <div className="bg-purple-600 p-2 rounded-full">
-                <Sparkles className="h-6 w-6 text-white" />
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-navy-600" style={{ color: '#1B2B5E' }} />
+              Ringkasan Pembiayaan
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm text-gray-500">Jumlah Pembiayaan (Prinsipal)</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.principal)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Baki Tertunggak</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.outstanding_balance)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Ansuran Bulanan</p>
+                <p className="text-lg font-semibold text-gray-800">{formatCurrency(data.monthly_instalment)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Tempoh Pembiayaan</p>
+                <p className="text-lg font-semibold text-gray-800">{data.tenure_months} Bulan</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Kadar Keuntungan</p>
+                <p className="text-lg font-semibold text-gray-800">{data.profit_rate}% setahun</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Status Akaun</p>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
+                  {data.status}
+                </span>
               </div>
             </div>
-            <div>
-              <AiBadge />
-              <p className="mt-2 text-purple-800">{accountData.ai_forecast}</p>
-            </div>
           </div>
 
-          {/* Payment Schedule */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h2 className="text-xl font-semibold text-navy-900 mb-4">Jadual Bayaran</h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulan</th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Prinsipal (RM)</th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Keuntungan (RM)</th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Baki (RM)</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {visibleSchedule.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.month}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{item.principal.toFixed(2)}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">{item.profit.toFixed(2)}</td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">{item.balance.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Arrears & Moratorium Status */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-600" style={{ color: '#E65100' }} />
+                Status Tunggakan
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-500">Jumlah Tunggakan</p>
+                  <p className={`text-xl font-bold ${data.arrears_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formatCurrency(data.arrears_amount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Hari Tunggakan</p>
+                  <p className="text-lg font-semibold text-gray-800">{data.arrears_days} Hari</p>
+                </div>
+              </div>
             </div>
-            {accountData.payment_schedule.length > 6 && (
-              <button onClick={() => setShowAllSchedule(!showAllSchedule)} className="mt-4 w-full flex items-center justify-center text-sm font-semibold text-navy-700 hover:text-navy-900">
-                {showAllSchedule ? 'Papar Sedikit' : 'Lihat Semua'}
-                {showAllSchedule ? <ChevronDown className="h-4 w-4 ml-1 transform rotate-180" /> : <ChevronDown className="h-4 w-4 ml-1" />}
-              </button>
-            )}
-          </div>
 
-          {/* Payment History */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h2 className="text-xl font-semibold text-navy-900 mb-4">Sejarah Bayaran Terkini</h2>
-            <ul className="divide-y divide-gray-200">
-              {visibleHistory.map((tx) => (
-                <li key={tx.id} className="py-3 flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{tx.channel}</p>
-                    <p className="text-sm text-gray-500">{formatDate(tx.date)} &bull; No. Resit: {tx.receipt_no}</p>
-                  </div>
-                  <p className="text-sm font-semibold text-green-700">{formatCurrency(tx.amount)}</p>
-                </li>
-              ))}
-            </ul>
-            <Link to="/module4/payment-history" className="mt-4 w-full flex items-center justify-center text-sm font-semibold text-navy-700 hover:text-navy-900">
-              Lihat Semua Transaksi
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Link>
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-navy-600" style={{ color: '#1B2B5E' }} />
+                Status Moratorium
+              </h3>
+              <div className="flex flex-col h-full justify-center items-start space-y-4">
+                <p className="text-sm text-gray-600">
+                  {data.moratorium_active 
+                    ? 'Akaun ini sedang dalam tempoh moratorium.' 
+                    : 'Tiada moratorium aktif untuk akaun ini.'}
+                </p>
+                {!data.moratorium_active && (
+                  <button
+                    onClick={() => navigate('/usahawan/moratorium')}
+                    className="px-4 py-2 text-sm font-medium text-white rounded-md transition-colors"
+                    style={{ backgroundColor: '#1B2B5E' }}
+                  >
+                    Mohon Moratorium
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Right Sidebar Column */}
+        {/* Sidebar Actions & AI */}
         <div className="space-y-6">
-          {/* Health Score Gauge */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center">
-            <h3 className="text-lg font-semibold text-navy-900 mb-2">Skor Kesihatan Akaun</h3>
-            <div className="relative inline-flex items-center justify-center my-4">
-              <div className={`absolute text-4xl font-bold ${healthScoreProps.color}`}>{accountData.health_score}</div>
-              <svg className="w-40 h-40 transform -rotate-90">
-                <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-gray-200" />
-                <circle
-                  cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent"
-                  strokeDasharray={2 * Math.PI * 70}
-                  strokeDashoffset={(2 * Math.PI * 70) * (1 - accountData.health_score / 100)}
-                  className={healthScoreProps.color}
-                />
-              </svg>
+          {/* Actions */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Tindakan</h3>
+            <div className="space-y-3">
+              <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-md text-white font-medium bg-green-600 hover:bg-green-700 transition-colors">
+                <CreditCard className="w-5 h-5" /> Bayar Sekarang
+              </button>
+              <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-md bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200 transition-colors">
+                <Download className="w-5 h-5" /> Muat Turun Penyata
+              </button>
             </div>
-            <p className={`text-lg font-semibold ${healthScoreProps.color}`}>{healthScoreProps.label}</p>
-            <p className="text-sm text-gray-500 mt-1">Skor yang baik memudahkan kelulusan pembiayaan masa hadapan.</p>
           </div>
 
-          {/* Quick Actions */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-navy-900 mb-4">Tindakan Pantas</h3>
-            <div className="space-y-3">
-              <Link to="/module4/pay" className="flex items-center justify-center w-full px-4 py-3 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors">
-                <CreditCard className="w-5 h-5 mr-2" />
-                Buat Bayaran
-              </Link>
-              <Link to="/module4/statement" className="flex items-center justify-center w-full px-4 py-3 text-sm font-semibold text-navy-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
-                <FileText className="w-5 h-5 mr-2" />
-                Muat Turun Penyata
-              </Link>
-              <Link to="/module4/moratorium-request" className="flex items-center justify-center w-full px-4 py-3 text-sm font-semibold text-navy-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
-                <ShieldQuestion className="w-5 h-5 mr-2" />
-                Mohon Moratorium
-              </Link>
+          {/* AI Prediction Panel */}
+          <div className="p-6 rounded-lg border-2" style={{ backgroundColor: 'rgba(103, 58, 183, 0.05)', borderColor: '#673AB7' }}>
+            <h3 className="text-lg font-semibold text-purple-800 mb-4 flex items-center gap-2" style={{ color: '#673AB7' }}>
+              <Lightbulb className="w-5 h-5" /> Analisis AI <AiBadge />
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Risiko Lalai (Default Risk)</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex-grow bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className={`h-2.5 rounded-full ${data.ai_prediction.risk_level === 'rendah' ? 'bg-green-500' : data.ai_prediction.risk_level === 'sederhana' ? 'bg-orange-500' : 'bg-red-500'}`} 
+                      style={{ width: `${data.ai_prediction.probability}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">{data.ai_prediction.probability}%</span>
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-sm font-medium text-gray-800 mb-2">Faktor Utama:</p>
+                <ul className="space-y-1">
+                  {data.ai_prediction.factors.map((factor, idx) => (
+                    <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
+                      <span className="text-purple-500 mt-0.5">•</span> {factor}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="pt-3 border-t border-purple-200">
+                <p className="text-sm text-gray-700 italic">"{data.ai_prediction.recommendation}"</p>
+              </div>
             </div>
           </div>
         </div>

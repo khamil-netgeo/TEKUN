@@ -1,329 +1,289 @@
-import { useState, useEffect, FC, ReactNode } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { DollarSign, Calendar, Wallet, Gauge, Lightbulb, Plus, Eye, FileText, CheckCircle } from 'lucide-react';
 import api from '@/services/api';
-import {
-  Landmark,
-  CalendarClock,
-  FileCheck2,
-  HeartPulse,
-  CreditCard,
-  FileSearch,
-  PlusCircle,
-  Folder,
-  Sparkles,
-  Bell,
-  ReceiptText,
-  FileText,
-  Cog,
-  AlertCircle,
-  LoaderCircle,
-} from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import AiBadge from '@/components/ui/AiBadge';
 
-// --- TYPE DEFINITIONS ---
-interface NotificationItemData {
-  id: string;
-  icon: 'payment' | 'application' | 'system';
-  message: string;
-  date: string; // ISO 8601 date string
-}
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(amount);
 
-interface LatestApplicationData {
-  ref_number: string;
-  scheme_name: string;
-  status: string;
-}
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+};
 
 interface DashboardData {
   active_financing: number;
-  next_installment_amount: number;
-  next_installment_date: string; // "YYYY-MM-DD"
-  application_status: string;
+  next_payment_date: string;
+  next_payment_amount: number;
+  total_paid: number;
+  outstanding_balance: number;
+  application_count: number;
+  latest_application_status: string;
+  latest_application_ref: string;
   credit_score: number;
-  latest_application: LatestApplicationData;
-  notifications: NotificationItemData[];
   ai_insight: string;
+  ai_risk_level: 'rendah' | 'sederhana' | 'tinggi';
 }
 
-// --- HELPER FUNCTIONS & CONSTANTS ---
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('ms-MY', {
-    style: 'currency',
-    currency: 'MYR',
-  }).format(amount);
+const DEMO_DASHBOARD_DATA: DashboardData = {
+  active_financing: 35000,
+  next_payment_date: '2026-08-01',
+  next_payment_amount: 875,
+  total_paid: 8750,
+  outstanding_balance: 26250,
+  application_count: 2,
+  latest_application_status: 'Dalam Penilaian',
+  latest_application_ref: 'SPPT-2026-07-00123',
+  credit_score: 72,
+  ai_insight: 'Rekod pembayaran anda konsisten. Risiko lalai adalah rendah berdasarkan analisis 10 bulan terakhir.',
+  ai_risk_level: 'rendah',
 };
 
-const formatDate = (dateString: string, options?: Intl.DateTimeFormatOptions) => {
-  const defaultOptions: Intl.DateTimeFormatOptions = {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  };
-  return new Intl.DateTimeFormat('ms-MY', { ...defaultOptions, ...options }).format(new Date(dateString));
-};
-
-const isDueSoon = (dateString: string): boolean => {
-  const dueDate = new Date(dateString);
-  const today = new Date();
-  const sevenDaysFromNow = new Date();
-  sevenDaysFromNow.setDate(today.getDate() + 7);
-  // Check if due date is in the future but within the next 7 days
-  return dueDate > today && dueDate <= sevenDaysFromNow;
-};
-
-const getScoreColorClasses = (score: number): { text: string; bg: string; border: string } => {
-  if (score > 70) return { text: 'text-green-600', bg: 'bg-green-50', border: 'border-green-500' };
-  if (score >= 40) return { text: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-500' };
-  return { text: 'text-red-600', bg: 'bg-red-50', border: 'border-red-500' };
-};
-
-const statusColorMap: { [key: string]: string } = {
-  "Diluluskan": "bg-green-100 text-green-800",
-  "Dalam Penilaian Kredit": "bg-blue-100 text-blue-800",
-  "Dalam Semakan": "bg-blue-100 text-blue-800",
-  "Ditolak": "bg-red-100 text-red-800",
-  "Perlu Maklumat Lanjut": "bg-yellow-100 text-yellow-800",
-  "Lengkap": "bg-green-100 text-green-800",
-};
-
-const notificationIconMap: { [key in NotificationItemData['icon']]: ReactNode } = {
-  payment: <ReceiptText className="h-6 w-6 text-green-500" />,
-  application: <FileText className="h-6 w-6 text-blue-500" />,
-  system: <Cog className="h-6 w-6 text-gray-500" />,
-};
-
-// --- SUB-COMPONENTS ---
-const StatCard: FC<{
-  icon: React.ElementType;
-  title: string;
-  value: ReactNode;
-  subtitle?: string;
-  colorClass: string;
-}> = ({ icon: Icon, title, value, subtitle, colorClass }) => (
-  <div className="bg-white p-4 rounded-lg shadow-sm border-l-4" style={{ borderLeftColor: colorClass }}>
-    <div className="flex items-center">
-      <div className="p-2 rounded-full mr-4" style={{ backgroundColor: `${colorClass}20` }}>
-        <Icon className="h-6 w-6" style={{ color: colorClass }} />
-      </div>
-      <div>
-        <p className="text-sm text-gray-500">{title}</p>
-        <p className="text-xl font-bold text-navy-900">{value}</p>
-        {subtitle && <p className="text-xs text-gray-400">{subtitle}</p>}
-      </div>
-    </div>
-  </div>
-);
-
-const ActionButton: FC<{
-  icon: React.ElementType;
-  label: string;
-  onClick: () => void;
-}> = ({ icon: Icon, label, onClick }) => (
-  <button
-    onClick={onClick}
-    className="flex flex-col items-center justify-center space-y-2 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors w-full text-center"
-  >
-    <Icon className="h-6 w-6 text-navy-700" />
-    <span className="text-xs font-medium text-navy-800">{label}</span>
-  </button>
-);
-
-const StatusBadge: FC<{ status: string }> = ({ status }) => (
-  <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusColorMap[status] || 'bg-gray-100 text-gray-800'}`}>
-    {status}
-  </span>
-);
-
-const AiBadge: FC = () => (
-  <span className="inline-flex items-center gap-x-1.5 rounded-md bg-purple-200 px-2 py-1 text-xs font-medium text-purple-800">
-    <Sparkles className="h-3 w-3" />
-    AI
-  </span>
-);
-
-// --- MAIN COMPONENT ---
-const UsahawanDashboard: FC = () => {
+const UsahawanDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        const response = await api.get<DashboardData>('/api/usahawan/dashboard');
-        setData(response.data);
-      } catch (err) {
-        console.error("Failed to fetch dashboard data, using fallback.", err);
-        setError("Tidak dapat memuatkan data. Memaparkan data demo.");
-        
-        const soonDate = new Date();
-        soonDate.setDate(soonDate.getDate() + 3);
-        const fallbackNextInstallmentDate = soonDate.toISOString().split('T')[0];
-
-        const fallbackData: DashboardData = {
-          active_financing: 23456,
-          next_installment_amount: 763.89,
-          next_installment_date: fallbackNextInstallmentDate,
-          application_status: "Dalam Penilaian Kredit",
-          credit_score: 87,
-          latest_application: {
-            ref_number: "TEKUN/SPPT/2024/07-1234",
-            scheme_name: "Skim Pembiayaan TEKUN Niaga",
-            status: "Dalam Penilaian Kredit",
-          },
-          notifications: [
-            { id: '1', icon: 'payment', message: 'Bayaran bulanan sebanyak RM763.89 telah diterima.', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-            { id: '2', icon: 'application', message: 'Dokumen sokongan anda telah disahkan.', date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
-            { id: '3', icon: 'system', message: 'Selamat datang ke portal SPPT baharu!', date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
-          ],
-          ai_insight: "Akaun anda dijangka kekal LANCAR berdasarkan corak pembayaran semasa. Teruskan momentum ini!",
-        };
-        setData(fallbackData);
+        const response = await api.get('/api/usahawan/dashboard');
+        setData(response.data.data);
+      } catch (err: any) {
+        if (err.response?.status === 401 || err.response?.status === 404) {
+          console.warn('API /api/usahawan/dashboard failed, using demo fallback.', err);
+          setData(DEMO_DASHBOARD_DATA);
+        } else {
+          setError('Ralat memuatkan data dashboard.');
+          console.error('Failed to fetch dashboard data:', err);
+        }
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
     fetchDashboardData();
   }, []);
 
-  if (loading) {
+  const getRiskLevelColor = (level: 'rendah' | 'sederhana' | 'tinggi') => {
+    switch (level) {
+      case 'rendah': return 'bg-green-100 text-green-800';
+      case 'sederhana': return 'bg-orange-100 text-orange-800';
+      case 'tinggi': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const renderRingGauge = (value: number, max: number, color: string) => {
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (value / max) * circumference;
+
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="flex flex-col items-center">
-          <LoaderCircle className="w-12 h-12 animate-spin text-navy-600" />
-          <p className="mt-4 text-lg text-gray-600">Memuatkan Papan Pemuka...</p>
-        </div>
+      <div className="relative w-24 h-24 flex items-center justify-center">
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+          <circle
+            className="text-gray-200"
+            strokeWidth="8"
+            stroke="currentColor"
+            fill="transparent"
+            r={radius}
+            cx="50"
+            cy="50"
+          />
+          <circle
+            className={color}
+            strokeWidth="8"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            stroke="currentColor"
+            fill="transparent"
+            r={radius}
+            cx="50"
+            cy="50"
+          />
+        </svg>
+        <div className="absolute text-lg font-bold text-gray-800">{value}%</div>
+      </div>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <PageHeader
+          title="Dashboard Usahawan"
+          description="Gambaran keseluruhan status pembiayaan dan permohonan anda."
+        />
+        <div className="text-center py-10">Memuatkan data...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <PageHeader
+          title="Dashboard Usahawan"
+          description="Gambaran keseluruhan status pembiayaan dan permohonan anda."
+        />
+        <div className="text-center py-10 text-red-600">{error}</div>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center p-8 bg-white rounded-lg shadow-md">
-          <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
-          <h2 className="mt-4 text-xl font-bold text-red-700">Ralat</h2>
-          <p className="mt-2 text-gray-600">{error || "Gagal memuatkan data papan pemuka. Sila cuba lagi kemudian."}</p>
-        </div>
+      <div className="p-6">
+        <PageHeader
+          title="Dashboard Usahawan"
+          description="Gambaran keseluruhan status pembiayaan dan permohonan anda."
+        />
+        <div className="text-center py-10">Tiada data untuk dipaparkan.</div>
       </div>
     );
   }
 
-  const scoreColor = getScoreColorClasses(data.credit_score);
-  const nextPaymentDueSoon = isDueSoon(data.next_installment_date);
+  const creditScoreColor = data.credit_score >= 70 ? 'text-green-500' : data.credit_score >= 50 ? 'text-orange-500' : 'text-red-500';
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-navy-900">
-            Selamat datang, {user?.name || 'Usahawan'}! 👋
-          </h1>
-          <p className="text-gray-500">{formatDate(new Date().toISOString())}</p>
+    <div className="p-6">
+      <PageHeader
+        title="Dashboard Usahawan"
+        description="Gambaran keseluruhan status pembiayaan dan permohonan anda."
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+        {/* KPI Card: Active Financing */}
+        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex items-center space-x-4">
+          <div className="p-3 rounded-full bg-navy-100" style={{ backgroundColor: '#E0E7FF' }}>
+            <DollarSign className="w-6 h-6 text-navy-700" style={{ color: '#1B2B5E' }} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Pembiayaan Aktif</p>
+            <p className="text-xl font-semibold text-gray-900">{formatCurrency(data.active_financing)}</p>
+          </div>
         </div>
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            icon={Landmark}
-            title="Pembiayaan Aktif"
-            value={formatCurrency(data.active_financing)}
-            colorClass="#2E7D32"
-          />
-          <StatCard
-            icon={CalendarClock}
-            title="Bayaran Seterusnya"
-            value={formatCurrency(data.next_installment_amount)}
-            subtitle={`pada ${formatDate(data.next_installment_date)}`}
-            colorClass={nextPaymentDueSoon ? "#E65100" : "#607D8B"}
-          />
-          <StatCard
-            icon={FileCheck2}
-            title="Status Permohonan"
-            value={<StatusBadge status={data.application_status} />}
-            colorClass="#1B2B5E"
-          />
-          <StatCard
-            icon={HeartPulse}
-            title="Skor Kesihatan"
-            value={<span className={scoreColor.text}>{data.credit_score} / 100</span>}
-            colorClass={scoreColor.text.includes('green') ? '#2E7D32' : scoreColor.text.includes('orange') ? '#E65100' : '#D32F2F'}
-          />
+        {/* KPI Card: Next Payment */}
+        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex items-center space-x-4">
+          <div className="p-3 rounded-full bg-green-100" style={{ backgroundColor: '#D4EDDA' }}>
+            <Calendar className="w-6 h-6 text-green-700" style={{ color: '#2E7D32' }} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Bayaran Seterusnya</p>
+            <p className="text-xl font-semibold text-gray-900">{formatDate(data.next_payment_date)}</p>
+            <p className="text-sm text-gray-600">{formatCurrency(data.next_payment_amount)}</p>
+          </div>
         </div>
 
+        {/* KPI Card: Outstanding Balance */}
+        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex items-center space-x-4">
+          <div className="p-3 rounded-full bg-orange-100" style={{ backgroundColor: '#FFEDD5' }}>
+            <Wallet className="w-6 h-6 text-orange-700" style={{ color: '#E65100' }} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Baki Tertunggak</p>
+            <p className="text-xl font-semibold text-gray-900">{formatCurrency(data.outstanding_balance)}</p>
+          </div>
+        </div>
+
+        {/* KPI Card: Credit Score */}
+        <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex items-center space-x-4">
+          <div className="p-3 rounded-full bg-purple-100" style={{ backgroundColor: '#EFE7FC' }}>
+            <Gauge className="w-6 h-6 text-purple-700" style={{ color: '#673AB7' }} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Skor Kredit</p>
+            <p className={`text-xl font-semibold ${creditScoreColor}`}>{data.credit_score}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Health Panel */}
+      <div
+        className="mt-8 p-6 rounded-lg border-2"
+        style={{ backgroundColor: 'rgba(103, 58, 183, 0.1)', borderColor: '#673AB7' }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-purple-800 flex items-center gap-2" style={{ color: '#673AB7' }}>
+            <Lightbulb className="w-5 h-5" /> Analisis Kesihatan Kewangan <AiBadge />
+          </h3>
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(data.ai_risk_level)}`}>
+            Risiko: {data.ai_risk_level.charAt(0).toUpperCase() + data.ai_risk_level.slice(1)}
+          </span>
+        </div>
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="flex-shrink-0">
+            {renderRingGauge(data.credit_score, 100, creditScoreColor)}
+          </div>
+          <div className="flex-grow">
+            <p className="text-gray-700 leading-relaxed">{data.ai_insight}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <ActionButton icon={CreditCard} label="Buat Bayaran" onClick={() => navigate('/module4/pay')} />
-          <ActionButton icon={FileSearch} label="Semak Status" onClick={() => navigate('/module1/timeline/latest')} />
-          <ActionButton icon={PlusCircle} label="Mohon Baru" onClick={() => navigate('/module1/new')} />
-          <ActionButton icon={Folder} label="Dokumen Saya" onClick={() => navigate('/module1/documents')} />
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Tindakan Pantas</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              onClick={() => navigate('/module1/new')}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-md text-white font-medium"
+              style={{ backgroundColor: '#1B2B5E' }}
+            >
+              <Plus className="w-5 h-5" /> Mohon Pembiayaan
+            </button>
+            <button
+              onClick={() => navigate('/usahawan/account')}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-md bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200"
+            >
+              <Eye className="w-5 h-5" /> Lihat Akaun
+            </button>
+            <button
+              onClick={() => navigate('/usahawan/moratorium')}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-md bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200"
+            >
+              <FileText className="w-5 h-5" /> Mohon Moratorium
+            </button>
+            <button
+              onClick={() => navigate('/semak-kelayakan')}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-md bg-gray-100 text-gray-800 border border-gray-300 hover:bg-gray-200"
+            >
+              <CheckCircle className="w-5 h-5" /> Semak Kelayakan
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Latest Application */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h3 className="text-lg font-semibold text-navy-800 mb-4">Permohonan Terkini</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">No. Rujukan</span>
-                  <span className="font-medium text-gray-800">{data.latest_application.ref_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Skim Pembiayaan</span>
-                  <span className="font-medium text-gray-800">{data.latest_application.scheme_name}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Status</span>
-                  <StatusBadge status={data.latest_application.status} />
-                </div>
-              </div>
-              <button className="mt-6 w-full bg-navy-600 text-white py-2 px-4 rounded-lg hover:bg-navy-700 transition-colors font-semibold">
-                Lihat Status Terperinci
-              </button>
-            </div>
-
-            {/* AI Insight Panel */}
-            <div className="bg-purple-50 border-l-4 border-purple-500 p-5 rounded-lg shadow-sm text-purple-900">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <Sparkles className="h-8 w-8 text-purple-600" />
-                </div>
+        {/* Recent Applications */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Permohonan Terkini</h3>
+          {data.application_count > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md border border-gray-200">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-bold">Pandangan AI</h4>
-                    <AiBadge />
-                  </div>
-                  <p className="text-sm">{data.ai_insight}</p>
+                  <p className="font-medium text-gray-900">{data.latest_application_ref}</p>
+                  <p className="text-sm text-gray-600">Status: {data.latest_application_status}</p>
                 </div>
+                <button
+                  onClick={() => navigate(`/module1/timeline/${data.latest_application_ref}`)}
+                  className="text-sm text-navy-600 hover:underline"
+                  style={{ color: '#1B2B5E' }}
+                >
+                  Lihat Status
+                </button>
               </div>
             </div>
-          </div>
-
-          {/* Notifications */}
-          <div className="bg-white p-6 rounded-lg shadow-sm">
-            <div className="flex items-center mb-4">
-              <Bell className="h-5 w-5 text-navy-800 mr-2" />
-              <h3 className="text-lg font-semibold text-navy-800">Notifikasi Terkini</h3>
-            </div>
-            <ul className="space-y-4">
-              {data.notifications.map((item) => (
-                <li key={item.id} className="flex items-start space-x-3">
-                  <div className="flex-shrink-0 pt-1">
-                    {notificationIconMap[item.icon]}
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-700">{item.message}</p>
-                    <p className="text-xs text-gray-400">{formatDate(item.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          ) : (
+            <p className="text-gray-600">Tiada permohonan terkini.</p>
+          )}
         </div>
       </div>
     </div>

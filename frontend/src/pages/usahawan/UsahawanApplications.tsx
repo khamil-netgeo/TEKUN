@@ -1,240 +1,242 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, FileText, LoaderCircle } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import api from '@/services/api';
+import PageHeader from '@/components/ui/PageHeader';
 
-// Note: useAuthStore is not needed as the API handles filtering via 'mine=true'
-// which uses the authentication token from the api service instance.
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' }).format(amount);
 
-// --- Type Definition ---
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
 interface Application {
   id: string;
-  referenceNumber: string;
-  schemeName: string;
-  amount: number;
-  submissionDate: string; // ISO 8601 format
-  status: 'Dalam Semakan' | 'Diluluskan' | 'Ditolak';
+  ref_no: string;
+  applicant_name: string;
+  scheme: string;
+  amount_requested: number;
+  status: 'Draf' | 'Dalam Penilaian' | 'Lulus' | 'Tolak';
+  created_at: string;
 }
 
-// --- Demo Data for Fallback ---
-const demoApplications: Application[] = [
+const DEMO_APPLICATIONS_DATA: Application[] = [
   {
-    id: 'demo-1',
-    referenceNumber: 'TEKUN/DEMO/2024/001',
-    schemeName: 'Skim Pembiayaan TEKUN Niaga',
-    amount: 20000,
-    submissionDate: '2024-05-15T09:30:00Z',
-    status: 'Diluluskan',
+    id: '1',
+    ref_no: 'SPPT-2026-07-00123',
+    applicant_name: 'Demo Usahawan',
+    scheme: 'Pembiayaan Mikro',
+    amount_requested: 35000,
+    status: 'Dalam Penilaian',
+    created_at: '2026-07-15T10:00:00Z',
   },
   {
-    id: 'demo-2',
-    referenceNumber: 'TEKUN/DEMO/2024/002',
-    schemeName: 'Skim Pembiayaan Kontrak-i',
-    amount: 50000,
-    submissionDate: '2024-06-01T14:00:00Z',
-    status: 'Dalam Semakan',
+    id: '2',
+    ref_no: 'SPPT-2026-06-00088',
+    applicant_name: 'Demo Usahawan',
+    scheme: 'Pembiayaan PKS',
+    amount_requested: 120000,
+    status: 'Lulus',
+    created_at: '2026-06-20T14:30:00Z',
+  },
+  {
+    id: '3',
+    ref_no: 'SPPT-2026-05-00050',
+    applicant_name: 'Demo Usahawan',
+    scheme: 'Pembiayaan Permulaan',
+    amount_requested: 15000,
+    status: 'Tolak',
+    created_at: '2026-05-01T09:15:00Z',
+  },
+  {
+    id: '4',
+    ref_no: 'SPPT-2026-04-00030',
+    applicant_name: 'Demo Usahawan',
+    scheme: 'Pembiayaan Mikro',
+    amount_requested: 20000,
+    status: 'Draf',
+    created_at: '2026-04-10T11:00:00Z',
   },
 ];
 
-// --- Helper Functions ---
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('ms-MY', {
-    style: 'currency',
-    currency: 'MYR',
-  }).format(amount);
-};
-
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('ms-MY', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-const getStatusBadgeClass = (status: Application['status']): string => {
-  switch (status) {
-    case 'Diluluskan':
-      return 'bg-green-100 text-green-800 border-green-300';
-    case 'Dalam Semakan':
-      return 'bg-orange-100 text-orange-800 border-orange-300';
-    case 'Ditolak':
-      return 'bg-red-100 text-red-800 border-red-300';
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-300';
-  }
-};
-
-// --- Main Component ---
 const UsahawanApplications: React.FC = () => {
   const navigate = useNavigate();
   const [applications, setApplications] = useState<Application[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('Semua');
-
-  const statusOptions: string[] = ['Semua', 'Dalam Semakan', 'Diluluskan', 'Ditolak'];
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'Semua' | 'Draf' | 'Dalam Penilaian' | 'Lulus' | 'Tolak'>('Semua');
 
   useEffect(() => {
     const fetchApplications = async () => {
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
       try {
-        const response = await api.get<Application[]>('/api/applications?mine=true');
-        setApplications(response.data);
-      } catch (err) {
-        console.error("Gagal memuatkan data permohonan:", err);
-        setError("Tidak dapat memuatkan data permohonan. Memaparkan data demo.");
-        setApplications(demoApplications); // Fallback to demo data
+        const response = await api.get('/api/applications/mine');
+        setApplications(response.data.data);
+      } catch (err: any) {
+        if (err.response?.status === 401 || err.response?.status === 404) {
+          console.warn('API /api/applications/mine failed, using demo fallback.', err);
+          setApplications(DEMO_APPLICATIONS_DATA);
+        } else {
+          setError('Ralat memuatkan senarai permohonan.');
+          console.error('Failed to fetch applications:', err);
+        }
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
     fetchApplications();
   }, []);
 
-  const filteredApplications = useMemo(() => {
-    return applications
-      .filter(app => {
-        if (statusFilter === 'Semua') return true;
-        return app.status === statusFilter;
-      })
-      .filter(app => {
-        return app.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase());
-      });
-  }, [applications, searchTerm, statusFilter]);
-
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <div className="flex flex-col items-center justify-center text-center py-20">
-          <LoaderCircle className="animate-spin h-12 w-12 text-navy-600" />
-          <p className="mt-4 text-lg text-gray-600">Memuatkan Permohonan...</p>
-        </div>
-      );
+  const getStatusColor = (status: Application['status']) => {
+    switch (status) {
+      case 'Draf': return 'bg-gray-100 text-gray-800';
+      case 'Dalam Penilaian': return 'bg-blue-100 text-blue-800';
+      case 'Lulus': return 'bg-green-100 text-green-800';
+      case 'Tolak': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
-
-    if (applications.length === 0 && !loading && !error) {
-      return (
-        <div className="text-center py-20 px-4 bg-white rounded-lg shadow-sm border">
-          <FileText className="mx-auto h-16 w-16 text-gray-400" />
-          <h3 className="mt-4 text-xl font-semibold text-gray-800">Tiada Permohonan Ditemui</h3>
-          <p className="mt-2 text-base text-gray-500">Anda belum membuat sebarang permohonan.</p>
-          <button
-            onClick={() => navigate('/module1/new')}
-            className="mt-6 inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-          >
-            <Plus className="-ml-1 mr-3 h-5 w-5" />
-            Mohon Sekarang
-          </button>
-        </div>
-      );
-    }
-
-    if (filteredApplications.length === 0) {
-        return (
-            <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow-sm border">
-                Tiada permohonan yang sepadan dengan carian atau tapisan anda.
-            </div>
-        );
-    }
-
-    return (
-      <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-        {filteredApplications.map((app) => (
-          <div key={app.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col">
-            <div className="p-5 flex-grow">
-              <div className="flex justify-between items-start mb-3">
-                <p className="text-sm font-medium text-gray-500">
-                  No. Rujukan: <span className="text-navy-700 font-semibold">{app.referenceNumber}</span>
-                </p>
-                <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${getStatusBadgeClass(app.status)}`}>
-                  {app.status}
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-navy-900 mb-1">{app.schemeName}</h3>
-              <p className="text-2xl font-light text-gray-800 mb-4">{formatCurrency(app.amount)}</p>
-              <p className="text-sm text-gray-500">
-                Tarikh Hantar: {formatDate(app.submissionDate)}
-              </p>
-            </div>
-            <div className="border-t border-gray-200 bg-gray-50 px-5 py-3">
-              <button
-                onClick={() => navigate(`/module1/timeline/${app.id}`)}
-                className="w-full text-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-navy-600 hover:bg-navy-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-500"
-              >
-                Lihat Status
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
   };
 
+  const filteredApplications = useMemo(() => {
+    let filtered = applications;
+
+    if (filterStatus !== 'Semua') {
+      filtered = filtered.filter(app => app.status === filterStatus);
+    }
+
+    if (searchTerm) {
+      filtered = filtered.filter(app =>
+        app.ref_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        app.scheme.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [applications, filterStatus, searchTerm]);
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <PageHeader
+          title="Permohonan Pembiayaan"
+          description="Senarai permohonan pembiayaan anda."
+          actions={
+            <button
+              onClick={() => navigate('/module1/new')}
+              className="flex items-center gap-2 px-4 py-2 rounded-md text-white font-medium"
+              style={{ backgroundColor: '#1B2B5E' }}
+            >
+              <Plus className="w-5 h-5" /> Permohonan Baharu
+            </button>
+          }
+        />
+        <div className="text-center py-10">Memuatkan permohonan...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <PageHeader
+          title="Permohonan Pembiayaan"
+          description="Senarai permohonan pembiayaan anda."
+          actions={
+            <button
+              onClick={() => navigate('/module1/new')}
+              className="flex items-center gap-2 px-4 py-2 rounded-md text-white font-medium"
+              style={{ backgroundColor: '#1B2B5E' }}
+            >
+              <Plus className="w-5 h-5" /> Permohonan Baharu
+            </button>
+          }
+        />
+        <div className="text-center py-10 text-red-600">{error}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-navy-900 mb-4 sm:mb-0">
-            Permohonan Saya
-          </h1>
+    <div className="p-6">
+      <PageHeader
+        title="Permohonan Pembiayaan"
+        description="Senarai permohonan pembiayaan anda."
+        actions={
           <button
             onClick={() => navigate('/module1/new')}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            className="flex items-center gap-2 px-4 py-2 rounded-md text-white font-medium"
+            style={{ backgroundColor: '#1B2B5E' }}
           >
-            <Plus className="-ml-1 mr-2 h-5 w-5" />
-            Permohonan Baharu
+            <Plus className="w-5 h-5" /> Permohonan Baharu
           </button>
-        </div>
+        }
+      />
 
-        <div className="bg-white p-4 rounded-lg shadow-sm mb-6 border">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label htmlFor="search" className="sr-only">Cari No. Rujukan</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  id="search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-navy-500 focus:border-navy-500 sm:text-sm"
-                  placeholder="Cari No. Rujukan..."
-                />
-              </div>
-            </div>
-            <div className="md:col-span-1">
-              <div className="flex items-center h-full bg-gray-100 rounded-md p-1">
-                {statusOptions.map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`w-full text-center px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-200 ${
-                      statusFilter === status
-                        ? 'bg-navy-600 text-white shadow'
-                        : 'text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
+      <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+          <div className="relative w-full sm:w-1/3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari mengikut No. Rujukan..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-navy-500 focus:border-navy-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {['Semua', 'Draf', 'Dalam Penilaian', 'Lulus', 'Tolak'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status as any)}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  filterStatus === status
+                    ? 'text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                style={filterStatus === status ? { backgroundColor: '#1B2B5E' } : {}}
+              >
+                {status}
+              </button>
+            ))}
           </div>
         </div>
-        
-        {error && (
-          <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4 rounded-md" role="alert">
-            <p>{error}</p>
+
+        {filteredApplications.length === 0 ? (
+          <div className="text-center py-10 text-gray-600">Tiada permohonan ditemui.</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredApplications.map((app) => (
+              <div key={app.id} className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-lg text-gray-900">{app.ref_no}</h4>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(app.status)}`}>
+                      {app.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-1">{app.scheme}</p>
+                  <p className="text-md font-medium text-gray-800 mb-3">{formatCurrency(app.amount_requested)}</p>
+                  <p className="text-xs text-gray-500">Tarikh Permohonan: {formatDate(app.created_at)}</p>
+                </div>
+                <div className="mt-4">
+                  <button
+                    onClick={() => navigate(`/module1/timeline/${app.id}`)}
+                    className="w-full px-4 py-2 rounded-md text-white font-medium"
+                    style={{ backgroundColor: '#1B2B5E' }}
+                  >
+                    Lihat Status
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-
-        {renderContent()}
       </div>
     </div>
   );
