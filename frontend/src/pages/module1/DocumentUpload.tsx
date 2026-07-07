@@ -3,7 +3,7 @@
  * Real implementation with file input and POST /api/applications/:id/documents
  */
 import { useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Upload, CheckCircle, AlertCircle, XCircle, FileText, Trash2 } from 'lucide-react';
 import { uploadDocument } from '@/services/applicationService';
 
@@ -36,10 +36,35 @@ const statusConfig = {
 };
 
 export default function DocumentUpload() {
-  const { id: applicationId } = useParams<{ id: string }>();
+  const { id: paramId } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const applicationId = paramId || location.state?.applicationId || null;
+
   const [docs, setDocs] = useState<DocItem[]>(initialDocs);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
+
+  if (!applicationId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+        <AlertCircle size={48} className="text-orange-500 mb-4" />
+        <h2 className="text-xl font-bold text-[#1B2B5E] mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
+          Sila pilih permohonan terlebih dahulu
+        </h2>
+        <p className="text-gray-500 mb-6 text-center text-sm max-w-md">
+          ID Permohonan tidak dijumpai. Sila kembali ke senarai permohonan dan pilih permohonan yang sah untuk memuat naik dokumen.
+        </p>
+        <button
+          onClick={() => navigate('/module1/applications')}
+          className="px-5 py-2.5 bg-[#1B2B5E] text-white rounded-lg text-sm font-semibold hover:bg-[#152348] transition-colors"
+          style={{ fontFamily: 'Inter, sans-serif' }}
+        >
+          Kembali ke Senarai Permohonan
+        </button>
+      </div>
+    );
+  }
 
   const handleFileSelect = async (docId: string, file: File) => {
     if (!applicationId) return;

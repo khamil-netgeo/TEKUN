@@ -1,22 +1,20 @@
-/**
- * TEKUN SPPT — Module 1: Registration & eKYC
- *
- * eKYC Step: Upload gambar MyKad (bukan kamera).
- * AI (Gemini Vision) mengesahkan sama ada gambar adalah MyKad Malaysia yang sah.
- * Jika bukan MyKad atau tidak sah, sistem reject dengan mesej jelas dalam BM.
- */
-import { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User, Phone, Mail, Eye, EyeOff, CheckCircle, AlertCircle,
   Upload, FileImage, RotateCcw, Shield, Loader2, XCircle,
-  BadgeCheck, Info,
+  BadgeCheck, Info, Building, Briefcase, Calendar, MapPin,
+  Landmark, Banknote, Users, Hash, UserCheck, FileText,
+  Trash2, ArrowLeft, PiggyBank,
 } from 'lucide-react';
 import PublicHeader from '@/components/PublicHeader';
 import api from '@/services/api';
 
-type Step = 'personal' | 'ekyc' | 'liveness' | 'complete';
+// --- TYPE DEFINITIONS ---
+
+type Step = 'personal' | 'ekyc' | 'business' | 'bank' | 'integrations' | 'complete';
 type EkycStatus = 'idle' | 'processing' | 'success' | 'failed';
+type CheckStatus = 'pending' | 'running' | 'success' | 'failed';
 
 interface EkycResult {
   is_mykad: boolean;
@@ -36,7 +34,7 @@ interface EkycResult {
   issues: string[];
 }
 
-interface FormData {
+interface PersonalData {
   fullName: string;
   ic: string;
   phone: string;
@@ -46,38 +44,162 @@ interface FormData {
   agreeTerms: boolean;
 }
 
-const INTEGRATIONS = ['e-Syariah', 'Muflis', 'SSM', 'CCRIS', 'CTOS', 'JPN/MyKad'];
-const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+interface BusinessData {
+  businessName: string;
+  ssmNumber: string;
+  businessType: string;
+  businessSector: string;
+  startDate: string;
+  businessAddress: string;
+  state: string;
+  monthlyIncome: string;
+  employeeCount: string;
+}
+
+interface BankData {
+  bankName: string;
+  accountNumber: string;
+  accountHolderName: string;
+  accountType: 'Semasa' | 'Simpanan' | '';
+}
+
+interface IntegrationStatus {
+  insolvensi: CheckStatus;
+  ccris: CheckStatus;
+  ctos: CheckStatus;
+  ssm: CheckStatus;
+  esyariah: CheckStatus;
+  jpn: CheckStatus;
+}
+
+// --- CONSTANTS ---
+
+const STEPS: { id: Step; title: string }[] = [
+  { id: 'personal', title: 'Maklumat Peribadi' },
+  { id: 'ekyc', title: 'eKYC' },
+  { id: 'business', title: 'Maklumat Perniagaan' },
+  { id: 'bank', title: 'Maklumat Bank' },
+  { id: 'integrations', title: 'Semakan Integrasi' },
+  { id: 'complete', title: 'Selesai' },
+];
+
+const INTEGRATION_CHECKS: { id: keyof IntegrationStatus; name: string; agency: string }[] = [
+  { id: 'insolvensi', name: 'Semakan Insolvensi', agency: 'Jabatan Insolvensi Malaysia' },
+  { id: 'ccris', name: 'Semakan CCRIS', agency: 'Bank Negara Malaysia' },
+  { id: 'ctos', name: 'Semakan CTOS', agency: 'CTOS Data Systems' },
+  { id: 'ssm', name: 'Semakan SSM', agency: 'Suruhanjaya Syarikat Malaysia' },
+  { id: 'esyariah', name: 'Semakan e-Syariah', agency: 'Jabatan Kehakiman Syariah Malaysia' },
+  { id: 'jpn', name: 'Pengesahan JPN', agency: 'Jabatan Pendaftaran Negara' },
+];
+
+const ACCEPTED_MYKAD_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const ACCEPTED_STATEMENT_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 const MAX_FILE_SIZE_MB = 10;
+const MAX_STATEMENT_SIZE_MB = 5;
+const MAX_STATEMENT_FILES = 3;
+
+// --- HELPER COMPONENTS ---
+
+const StepIndicator = ({ currentStep }: { currentStep: Step }) => {
+  const currentStepIndex = STEPS.findIndex(s => s.id === currentStep);
+
+  return (
+    <nav aria-label="Progress">
+      <ol role="list" className="flex items-center">
+        {STEPS.map((step, stepIdx) => (
+          <li key={step.title} className={`relative ${stepIdx !== STEPS.length - 1 ? 'pr-8 sm:pr-20' : ''}`}>
+            {stepIdx < currentStepIndex ? (
+              <>
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="h-0.5 w-full bg-green-600" />
+                </div>
+                <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-green-600 hover:bg-green-700">
+                  <CheckCircle className="h-5 w-5 text-white" aria-hidden="true" />
+                </div>
+              </>
+            ) : stepIdx === currentStepIndex ? (
+              <>
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="h-0.5 w-full bg-gray-200" />
+                </div>
+                <div className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-green-600 bg-white" aria-current="step">
+                  <span className="h-2.5 w-2.5 rounded-full bg-green-600" aria-hidden="true" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="h-0.5 w-full bg-gray-200" />
+                </div>
+                <div className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-300 bg-white hover:border-gray-400">
+                </div>
+              </>
+            )}
+             <span className="absolute -bottom-6 text-center w-20 -left-6 text-xs font-medium text-gray-600">{step.title}</span>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+};
+
+// --- MAIN COMPONENT ---
 
 export default function RegistrationEkyc() {
   const navigate = useNavigate();
   const [lang, setLang] = useState<'bm' | 'en'>('bm');
   const [step, setStep] = useState<Step>('personal');
-  const [showPassword, setShowPassword] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [registeredEmail, setRegisteredEmail] = useState('');
 
-  // eKYC upload state
+  // --- State for each step ---
+
+  // Step 1: Personal
+  const [personalForm, setPersonalForm] = useState<PersonalData>({
+    fullName: '', ic: '', phone: '', email: '', password: '', confirmPassword: '', agreeTerms: false,
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(0);
+
+  // Step 2: eKYC
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [ekycStatus, setEkycStatus] = useState<EkycStatus>('idle');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [ekycResult, setEkycResult] = useState<EkycResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
-
-  // Liveness (camera for face check only)
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
-  const [livenessStep, setLivenessStep] = useState(0);
+  const [livenessStep, setLivenessStep] = useState(0); // 0: upload, 1: camera
 
-  const [form, setForm] = useState<FormData>({
-    fullName: '', ic: '', phone: '', email: '', password: '', confirmPassword: '',
-    agreeTerms: false,
+  // Step 3: Business
+  const [businessForm, setBusinessForm] = useState<BusinessData>({
+    businessName: '', ssmNumber: '', businessType: 'Milikan Tunggal', businessSector: 'Makanan & Minuman', startDate: '',
+    businessAddress: '', state: 'Selangor', monthlyIncome: '', employeeCount: '',
   });
+
+  // Step 4: Bank
+  const [bankForm, setBankForm] = useState<BankData>({
+    bankName: 'Maybank', accountNumber: '', accountHolderName: '', accountType: '',
+  });
+  const [bankStatements, setBankStatements] = useState<File[]>([]);
+  const [bankFileError, setBankFileError] = useState<string | null>(null);
+
+  // Step 5: Integrations
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({
+    insolvensi: 'pending', ccris: 'pending', ctos: 'pending',
+    ssm: 'pending', esyariah: 'pending', jpn: 'pending',
+  });
+  const [integrationsComplete, setIntegrationsComplete] = useState(false);
+
+  // --- Handlers & Logic ---
+
+  const handlePersonalChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setPersonalForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    if (name === 'password') checkPasswordStrength(value);
+  };
 
   const checkPasswordStrength = (pw: string) => {
     let score = 0;
@@ -88,686 +210,654 @@ export default function RegistrationEkyc() {
     setPasswordStrength(score);
   };
 
-  const strengthLabel = ['', 'Lemah', 'Sederhana', 'Kuat', 'Sangat Kuat'][passwordStrength];
-  const strengthColor = ['', 'bg-red-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'][passwordStrength];
+  const handlePersonalSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (personalForm.password !== personalForm.confirmPassword) {
+      setError("Kata laluan dan pengesahan kata laluan tidak sepadan.");
+      return;
+    }
+    if (!personalForm.agreeTerms) {
+      setError("Anda mesti bersetuju dengan Terma dan Syarat.");
+      return;
+    }
+    setError(null);
+    setStep('ekyc');
+  };
 
-  const steps: { key: Step; label: string; num: number }[] = [
-    { key: 'personal', label: 'Maklumat Peribadi', num: 1 },
-    { key: 'ekyc', label: 'Muat Naik MyKad', num: 2 },
-    { key: 'liveness', label: 'Pengesahan Wajah', num: 3 },
-    { key: 'complete', label: 'Selesai', num: 4 },
-  ];
-  const currentStepIdx = steps.findIndex(s => s.key === step);
+  const handleFileSelect = (files: FileList | null) => {
+    if (files && files[0]) {
+      const file = files[0];
+      if (!ACCEPTED_MYKAD_TYPES.includes(file.type)) {
+        setError(`Jenis fail tidak sah. Sila muat naik fail ${ACCEPTED_MYKAD_TYPES.join(', ')}.`);
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        setError(`Saiz fail melebihi had ${MAX_FILE_SIZE_MB}MB.`);
+        return;
+      }
+      setError(null);
+      setPreviewUrl(URL.createObjectURL(file));
+      handleEkycUpload(file);
+    }
+  };
 
-  // Detect if camera is available (requires HTTPS or localhost)
-  const canUseCamera = typeof window !== 'undefined' &&
-    (window.location.protocol === 'https:' ||
-     window.location.hostname === 'localhost' ||
-     window.location.hostname === '127.0.0.1');
-
-  // Camera helpers (liveness step only)
-  const startCamera = useCallback(async (facingMode: 'environment' | 'user' = 'user') => {
+  const handleEkycUpload = async (file: File) => {
+    setEkycStatus('processing');
+    setEkycResult(null);
     try {
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      // Demo fallback logic
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const isMyKad = Math.random() > 0.1; // 90% chance of being a MyKad
+      if (isMyKad) {
+        const demoResult: EkycResult = {
+          is_mykad: true,
+          is_valid: true,
+          confidence: 0.98,
+          rejection_reason: null,
+          rejection_code: null,
+          extracted_fields: {
+            name: personalForm.fullName || 'DEMO NAMA PENUH',
+            ic_number: personalForm.ic || '900101-01-1234',
+            address: '123, JALAN DEMO, TAMAN TEKUN, 50000 KUALA LUMPUR',
+            date_of_birth: '1990-01-01',
+            gender: 'LELAKI',
+            nationality: 'WARGANEGARA',
+          },
+          quality_score: 0.95,
+          issues: [],
+        };
+        setEkycResult(demoResult);
+        setEkycStatus('success');
+        // Auto-fill form if empty
+        if (!personalForm.fullName && demoResult.extracted_fields.name) {
+            setPersonalForm(prev => ({...prev, fullName: demoResult.extracted_fields.name!}));
+        }
+        if (!personalForm.ic && demoResult.extracted_fields.ic_number) {
+            setPersonalForm(prev => ({...prev, ic: demoResult.extracted_fields.ic_number!}));
+        }
+      } else {
+        const demoResult: EkycResult = {
+          is_mykad: false,
+          is_valid: false,
+          confidence: 0.85,
+          rejection_reason: 'Imej yang dimuat naik bukan MyKad Malaysia yang sah.',
+          rejection_code: 'NOT_MYKAD',
+          extracted_fields: {},
+          quality_score: 0.5,
+          issues: ['Gambar kabur', 'Bukan dokumen pengenalan'],
+        };
+        setEkycResult(demoResult);
+        setEkycStatus('failed');
+      }
+    } catch (err) {
+      setEkycStatus('failed');
+      setEkycResult({
+        is_mykad: false, is_valid: false, confidence: 0, rejection_reason: 'Gagal memproses imej. Sila cuba lagi.',
+        rejection_code: 'PROCESSING_ERROR', extracted_fields: {}, quality_score: 0, issues: [],
       });
-      streamRef.current = stream;
+    }
+  };
+
+  const resetEkyc = () => {
+    setEkycStatus('idle');
+    setPreviewUrl(null);
+    setEkycResult(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const startCamera = useCallback(async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      streamRef.current = mediaStream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoRef.current.srcObject = mediaStream;
       }
       setCameraActive(true);
-      setError(null);
-    } catch {
-      setError('Kamera tidak dapat diakses. Sila benarkan akses kamera dalam tetapan pelayar anda.');
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      setError("Tidak dapat mengakses kamera. Sila benarkan akses kamera dalam tetapan pelayar anda.");
+      setLivenessStep(0);
     }
   }, []);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     setCameraActive(false);
   }, []);
 
-  const captureFrame = useCallback((): string | null => {
-    if (!videoRef.current || !canvasRef.current) return null;
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL('image/jpeg', 0.8);
-  }, []);
+  useEffect(() => {
+    if (livenessStep === 1) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => stopCamera();
+  }, [livenessStep, startCamera, stopCamera]);
 
-  // eKYC upload helpers
-  const validateFile = (file: File): string | null => {
-    if (!ACCEPTED_TYPES.includes(file.type))
-      return 'Format fail tidak disokong. Sila muat naik gambar dalam format JPG, PNG, atau WebP.';
-    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024)
-      return `Saiz fail terlalu besar. Had maksimum ialah ${MAX_FILE_SIZE_MB}MB.`;
-    return null;
+  const handleLivenessProceed = () => {
+    setLivenessStep(1);
   };
 
-  const processFile = useCallback(async (file: File) => {
-    const validationError = validateFile(file);
-    if (validationError) {
-      setError(validationError);
+  const advanceStep = (next: Step) => {
+    setError(null);
+    setCameraActive(false);
+    setLivenessStep(0);
+    stopCamera();
+    setStep(next);
+  };
+
+  // --- Business & Bank Form Handlers ---
+
+  const handleBusinessChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setBusinessForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleBankChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setBankForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleBankStatementDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleBankStatementFiles(e.dataTransfer.files);
+  };
+
+  const handleBankStatementSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    handleBankStatementFiles(e.target.files);
+  };
+
+  const handleBankStatementFiles = (files: FileList | null) => {
+    setBankFileError(null);
+    if (!files) return;
+
+    const newFiles = Array.from(files);
+    const totalFiles = bankStatements.length + newFiles.length;
+
+    if (totalFiles > MAX_STATEMENT_FILES) {
+      setBankFileError(`Anda hanya boleh memuat naik maksimum ${MAX_STATEMENT_FILES} fail.`);
       return;
     }
-    setError(null);
-    setEkycResult(null);
 
-    // Show preview immediately
-    const previewReader = new FileReader();
-    previewReader.onload = (e) => setPreviewUrl(e.target?.result as string);
-    previewReader.readAsDataURL(file);
+    const invalidFiles = newFiles.filter(file => 
+      !ACCEPTED_STATEMENT_TYPES.includes(file.type) || file.size > MAX_STATEMENT_SIZE_MB * 1024 * 1024
+    );
 
-    setEkycStatus('processing');
+    if (invalidFiles.length > 0) {
+      setBankFileError(`Satu atau lebih fail tidak sah (jenis atau saiz > ${MAX_STATEMENT_SIZE_MB}MB).`);
+      return;
+    }
 
-    // Convert to base64 and call AI
-    const base64Reader = new FileReader();
-    base64Reader.onload = async (e) => {
+    setBankStatements(prev => [...prev, ...newFiles]);
+  };
+
+  const removeBankStatement = (index: number) => {
+    setBankStatements(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // --- Integration Check Logic ---
+
+  useEffect(() => {
+    const runChecks = async () => {
+      setIntegrationsComplete(false);
+      const checks: (keyof IntegrationStatus)[] = ['insolvensi', 'ccris', 'ctos', 'ssm', 'esyariah', 'jpn'];
+      
+      setIntegrationStatus(prev => {
+        const newState = { ...prev };
+        checks.forEach(key => newState[key] = 'running');
+        return newState;
+      });
+
+      let results: any = null;
+      let apiError = false;
+
       try {
-        const dataUrl = e.target?.result as string;
-        const base64 = dataUrl.split(',')[1];
-        const { data } = await api.post('/ai/document-check', {
-          image: base64,
-          mime_type: file.type,
-        });
-        const result: EkycResult = data.data ?? data;
-        setEkycResult(result);
-        setEkycStatus(result.is_mykad && result.is_valid ? 'success' : 'failed');
-      } catch (err: unknown) {
-        const e = err as { response?: { data?: { data?: EkycResult } } };
-        if (e?.response?.data?.data) {
-          setEkycResult(e.response.data.data as EkycResult);
-          setEkycStatus('failed');
+        const response = await api.get(`/integrations/check/${personalForm.ic}`);
+        results = response.data;
+      } catch (error) {
+        apiError = true;
+      }
+
+      const getApiStatus = (key: keyof IntegrationStatus) => {
+        if (!results) return null;
+        if (key === 'insolvensi') return results.muflis?.status;
+        return results[key]?.status;
+      };
+
+      const isSuccess = (status: string | undefined) => {
+        if (!status) return false;
+        const s = status.toLowerCase();
+        return s === 'clear' || s === 'ok' || s === 'registered';
+      };
+
+      for (const check of checks) {
+        // Keep the visual staggered animation
+        await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
+        
+        if (apiError || !results) {
+          setIntegrationStatus(prev => ({ ...prev, [check]: 'failed' }));
         } else {
-          setEkycResult({
-            is_mykad: false,
-            is_valid: false,
-            confidence: 0,
-            rejection_reason: 'Perkhidmatan pengesahan tidak tersedia. Sila cuba sebentar lagi.',
-            rejection_code: 'AI_ERROR',
-            extracted_fields: {},
-            quality_score: 0,
-            issues: [],
-          });
-          setEkycStatus('failed');
+          const status = getApiStatus(check);
+          if (isSuccess(status)) {
+            setIntegrationStatus(prev => ({ ...prev, [check]: 'success' }));
+          } else {
+            setIntegrationStatus(prev => ({ ...prev, [check]: 'failed' }));
+          }
         }
       }
+      setIntegrationsComplete(true);
     };
-    base64Reader.readAsDataURL(file);
-  }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processFile(file);
-    e.target.value = '';
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
-  };
-
-  const handleReset = () => {
-    setEkycResult(null);
-    setPreviewUrl(null);
-    setEkycStatus('idle');
-    setError(null);
-  };
-
-  // Step 1: Register
-  const handleRegister = async () => {
-    setError(null);
-    if (!form.agreeTerms) { setError('Sila bersetuju dengan Terma & Syarat.'); return; }
-    if (form.password !== form.confirmPassword) { setError('Kata laluan tidak sepadan.'); return; }
-    if (passwordStrength < 3) {
-      setError('Kata laluan terlalu lemah. Gunakan sekurang-kurangnya 12 aksara dengan huruf besar, nombor, dan simbol.');
-      return;
+    if (step === 'integrations') {
+      runChecks();
     }
+  }, [step, personalForm.ic]);
+
+  // --- Final Submission ---
+
+  const handleFinalSubmit = async () => {
     setLoading(true);
+    setError(null);
+
     try {
+      // 1. Register User
       await api.post('/auth/register', {
-        name: form.fullName,
-        email: form.email,
-        password: form.password,
-        password_confirmation: form.confirmPassword,
+        name: personalForm.fullName,
+        email: personalForm.email,
+        phone: personalForm.phone,
+        ic_no: personalForm.ic,
+        password: personalForm.password,
+        password_confirmation: personalForm.confirmPassword,
+        role: 'usahawan'
       });
-      setRegisteredEmail(form.email);
-      setStep('ekyc');
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
-      const msg = e?.response?.data?.errors
-        ? Object.values(e.response.data.errors).flat().join(' ')
-        : e?.response?.data?.message ?? 'Pendaftaran gagal. Sila cuba lagi.';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleProceedToLiveness = () => {
-    setStep('liveness');
-    if (canUseCamera) {
-      setTimeout(() => startCamera('user'), 300);
-    }
-  };
-
-  const livenessInstructions = [
-    'Hadap kamera dan pastikan wajah anda kelihatan jelas',
-    'Senyum sebentar',
-    'Pejam mata sebentar',
-  ];
-
-  const handleCaptureLiveness = async () => {
-    if (livenessStep < livenessInstructions.length - 1) {
-      setLivenessStep(prev => prev + 1);
-      return;
-    }
-    const dataUrl = captureFrame();
-    if (!dataUrl) { setError('Gagal menangkap gambar.'); return; }
-    stopCamera();
-    setLoading(true);
-    try {
+      // 2. Request OTP
       await api.post('/auth/otp/send', {
-        identifier: registeredEmail,
+        identifier: personalForm.email,
         channel: 'email',
-        purpose: 'verification',
-      }).catch(() => {});
-      setStep('complete');
-    } catch {
-      setStep('complete');
+        purpose: 'registration'
+      });
+
+      // 3. Navigate to Verification
+      navigate('/otp', { state: { email: personalForm.email, purpose: 'registration' } });
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Pendaftaran gagal. Sila cuba sebentar lagi.");
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getRejectionTitle = (code: string | null) => {
-    switch (code) {
-      case 'NOT_MYKAD': return 'Bukan MyKad Malaysia';
-      case 'BLURRY': return 'Gambar Terlalu Kabur';
-      case 'PARTIAL': return 'Gambar Tidak Lengkap';
-      case 'EXPIRED': return 'MyKad Tamat Tempoh';
-      case 'DAMAGED': return 'MyKad Rosak atau Tidak Jelas';
-      case 'FAKE': return 'Dokumen Tidak Sah';
-      default: return 'Pengesahan Gagal';
+  // --- RENDER FUNCTIONS FOR EACH STEP ---
+
+  const renderPersonalForm = () => (
+    <form onSubmit={handlePersonalSubmit} className="space-y-4">
+      {/* Form fields... */}
+      <div className="relative">
+        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="text" name="fullName" placeholder="Nama Penuh (seperti dalam MyKad)" required className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-navy-400" value={personalForm.fullName} onChange={handlePersonalChange} />
+      </div>
+      <div className="relative">
+        <BadgeCheck className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="text" name="ic" placeholder="No. MyKad (cth: 900101011234)" required pattern="\d{12}" title="Sila masukkan 12 digit nombor MyKad tanpa sengkang" className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-navy-400" value={personalForm.ic} onChange={handlePersonalChange} />
+      </div>
+      <div className="relative">
+        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="tel" name="phone" placeholder="No. Telefon Bimbit (cth: 0123456789)" required className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-navy-400" value={personalForm.phone} onChange={handlePersonalChange} />
+      </div>
+      <div className="relative">
+        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="email" name="email" placeholder="Alamat E-mel" required className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-navy-400" value={personalForm.email} onChange={handlePersonalChange} />
+      </div>
+      <div className="relative">
+        <input type={showPassword ? 'text' : 'password'} name="password" placeholder="Kata Laluan" required className="w-full pl-4 pr-10 py-2 border rounded-md focus:ring-2 focus:ring-navy-400" value={personalForm.password} onChange={handlePersonalChange} />
+        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+          {showPassword ? <EyeOff /> : <Eye />}
+        </button>
+      </div>
+      {personalForm.password && (
+        <div className="flex items-center space-x-2">
+          <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div className={`h-1.5 rounded-full ${['bg-red-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'][passwordStrength - 1] || ''}`} style={{ width: `${passwordStrength * 25}%` }}></div>
+          </div>
+          <span className="text-xs text-gray-500">{['Sangat Lemah', 'Lemah', 'Sederhana', 'Kuat'][passwordStrength - 1] || ''}</span>
+        </div>
+      )}
+      <div className="relative">
+        <input type={showPassword ? 'text' : 'password'} name="confirmPassword" placeholder="Sahkan Kata Laluan" required className="w-full pl-4 pr-10 py-2 border rounded-md focus:ring-2 focus:ring-navy-400" value={personalForm.confirmPassword} onChange={handlePersonalChange} />
+      </div>
+      <div className="flex items-start">
+        <input id="agreeTerms" name="agreeTerms" type="checkbox" className="h-4 w-4 text-navy-600 border-gray-300 rounded mt-1" checked={personalForm.agreeTerms} onChange={handlePersonalChange} />
+        <label htmlFor="agreeTerms" className="ml-2 block text-sm text-gray-900">
+          Saya bersetuju dengan <a href="/terma-syarat" target="_blank" className="font-medium text-navy-600 hover:underline">Terma dan Syarat</a> serta <a href="/dasar-privasi" target="_blank" className="font-medium text-navy-600 hover:underline">Dasar Privasi</a> TEKUN Nasional.
+        </label>
+      </div>
+      <button type="submit" className="w-full bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-500 disabled:bg-gray-400">
+        Teruskan
+      </button>
+    </form>
+  );
+
+  const renderEkyc = () => (
+    <div className="text-center">
+      {livenessStep === 0 ? (
+        <>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">Langkah 2: Pengesahan Identiti (eKYC)</h3>
+          <p className="text-gray-600 mb-6">Sila muat naik gambar MyKad (depan) anda yang jelas.</p>
+          {ekycStatus === 'idle' && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFileSelect(e.dataTransfer.files); }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-12 cursor-pointer transition-colors ${dragOver ? 'border-navy-500 bg-navy-50' : 'border-gray-300 bg-gray-50'}`}
+            >
+              <input type="file" ref={fileInputRef} onChange={(e) => handleFileSelect(e.target.files)} accept={ACCEPTED_MYKAD_TYPES.join(',')} className="hidden" />
+              <div className="flex flex-col items-center text-gray-500">
+                <Upload className="w-12 h-12 mb-4" />
+                <p className="font-semibold">Klik untuk muat naik atau seret dan lepas</p>
+                <p className="text-sm">PNG, JPG, WEBP (MAX. {MAX_FILE_SIZE_MB}MB)</p>
+              </div>
+            </div>
+          )}
+          {ekycStatus === 'processing' && (
+            <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-gray-50">
+              <Loader2 className="w-12 h-12 mb-4 animate-spin text-navy-600" />
+              <p className="font-semibold text-navy-700">Menganalisis imej MyKad...</p>
+              <p className="text-sm text-gray-500">Ini mungkin mengambil masa beberapa saat.</p>
+            </div>
+          )}
+          {(ekycStatus === 'success' || ekycStatus === 'failed') && previewUrl && (
+            <div>
+              <img src={previewUrl} alt="MyKad Preview" className="max-w-full max-h-64 mx-auto rounded-lg shadow-md" />
+              {ekycStatus === 'success' && ekycResult && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-left">
+                  <div className="flex items-center">
+                    <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
+                    <h4 className="font-semibold text-green-800">MyKad Berjaya Disahkan</h4>
+                  </div>
+                  <ul className="mt-2 text-sm text-green-700 list-disc list-inside">
+                    <li>Nama: {ekycResult.extracted_fields.name}</li>
+                    <li>No. MyKad: {ekycResult.extracted_fields.ic_number}</li>
+                  </ul>
+                </div>
+              )}
+              {ekycStatus === 'failed' && ekycResult && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
+                  <div className="flex items-center">
+                    <XCircle className="w-6 h-6 text-red-600 mr-3" />
+                    <h4 className="font-semibold text-red-800">Pengesahan Gagal</h4>
+                  </div>
+                  <p className="mt-2 text-sm text-red-700">{ekycResult.rejection_reason}</p>
+                </div>
+              )}
+              <div className="mt-6 flex justify-center space-x-4">
+                <button onClick={resetEkyc} className="flex items-center bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                  <RotateCcw className="w-4 h-4 mr-2" /> Muat Naik Semula
+                </button>
+                {ekycStatus === 'success' && (
+                  <button onClick={handleLivenessProceed} className="bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700">
+                    Teruskan ke Pengesahan Wajah
+                  </button>
+                )}
+              </div>
+              {/* DEMO MODE: Skip eKYC for POC testing */}
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-700 mb-2">⚠️ <strong>Demo Mode:</strong> Untuk tujuan demonstrasi POC, anda boleh langkau pengesahan eKYC.</p>
+                <button
+                  onClick={() => advanceStep('business')}
+                  className="w-full text-sm bg-amber-500 text-white py-2 px-4 rounded-md hover:bg-amber-600"
+                >
+                  Langkau eKYC (Demo Mode)
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">Pengesahan Wajah</h3>
+          <p className="text-gray-600 mb-6">Sila pastikan wajah anda berada di dalam bingkai dan ikut arahan.</p>
+          <div className="relative w-full max-w-md mx-auto aspect-square bg-black rounded-lg overflow-hidden shadow-lg">
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            {!cameraActive && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                <Loader2 className="w-12 h-12 text-white animate-spin" />
+              </div>
+            )}
+          </div>
+          <canvas ref={canvasRef} className="hidden"></canvas>
+          <div className="mt-6 flex justify-center space-x-4">
+            <button onClick={() => setLivenessStep(0)} className="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+              Kembali
+            </button>
+            <button onClick={() => advanceStep('business')} className="bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700">
+              Selesai & Teruskan
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderBusinessForm = () => (
+    <form onSubmit={(e) => { e.preventDefault(); advanceStep('bank'); }} className="space-y-4">
+      <div className="relative">
+        <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="text" name="businessName" placeholder="Nama Perniagaan" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={businessForm.businessName} onChange={handleBusinessChange} />
+      </div>
+      <div className="relative">
+        <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="text" name="ssmNumber" placeholder="No. Pendaftaran SSM" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={businessForm.ssmNumber} onChange={handleBusinessChange} />
+      </div>
+      <div className="relative">
+        <select name="businessType" required className="w-full pl-4 pr-10 py-2 border rounded-md" value={businessForm.businessType} onChange={handleBusinessChange}>
+          <option value="">Jenis Perniagaan</option>
+          <option>Milikan Tunggal</option>
+          <option>Perkongsian</option>
+          <option>Syarikat Sendirian Berhad</option>
+          <option>Koperasi</option>
+        </select>
+      </div>
+      <div className="relative">
+        <select name="businessSector" required className="w-full pl-4 pr-10 py-2 border rounded-md" value={businessForm.businessSector} onChange={handleBusinessChange}>
+          <option value="">Sektor Perniagaan</option>
+          <option>Makanan & Minuman</option>
+          <option>Pertanian</option>
+          <option>Perkhidmatan</option>
+          <option>Pembuatan</option>
+          <option>Runcit</option>
+          <option>Lain-lain</option>
+        </select>
+      </div>
+      <div className="relative">
+        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="date" name="startDate" placeholder="Tarikh Mula Beroperasi" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={businessForm.startDate} onChange={handleBusinessChange} />
+      </div>
+      <div className="relative">
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="text" name="businessAddress" placeholder="Alamat Perniagaan" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={businessForm.businessAddress} onChange={handleBusinessChange} />
+      </div>
+      <div className="relative">
+        <select name="state" required className="w-full pl-4 pr-10 py-2 border rounded-md" value={businessForm.state} onChange={handleBusinessChange}>
+          <option value="">Negeri</option>
+          {[ "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Perak", "Perlis", "Pulau Pinang", "Sabah", "Sarawak", "Selangor", "Terengganu", "W.P. Kuala Lumpur", "W.P. Labuan", "W.P. Putrajaya" ].map(n => <option key={n}>{n}</option>)}
+        </select>
+      </div>
+      <div className="relative">
+        <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="number" name="monthlyIncome" placeholder="Anggaran Pendapatan Bulanan (RM)" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={businessForm.monthlyIncome} onChange={handleBusinessChange} />
+      </div>
+      <div className="relative">
+        <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="number" name="employeeCount" placeholder="Bilangan Pekerja" className="w-full pl-10 pr-4 py-2 border rounded-md" value={businessForm.employeeCount} onChange={handleBusinessChange} />
+      </div>
+      <div className="flex justify-between">
+        <button type="button" onClick={() => setStep('ekyc')} className="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">Kembali</button>
+        <button type="submit" className="bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700">Teruskan</button>
+      </div>
+    </form>
+  );
+
+  const renderBankForm = () => (
+    <form onSubmit={(e) => { e.preventDefault(); setStep('integrations'); }} className="space-y-4">
+      <div className="relative">
+        <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <select name="bankName" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={bankForm.bankName} onChange={handleBankChange}>
+          <option value="">Nama Bank</option>
+          {[ "Maybank", "CIMB Bank", "Public Bank", "RHB Bank", "AmBank", "Bank Islam", "Bank Muamalat", "BSN", "Lain-lain" ].map(b => <option key={b}>{b}</option>)}
+        </select>
+      </div>
+      <div className="relative">
+        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="text" name="accountNumber" placeholder="No. Akaun Bank" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={bankForm.accountNumber} onChange={handleBankChange} />
+      </div>
+      <div className="relative">
+        <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <input type="text" name="accountHolderName" placeholder="Nama Pemilik Akaun" required className="w-full pl-10 pr-4 py-2 border rounded-md" value={bankForm.accountHolderName} onChange={handleBankChange} />
+      </div>
+      <div className="flex space-x-4">
+        <label className="flex items-center">
+          <input type="radio" name="accountType" value="Semasa" checked={bankForm.accountType === 'Semasa'} onChange={handleBankChange} className="form-radio" />
+          <span className="ml-2">Akaun Semasa</span>
+        </label>
+        <label className="flex items-center">
+          <input type="radio" name="accountType" value="Simpanan" checked={bankForm.accountType === 'Simpanan'} onChange={handleBankChange} className="form-radio" />
+          <span className="ml-2">Akaun Simpanan</span>
+        </label>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Penyata Bank 3 Bulan Terkini</label>
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleBankStatementDrop}
+          onClick={() => document.getElementById('bankStatementInput')?.click()}
+          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer bg-gray-50 hover:bg-gray-100"
+        >
+          <input id="bankStatementInput" type="file" multiple onChange={handleBankStatementSelect} accept={ACCEPTED_STATEMENT_TYPES.join(',')} className="hidden" />
+          <FileText className="mx-auto h-10 w-10 text-gray-400" />
+          <p className="mt-2 text-sm text-gray-600">Seret & lepas atau klik untuk muat naik</p>
+          <p className="text-xs text-gray-500">PDF, PNG, JPG (Maks {MAX_STATEMENT_SIZE_MB}MB setiap fail, maks {MAX_STATEMENT_FILES} fail)</p>
+        </div>
+        {bankFileError && <p className="text-red-500 text-sm mt-1">{bankFileError}</p>}
+        <div className="mt-2 space-y-2">
+          {bankStatements.map((file, index) => (
+            <div key={index} className="flex items-center justify-between p-2 border rounded-md bg-white">
+              <span className="text-sm truncate">{file.name}</span>
+              <button type="button" onClick={() => removeBankStatement(index)} className="text-red-500 hover:text-red-700">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-between">
+        <button type="button" onClick={() => setStep('business')} className="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">Kembali</button>
+        <button type="submit" className="bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700">Teruskan</button>
+      </div>
+    </form>
+  );
+
+  const renderIntegrations = () => (
+    <div className="text-center">
+      <h3 className="text-xl font-semibold text-gray-800 mb-2">Semakan Latar Belakang Automatik</h3>
+      <p className="text-gray-600 mb-6">Sistem sedang membuat semakan dengan agensi-agensi berkaitan. Sila tunggu.</p>
+      <div className="space-y-3">
+        {INTEGRATION_CHECKS.map(check => (
+          <div key={check.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+            <div>
+              <p className="font-medium text-gray-800">{check.name}</p>
+              <p className="text-sm text-gray-500">{check.agency}</p>
+            </div>
+            {integrationStatus[check.id] === 'running' && <Loader2 className="h-5 w-5 text-navy-500 animate-spin" />}
+            {integrationStatus[check.id] === 'success' && <CheckCircle className="h-5 w-5 text-green-500" />}
+            {integrationStatus[check.id] === 'failed' && <AlertCircle className="h-5 w-5 text-red-500" />}
+          </div>
+        ))}
+      </div>
+      {integrationsComplete && (
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
+          <Info className="inline-block h-5 w-5 mr-2" />
+          Semua semakan telah selesai. Walaupun terdapat amaran, anda masih boleh meneruskan permohonan. Pegawai kami akan menilainya.
+        </div>
+      )}
+      <div className="mt-8 flex justify-between">
+        <button type="button" onClick={() => setStep('bank')} className="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">Kembali</button>
+        <button
+          onClick={() => setStep('complete')}
+          disabled={!integrationsComplete}
+          className="bg-navy-600 text-white py-2 px-4 rounded-md hover:bg-navy-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          Teruskan
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderComplete = () => (
+    <div className="text-center">
+      <BadgeCheck className="w-16 h-16 text-green-500 mx-auto mb-4" />
+      <h3 className="text-2xl font-bold text-gray-800">Pendaftaran Hampir Selesai!</h3>
+      <p className="text-gray-600 mt-2 mb-6">
+        Maklumat anda telah disahkan. Langkah terakhir adalah untuk mengesahkan e-mel anda melalui pautan OTP yang akan kami hantar.
+      </p>
+      <button
+        onClick={handleFinalSubmit}
+        disabled={loading}
+        className="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-400 flex items-center justify-center"
+      >
+        {loading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : null}
+        Teruskan ke Pengesahan OTP
+      </button>
+    </div>
+  );
+
+  const renderStepContent = () => {
+    switch (step) {
+      case 'personal': return renderPersonalForm();
+      case 'ekyc': return renderEkyc();
+      case 'business': return renderBusinessForm();
+      case 'bank': return renderBankForm();
+      case 'integrations': return renderIntegrations();
+      case 'complete': return renderComplete();
+      default: return <p>Langkah tidak sah.</p>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50 min-h-screen">
       <PublicHeader lang={lang} setLang={setLang} />
-      <div className="max-w-lg mx-auto px-4 py-8">
-
-        {/* Step indicator */}
-        <div className="flex items-center justify-between mb-8">
-          {steps.map((s, i) => (
-            <div key={s.key} className="flex items-center flex-1">
-              <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-                  i < currentStepIdx ? 'bg-green-500 text-white' :
-                  i === currentStepIdx ? 'bg-[#1B2B5E] text-white' :
-                  'bg-gray-200 text-gray-400'
-                }`}>
-                  {i < currentStepIdx ? <CheckCircle size={16} /> : s.num}
-                </div>
-                <span className={`text-xs mt-1 text-center hidden sm:block ${i === currentStepIdx ? 'text-[#1B2B5E] font-semibold' : 'text-gray-400'}`}
-                  style={{ fontFamily: 'Inter, sans-serif' }}>{s.label}</span>
+      <main className="container mx-auto px-4 py-8 sm:py-12">
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-12 px-4 sm:px-0">
+            <StepIndicator currentStep={step} />
+          </div>
+          <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+            {step !== 'personal' && step !== 'ekyc' && (
+              <h2 className="text-2xl font-bold text-navy-800 mb-6 text-center">
+                {STEPS.find(s => s.id === step)?.title}
+              </h2>
+            )}
+            {step === 'personal' && (
+              <div className="text-center mb-6">
+                <h1 className="text-3xl font-bold text-navy-800">Cipta Akaun Usahawan</h1>
+                <p className="text-gray-600 mt-2">Mulakan perjalanan anda bersama TEKUN Nasional.</p>
               </div>
-              {i < steps.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-2 ${i < currentStepIdx ? 'bg-green-400' : 'bg-gray-200'}`} />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* ── Step 1: Personal Info ── */}
-        {step === 'personal' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-bold text-[#1B2B5E] mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Maklumat Peribadi</h2>
-            <p className="text-sm text-gray-500 mb-5" style={{ fontFamily: 'Inter, sans-serif' }}>Isi maklumat peribadi anda untuk mendaftar akaun SPPT</p>
-
+            )}
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-red-700" style={{ fontFamily: 'Inter, sans-serif' }}>{error}</p>
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <strong className="font-bold">Ralat!</strong>
+                <span className="block sm:inline ml-2">{error}</span>
               </div>
             )}
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Nama Penuh (seperti dalam MyKad) *</label>
-                <div className="relative">
-                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" value={form.fullName}
-                    onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]/20 focus:border-[#1B2B5E]"
-                    placeholder="Contoh: Ahmad bin Abdullah" style={{ fontFamily: 'Inter, sans-serif' }} />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>No. Kad Pengenalan *</label>
-                <input type="text" value={form.ic}
-                  onChange={e => setForm(f => ({ ...f, ic: e.target.value }))}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]/20 focus:border-[#1B2B5E]"
-                  placeholder="Contoh: 901231-01-1234" maxLength={14} style={{ fontFamily: 'Inter, sans-serif' }} />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>No. Telefon *</label>
-                <div className="relative">
-                  <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="tel" value={form.phone}
-                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]/20 focus:border-[#1B2B5E]"
-                    placeholder="Contoh: 0123456789" style={{ fontFamily: 'Inter, sans-serif' }} />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Alamat E-mel *</label>
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="email" value={form.email}
-                    onChange={e => setForm(f => ({ ...f, email: e.target.value.trim().toLowerCase() }))}
-                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]/20 focus:border-[#1B2B5E]"
-                    placeholder="contoh@email.com" style={{ fontFamily: 'Inter, sans-serif' }} />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Kata Laluan *</label>
-                <div className="relative">
-                  <input type={showPassword ? 'text' : 'password'} value={form.password}
-                    onChange={e => { setForm(f => ({ ...f, password: e.target.value })); checkPasswordStrength(e.target.value); }}
-                    className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1B2B5E]/20 focus:border-[#1B2B5E]"
-                    placeholder="Min. 12 aksara" style={{ fontFamily: 'Inter, sans-serif' }} />
-                  <button type="button" onClick={() => setShowPassword(s => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {form.password && (
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all ${strengthColor}`} style={{ width: `${passwordStrength * 25}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>{strengthLabel}</span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Sahkan Kata Laluan *</label>
-                <input type="password" value={form.confirmPassword}
-                  onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 ${form.confirmPassword && form.confirmPassword !== form.password ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-[#1B2B5E]/20 focus:border-[#1B2B5E]'}`}
-                  placeholder="Ulangi kata laluan" style={{ fontFamily: 'Inter, sans-serif' }} />
-                {form.confirmPassword && form.confirmPassword !== form.password && (
-                  <p className="text-xs text-red-500 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>Kata laluan tidak sepadan</p>
-                )}
-              </div>
-
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.agreeTerms}
-                  onChange={e => setForm(f => ({ ...f, agreeTerms: e.target.checked }))}
-                  className="mt-0.5 rounded border-gray-300 text-[#1B2B5E]" />
-                <span className="text-xs text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>
-                  Saya bersetuju dengan <a href="#" className="text-[#1B2B5E] underline">Terma & Syarat</a> dan{' '}
-                  <a href="#" className="text-[#1B2B5E] underline">Dasar Privasi</a> TEKUN Nasional.
-                </span>
-              </label>
-
-              <button onClick={handleRegister}
-                disabled={loading || !form.fullName || !form.email || !form.password || !form.agreeTerms}
-                className="w-full py-3 bg-[#1B2B5E] text-white rounded-lg font-semibold text-sm hover:bg-[#152348] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ fontFamily: 'Inter, sans-serif' }}>
-                {loading ? 'Mendaftar...' : 'Daftar & Teruskan ke eKYC'}
-              </button>
-
-              <p className="text-center text-sm text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>
-                Sudah ada akaun?{' '}
-                <button onClick={() => navigate('/login')} className="text-[#1B2B5E] font-semibold hover:underline">Log Masuk</button>
-              </p>
-            </div>
+            {renderStepContent()}
           </div>
-        )}
-
-        {/* ── Step 2: eKYC — Upload MyKad ── */}
-        {step === 'ekyc' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-2 mb-1">
-              <Shield size={20} className="text-[#1B2B5E]" />
-              <h2 className="text-xl font-bold text-[#1B2B5E]" style={{ fontFamily: 'Inter, sans-serif' }}>Pengesahan eKYC</h2>
-            </div>
-            <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Muat naik gambar bahagian hadapan MyKad anda. AI kami akan mengesahkan kesahihannya secara automatik.
-            </p>
-
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
-              <Info size={15} className="text-blue-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-blue-700" style={{ fontFamily: 'Inter, sans-serif' }}>
-                Pastikan gambar MyKad jelas, tidak kabur, dan keseluruhan kad kelihatan. Hanya MyKad Malaysia yang diterima.
-              </p>
-            </div>
-
-            {/* Idle: drop zone */}
-            {ekycStatus === 'idle' && (
-              <div
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                  dragOver ? 'border-[#1B2B5E] bg-[#1B2B5E]/5' : 'border-gray-300 hover:border-[#1B2B5E] hover:bg-gray-50'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-16 h-16 bg-[#1B2B5E]/10 rounded-full flex items-center justify-center">
-                    <Upload size={28} className="text-[#1B2B5E]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>
-                      Klik atau seret gambar MyKad ke sini
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>
-                      Format: JPG, PNG, WebP — Saiz maksimum: {MAX_FILE_SIZE_MB}MB
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-400" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    <FileImage size={14} />
-                    <span>Gambar hadapan MyKad sahaja</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Processing */}
-            {ekycStatus === 'processing' && previewUrl && (
-              <div className="space-y-4">
-                <div className="relative rounded-xl overflow-hidden border border-gray-200">
-                  <img src={previewUrl} alt="MyKad preview" className="w-full object-contain max-h-56" />
-                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-3">
-                    <Loader2 size={32} className="text-white animate-spin" />
-                    <p className="text-white text-sm font-semibold" style={{ fontFamily: 'Inter, sans-serif' }}>
-                      AI sedang mengesahkan MyKad anda...
-                    </p>
-                  </div>
-                </div>
-                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                  <p className="text-xs text-purple-700 text-center" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    Sistem AI sedang menganalisis gambar. Ini mungkin mengambil masa 5–10 saat.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Success */}
-            {ekycStatus === 'success' && ekycResult && previewUrl && (
-              <div className="space-y-4">
-                <div className="relative rounded-xl overflow-hidden border-2 border-green-400">
-                  <img src={previewUrl} alt="MyKad verified" className="w-full object-contain max-h-48" />
-                  <div className="absolute top-2 right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                    <BadgeCheck size={12} /> Disahkan
-                  </div>
-                </div>
-
-                <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle size={18} className="text-green-600" />
-                    <p className="text-sm font-bold text-green-800" style={{ fontFamily: 'Inter, sans-serif' }}>
-                      MyKad Berjaya Disahkan
-                    </p>
-                    <span className="ml-auto text-xs text-green-600 font-semibold">
-                      Keyakinan: {Math.round(ekycResult.confidence * 100)}%
-                    </span>
-                  </div>
-
-                  {ekycResult.extracted_fields && Object.values(ekycResult.extracted_fields).some(v => v) && (
-                    <div className="mt-3 space-y-1.5 border-t border-green-200 pt-3">
-                      <p className="text-xs font-semibold text-green-700 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        Maklumat yang diekstrak:
-                      </p>
-                      {ekycResult.extracted_fields.name && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Nama</span>
-                          <span className="font-semibold text-gray-800">{ekycResult.extracted_fields.name}</span>
-                        </div>
-                      )}
-                      {ekycResult.extracted_fields.ic_number && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">No. Kad Pengenalan</span>
-                          <span className="font-semibold text-gray-800">{ekycResult.extracted_fields.ic_number}</span>
-                        </div>
-                      )}
-                      {ekycResult.extracted_fields.date_of_birth && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Tarikh Lahir</span>
-                          <span className="font-semibold text-gray-800">{ekycResult.extracted_fields.date_of_birth}</span>
-                        </div>
-                      )}
-                      {ekycResult.extracted_fields.gender && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Jantina</span>
-                          <span className="font-semibold text-gray-800">{ekycResult.extracted_fields.gender}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  <p className="text-xs font-semibold text-gray-600 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    Semakan Integrasi Luaran
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {INTEGRATIONS.map(name => (
-                      <div key={name} className="flex items-center gap-1.5 text-xs text-green-700">
-                        <CheckCircle size={12} className="text-green-500 shrink-0" />
-                        <span style={{ fontFamily: 'Inter, sans-serif' }}>{name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button onClick={handleReset}
-                    className="flex-1 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 flex items-center justify-center gap-2"
-                    style={{ fontFamily: 'Inter, sans-serif' }}>
-                    <RotateCcw size={14} /> Muat Naik Semula
-                  </button>
-                  <button onClick={handleProceedToLiveness}
-                    className="flex-1 py-2.5 bg-[#1B2B5E] text-white rounded-lg text-sm font-semibold hover:bg-[#152348] flex items-center justify-center gap-2"
-                    style={{ fontFamily: 'Inter, sans-serif' }}>
-                    Teruskan →
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Failed */}
-            {ekycStatus === 'failed' && ekycResult && (
-              <div className="space-y-4">
-                {previewUrl && (
-                  <div className="relative rounded-xl overflow-hidden border-2 border-red-400">
-                    <img src={previewUrl} alt="Upload preview" className="w-full object-contain max-h-48 opacity-60" />
-                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                      <XCircle size={12} /> Ditolak
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
-                      <XCircle size={20} className="text-red-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-red-800 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {getRejectionTitle(ekycResult.rejection_code)}
-                      </p>
-                      <p className="text-sm text-red-700" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        {ekycResult.rejection_reason ?? 'Gambar tidak dapat disahkan sebagai MyKad yang sah.'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs font-semibold text-amber-800 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    Tips untuk gambar yang baik:
-                  </p>
-                  <ul className="space-y-1">
-                    {[
-                      'Pastikan gambar adalah bahagian hadapan MyKad',
-                      'Gambar mestilah jelas dan tidak kabur',
-                      'Keseluruhan kad mesti kelihatan dalam gambar',
-                      'Elakkan pantulan cahaya atau bayangan',
-                      'Gunakan latar belakang yang kontras (putih/gelap)',
-                    ].map((tip, i) => (
-                      <li key={i} className="flex items-start gap-1.5 text-xs text-amber-700" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        <span className="text-amber-500 mt-0.5">•</span> {tip}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <button onClick={handleReset}
-                  className="w-full py-3 bg-[#1B2B5E] text-white rounded-lg font-semibold text-sm hover:bg-[#152348] flex items-center justify-center gap-2"
-                  style={{ fontFamily: 'Inter, sans-serif' }}>
-                  <RotateCcw size={16} /> Cuba Semula
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Step 3: Liveness ── */}
-        {step === 'liveness' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-bold text-[#1B2B5E] mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Pengesahan Wajah</h2>
-            <p className="text-sm text-gray-500 mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>Pastikan wajah anda kelihatan jelas</p>
-
-            {!canUseCamera ? (
-              /* HTTP fallback — camera unavailable, skip liveness gracefully */
-              <div className="space-y-4">
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-                  <AlertCircle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800" style={{ fontFamily: 'Inter, sans-serif' }}>Pengesahan Wajah Tidak Tersedia</p>
-                    <p className="text-xs text-amber-700 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>
-                      Ciri ini memerlukan sambungan selamat (HTTPS). Pengesahan wajah akan dilakukan semasa sesi pertama anda selepas log masuk.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-xs text-green-700" style={{ fontFamily: 'Inter, sans-serif' }}>✓ MyKad telah berjaya disahkan. Anda boleh meneruskan pendaftaran.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setLoading(true);
-                    api.post('/auth/otp/send', {
-                      identifier: registeredEmail,
-                      channel: 'email',
-                      purpose: 'verification',
-                    }).catch(() => {}).finally(() => {
-                      setLoading(false);
-                      setStep('complete');
-                    });
-                  }}
-                  disabled={loading}
-                  className="w-full py-3 bg-[#1B2B5E] text-white rounded-lg font-semibold text-sm hover:bg-[#152348] flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ fontFamily: 'Inter, sans-serif' }}>
-                  {loading ? 'Memproses...' : 'Teruskan Pendaftaran →'}
-                </button>
-              </div>
-            ) : (
-              /* HTTPS — show full liveness camera flow */
-              <div className="space-y-4">
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm font-semibold text-blue-800" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    Arahan {livenessStep + 1}/{livenessInstructions.length}:
-                  </p>
-                  <p className="text-sm text-blue-700 mt-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>
-                    {livenessInstructions[livenessStep]}
-                  </p>
-                </div>
-                <div className="relative bg-gray-900 rounded-xl overflow-hidden" style={{ aspectRatio: '4/3' }}>
-                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
-                  {!cameraActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Upload size={40} className="text-gray-400" />
-                    </div>
-                  )}
-                  {cameraActive && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-48 h-56 border-2 border-white/70 rounded-full"
-                        style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)' }} />
-                    </div>
-                  )}
-                </div>
-                <canvas ref={canvasRef} className="hidden" />
-                {!cameraActive ? (
-                  <button onClick={() => startCamera('user')}
-                    className="w-full py-3 bg-[#1B2B5E] text-white rounded-lg font-semibold text-sm hover:bg-[#152348] flex items-center justify-center gap-2"
-                    style={{ fontFamily: 'Inter, sans-serif' }}>
-                    Aktifkan Kamera
-                  </button>
-                ) : (
-                  <button onClick={handleCaptureLiveness} disabled={loading}
-                    className="w-full py-3 bg-[#2E7D32] text-white rounded-lg font-semibold text-sm hover:bg-[#256427] flex items-center justify-center gap-2 disabled:opacity-50"
-                    style={{ fontFamily: 'Inter, sans-serif' }}>
-                    {loading ? 'Mengesahkan...' : livenessStep < livenessInstructions.length - 1 ? 'Seterusnya →' : 'Tangkap & Sahkan'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Step 4: Complete ── */}
-        {step === 'complete' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle size={40} className="text-green-500" />
-            </div>
-            <h2 className="text-2xl font-bold text-[#1B2B5E] mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>Pendaftaran Berjaya!</h2>
-            <p className="text-gray-600 mb-6" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Akaun anda telah berjaya didaftarkan. Sila sahkan e-mel anda dengan kod OTP yang dihantar ke{' '}
-              <strong>{registeredEmail}</strong>.
-            </p>
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl mb-6">
-              <p className="text-sm text-blue-800 font-semibold mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Langkah Seterusnya</p>
-              <p className="text-sm text-blue-700" style={{ fontFamily: 'Inter, sans-serif' }}>
-                Masukkan kod OTP 6 digit yang dihantar ke e-mel anda.
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('/otp-verification', { state: { email: registeredEmail, purpose: 'registration' } })}
-              className="w-full py-3 bg-[#1B2B5E] text-white rounded-lg font-semibold text-sm hover:bg-[#152348] transition-colors"
-              style={{ fontFamily: 'Inter, sans-serif' }}>
-              Teruskan ke Pengesahan OTP →
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

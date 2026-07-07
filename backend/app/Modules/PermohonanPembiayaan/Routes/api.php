@@ -25,4 +25,8 @@ Route::middleware(['auth:sanctum', 'module:module1'])->group(function () {
 
     // ─── AI document check (module-specific alias) ────────────────────────────
     Route::post('/ai/document-check', [ApplicationController::class, 'aiDocumentCheck']);
+
+    // ─── AI Eligibility Decision Engine (Gemini 3.1 Pro) ─────────────────────
+    Route::post('/applications/{id}/ai-decision', [ApplicationController::class, 'aiDecision']);
+    Route::get('/applications/{id}/ai-decision', [ApplicationController::class, 'getAiDecision']);
 });

@@ -20,7 +20,8 @@ import { useTranslation } from 'react-i18next';
 import {
   Activity, BarChart3, Banknote, Building2, ChevronDown, ChevronRight,
   ClipboardCheck, ClipboardList, CreditCard, FileText, Globe, LayoutDashboard,
-  LogOut, Package, Settings, Shield, TrendingUp, UserCog, Users
+  LogOut, Package, Settings, Shield, TrendingUp, UserCog, Users,
+  Home, Wallet, FileCheck, AlertCircle
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
@@ -52,13 +53,13 @@ const MODULES: ModuleItem[] = [
     key: 'module1',
     icon: FileText,
     labelKey: 'nav.module1',
-    allowedRoles: ['usahawan', 'branch_officer', 'branch_manager', 'system_admin'],
+    allowedRoles: ['branch_officer', 'branch_manager', 'system_admin'],
     subItems: [
-      { path: '/applications', labelKey: 'module1.applicationList' },
+      { path: '/module1/applications', labelKey: 'module1.applicationList' },
       {
-        path: '/applications/new',
+        path: '/module1/new',
         labelKey: 'module1.newApplication',
-        allowedRoles: ['usahawan', 'branch_officer', 'system_admin'],
+        allowedRoles: ['branch_officer', 'system_admin'],
       },
     ],
   },
@@ -80,23 +81,27 @@ const MODULES: ModuleItem[] = [
     subItems: [
       { path: '/module3/disbursement', labelKey: 'module3.disbursementList' },
       { path: '/module3/authority',    labelKey: 'module3.authorityMatrix' },
+      { path: '/module3/esign',        labelKey: 'module3.esignTracking' },
+      { path: '/module3/aging',        labelKey: 'module3.agingEscalation' },
     ],
   },
   {
     key: 'module4',
     icon: CreditCard,
     labelKey: 'nav.module4',
-    allowedRoles: ['usahawan', 'finance_officer', 'system_admin'],
+    allowedRoles: ['finance_officer', 'system_admin'],
     subItems: [
-      { path: '/module4/accounts',  labelKey: 'module4.account360' },
-      { path: '/module4/payments',  labelKey: 'module4.paymentChannels' },
+      { path: '/module4/accounts',    labelKey: 'module4.account360' },
+      { path: '/module4/payments',    labelKey: 'module4.paymentChannels' },
+      { path: '/module4/moratorium',  labelKey: 'module4.moratorium' },
+      { path: '/module4/tawidh',      labelKey: 'module4.tawidh' },
     ],
   },
   {
     key: 'module5',
     icon: TrendingUp,
     labelKey: 'nav.module5',
-    allowedRoles: ['usahawan', 'credit_officer', 'finance_officer', 'system_admin'],
+    allowedRoles: ['credit_officer', 'finance_officer', 'system_admin'],
     subItems: [
       { path: '/module5/npl',     labelKey: 'module5.nplDashboard' },
       { path: '/module5/dunning', labelKey: 'module5.dunning' },
@@ -268,8 +273,35 @@ export default function Sidebar() {
           <span>{t('nav.dashboard')}</span>
         </NavLink>
 
-        {/* Module section */}
-        <div className="nav-section-title">MODUL SISTEM</div>
+        {/* Usahawan Portal — only visible to usahawan role */}
+        {role === 'usahawan' && (
+          <>
+            <div className="nav-section-title">PORTAL USAHAWAN</div>
+            <NavLink to="/usahawan/dashboard" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Home size={16} />
+              <span>Papan Pemuka Saya</span>
+            </NavLink>
+            <NavLink to="/usahawan/applications" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <FileText size={16} />
+              <span>Permohonan Saya</span>
+            </NavLink>
+            <NavLink to="/module1/new" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <FileCheck size={16} />
+              <span>Mohon Pembiayaan</span>
+            </NavLink>
+            <NavLink to="/usahawan/account" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Wallet size={16} />
+              <span>Akaun Pembiayaan</span>
+            </NavLink>
+            <NavLink to="/usahawan/moratorium" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <AlertCircle size={16} />
+              <span>Mohon Moratorium</span>
+            </NavLink>
+          </>
+        )}
+
+        {/* Module section — only visible to staff roles */}
+        {role !== 'usahawan' && <div className="nav-section-title">MODUL SISTEM</div>}
 
         {visibleModules.map((mod) => {
           const Icon = mod.icon;

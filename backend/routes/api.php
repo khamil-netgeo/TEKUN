@@ -80,6 +80,15 @@ Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
 // ─────────────────────────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
 
+    // ─── USAHAWAN PORTAL (borrower-facing) ─────────────────────────────────────
+    // These MUST be registered FIRST to prevent /accounts/{id} wildcard conflict
+    Route::get('/usahawan/dashboard',     [\App\Modules\UsahawanPortal\Controllers\UsahawanPortalController::class, 'dashboard']);
+    Route::get('/applications/mine',      [\App\Modules\UsahawanPortal\Controllers\UsahawanPortalController::class, 'myApplications']);
+    Route::get('/accounts/my',            [\App\Modules\UsahawanPortal\Controllers\UsahawanPortalController::class, 'myAccount']);
+    Route::get('/accounts/my/summary',    [\App\Modules\UsahawanPortal\Controllers\UsahawanPortalController::class, 'myAccountSummary']);
+    Route::post('/accounts/my/moratorium',[\App\Modules\UsahawanPortal\Controllers\UsahawanPortalController::class, 'submitMoratorium']);
+    // ───────────────────────────────────────────────────────────────────────────
+
     // Auth
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me',      [AuthController::class, 'me']);
@@ -155,7 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ─────────────────────────────────────────────────────────────────────────
     Route::middleware('module:module4')->group(function () {
         Route::get('/accounts',                    [AccountController::class, 'index']);
-        Route::get('/accounts/{id}',               [AccountController::class, 'show']);
+        Route::get('/accounts/{id}',               [AccountController::class, 'show'])->where('id', '[0-9]+');
         Route::get('/payments',                    [AccountController::class, 'payments']);
         Route::post('/accounts/{id}/payment',      [AccountController::class, 'recordPayment']);
         Route::post('/accounts/{id}/moratorium',   [AccountController::class, 'applyMoratorium']);

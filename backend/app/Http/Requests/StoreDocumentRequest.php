@@ -24,13 +24,13 @@ class StoreDocumentRequest extends FormRequest
             'type' => [
                 'required',
                 'string',
-                'in:ic_front,ic_back,bank_statement,ssm_cert,business_photo,others',
+                'in:ic_front,ic_back,bank_statement,ssm_cert,business_photo,others,mykad,ssm,bank3,income,premise,other',
             ],
             'file' => [
                 'required',
                 'file',
                 'mimes:pdf,jpg,jpeg,png',
-                'max:5120', // 5MB in kilobytes
+                'max:10240', // 10MB in kilobytes
             ],
         ];
     }
@@ -42,7 +42,7 @@ class StoreDocumentRequest extends FormRequest
             'type.in'        => 'Jenis dokumen tidak sah.',
             'file.required'  => 'Sila muat naik fail dokumen.',
             'file.mimes'     => 'Fail mesti dalam format PDF, JPG, atau PNG.',
-            'file.max'       => 'Saiz fail tidak boleh melebihi 5MB.',
+            'file.max'       => 'Saiz fail tidak boleh melebihi 10MB.',
         ];
     }
 

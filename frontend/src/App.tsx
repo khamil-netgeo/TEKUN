@@ -134,6 +134,12 @@ const UserManagement       = lazy(() => import('@/pages/module12/UserManagement'
 // Admin
 const AdminPage            = lazy(() => import('@/pages/admin/AdminPage'));
 
+// Usahawan Portal
+const UsahawanDashboard    = lazy(() => import('@/pages/usahawan/UsahawanDashboard'));
+const UsahawanApplications = lazy(() => import('@/pages/usahawan/UsahawanApplications'));
+const UsahawanAccount      = lazy(() => import('@/pages/usahawan/UsahawanAccount'));
+const UsahawanMoratorium   = lazy(() => import('@/pages/usahawan/UsahawanMoratorium'));
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Role constants (from tender document)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -253,8 +259,8 @@ export default function App() {
             {/* ── MODULE 4 — Pengurusan Akaun ────────────────────────────── */}
             <Route path="module4/accounts"    element={<ProtectedRoute allowedRoles={M4_ROLES} requiredModule="module4"><Account360 /></ProtectedRoute>} />
             <Route path="module4/payments"    element={<ProtectedRoute allowedRoles={M4_ROLES} requiredModule="module4"><PaymentChannels /></ProtectedRoute>} />
-            <Route path="module4/moratorium"  element={<ProtectedRoute allowedRoles={[R.FINANCE_OFFICER]} requiredModule="module4"><Moratorium /></ProtectedRoute>} />
-            <Route path="module4/tawidh"      element={<ProtectedRoute allowedRoles={[R.FINANCE_OFFICER]} requiredModule="module4"><TawidhCalculator /></ProtectedRoute>} />
+            <Route path="module4/moratorium"  element={<ProtectedRoute allowedRoles={[R.USAHAWAN, R.FINANCE_OFFICER, R.SYSTEM_ADMIN]} requiredModule="module4"><Moratorium /></ProtectedRoute>} />
+            <Route path="module4/tawidh"      element={<ProtectedRoute allowedRoles={[R.USAHAWAN, R.FINANCE_OFFICER, R.SYSTEM_ADMIN]} requiredModule="module4"><TawidhCalculator /></ProtectedRoute>} />
 
             {/* ── MODULE 5 — Pemantauan & Kutipan ───────────────────────── */}
             <Route path="module5/npl"           element={<ProtectedRoute allowedRoles={M5_ROLES} requiredModule="module5"><NplDashboard /></ProtectedRoute>} />
@@ -293,6 +299,11 @@ export default function App() {
 
             {/* Admin page */}
             <Route path="admin" element={<ProtectedRoute allowedRoles={ADMIN_ONLY}><AdminPage /></ProtectedRoute>} />
+            {/* ── USAHAWAN PORTAL ───────────────────────────────────────── */}
+            <Route path="usahawan/dashboard"     element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanDashboard /></ProtectedRoute>} />
+            <Route path="usahawan/applications"  element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanApplications /></ProtectedRoute>} />
+            <Route path="usahawan/account"       element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanAccount /></ProtectedRoute>} />
+            <Route path="usahawan/moratorium"    element={<ProtectedRoute allowedRoles={[R.USAHAWAN]}><UsahawanMoratorium /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

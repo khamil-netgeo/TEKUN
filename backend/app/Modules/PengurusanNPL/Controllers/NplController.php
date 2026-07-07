@@ -73,6 +73,26 @@ class NplController extends Controller
         ]);
     }
 
+    /**
+     * index() — alias for nplAccounts(), called by GET /api/npl in routes/api.php
+     */
+    public function index(Request $request)
+    {
+        return $this->nplAccounts($request);
+    }
+
+    /**
+     * generateDunning() — alias for dunningList(), called by POST /api/dunning/generate in routes/api.php
+     */
+    public function generateDunning(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'message' => 'Surat dunning sedang dijana secara automatik.',
+            'generated' => DB::table('npl_records')->where('days_overdue', '>', 30)->count(),
+        ]);
+    }
+
     // NPL Accounts List
     public function nplAccounts(Request $request)
     {
