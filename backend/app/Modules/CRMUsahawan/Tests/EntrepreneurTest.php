@@ -3,7 +3,6 @@
 namespace App\Modules\CRMUsahawan\Tests;
 
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Models\User;
 
 /**
@@ -12,12 +11,11 @@ use App\Models\User;
  */
 class EntrepreneurTest extends TestCase
 {
-    use RefreshDatabase;
 
     private function getAuthToken(): string
     {
         $user = User::factory()->create();
-        $user->assignRole('system_admin');
+        $user->assignRole('Pentadbir Sistem');
         return $user->createToken('test')->plainTextToken;
     }
 

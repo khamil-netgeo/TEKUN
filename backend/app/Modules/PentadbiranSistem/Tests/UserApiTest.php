@@ -3,7 +3,6 @@
 namespace App\Modules\PentadbiranSistem\Tests;
 
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -15,7 +14,6 @@ use Tests\TestCase;
  */
 class UserApiTest extends TestCase
 {
-    use RefreshDatabase;
 
     private User $admin;
     private User $regularUser;

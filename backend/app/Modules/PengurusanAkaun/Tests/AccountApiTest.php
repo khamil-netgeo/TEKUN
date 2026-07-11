@@ -4,7 +4,6 @@ namespace App\Modules\PengurusanAkaun\Tests;
 
 use Tests\TestCase;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 
 /**
  * Module 4 — Pengurusan Akaun API Tests
@@ -15,7 +14,6 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
  */
 class AccountApiTest extends TestCase
 {
-    use DatabaseTransactions;
 
     private string $token;
 
@@ -29,14 +27,14 @@ class AccountApiTest extends TestCase
             [
                 'name'        => 'Test M4 Admin',
                 'password'    => bcrypt('password'),
-                'role'        => 'system_admin',
+                'role'        => 'Pentadbir Sistem',
                 'role_label'  => 'Pentadbir Sistem',
                 'permissions' => ['modules' => ['*'], 'approval_limit' => 999999],
             ]
         );
         // Ensure role is system_admin (in case user already exists with different role)
         $user->update([
-            'role'        => 'system_admin',
+            'role'        => 'Pentadbir Sistem',
             'permissions' => ['modules' => ['*'], 'approval_limit' => 999999],
         ]);
         $this->token = $user->createToken('test-m4-admin')->plainTextToken;

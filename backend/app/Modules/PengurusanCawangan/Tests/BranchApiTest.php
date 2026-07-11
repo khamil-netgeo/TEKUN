@@ -2,6 +2,7 @@
 
 namespace App\Modules\PengurusanCawangan\Tests;
 
+
 use Tests\TestCase;
 use App\Models\User;
 use App\Models\Branch;
@@ -17,6 +18,7 @@ use App\Models\Branch;
  */
 class BranchApiTest extends TestCase
 {
+
     private function getUser(string $email): ?User
     {
         return User::where('email', $email)->first();

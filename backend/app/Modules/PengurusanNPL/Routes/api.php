@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Modules\PengurusanNPL\Controllers\NplController;
 
-Route::middleware(['auth:sanctum', 'role:credit_officer|admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'role:Pegawai Kredit|admin'])->group(function () {
     Route::get('/npl/dashboard',             [NplController::class, 'dashboard']);
     Route::get('/npl/dunning',               [NplController::class, 'dunningList']);
     Route::get('/npl/accounts',              [NplController::class, 'nplAccounts']);

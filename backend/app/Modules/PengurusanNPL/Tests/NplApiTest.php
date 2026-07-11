@@ -2,6 +2,7 @@
 
 namespace App\Modules\PengurusanNPL\Tests;
 
+
 use Tests\TestCase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -13,6 +14,7 @@ use App\Models\User;
  */
 class NplApiTest extends TestCase
 {
+
     private string $token = '';
     private ?User $testUser = null;
 
@@ -27,7 +29,7 @@ class NplApiTest extends TestCase
                 'name'               => 'NPL Test User',
                 'email'              => 'npl_test@tekun.gov.my',
                 'password'           => Hash::make('demo1234'),
-                'role'               => 'credit_officer',
+                'role'               => 'Pegawai Kredit',
                 'is_active'          => true,
                 'is_suspended'       => false,
                 'password_expires_at' => now()->addDays(90),
@@ -45,10 +47,10 @@ class NplApiTest extends TestCase
         }
 
         // Assign Spatie role if not already assigned
-        $role = DB::table('roles')->where('name', 'credit_officer')->first();
+        $role = DB::table('roles')->where('name', 'Pegawai Kredit')->first();
         if (!$role) {
             $roleId = DB::table('roles')->insertGetId([
-                'name'       => 'credit_officer',
+                'name'       => 'Pegawai Kredit',
                 'guard_name' => 'web',
                 'created_at' => now(),
                 'updated_at' => now(),

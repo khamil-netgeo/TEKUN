@@ -103,15 +103,26 @@ export const creditService = {
     return response.data;
   },
 
-  // Generate offer letter
+  // Generate AI Surat Tawaran via Gemini 3.1 Pro — returns { success, message, html_content, pdf_url }
   generateOfferLetter: async (applicationId: number | string) => {
-    const response = await api.get(`/applications/${applicationId}/offer-letter`);
+    try {
+      const response = await api.post(`/applications/${applicationId}/offer-letter`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || { message: 'Ralat rangkaian ketika menghubungi pelayan.' };
+    }
+  },
+
+  // Generate AI narrative (legacy endpoint)
+  generateNarrative: async (applicationId: number | string) => {
+    const response = await api.post('/credit/narrative', { application_id: applicationId });
     return response.data;
   },
 
-  // Generate AI narrative
-  generateNarrative: async (applicationId: number | string) => {
-    const response = await api.post('/credit/narrative', { application_id: applicationId });
+  // FIX: Generate comprehensive AI Laporan Lengkap via Gemini 3.1 Pro
+  // Replaces the fake setTimeout in CreditScoring.tsx
+  generateAiReport: async (applicationId: number | string) => {
+    const response = await api.post(`/applications/${applicationId}/ai-report`);
     return response.data;
   },
 };
